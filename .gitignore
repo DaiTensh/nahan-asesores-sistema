@@ -1,0 +1,16 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Variables sensibles
+.env
+
+# Mac
+.DS_Store
+
+# VS Code
+.vscode/
+
+# Node
+node_modules/
