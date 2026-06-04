@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modificar Usuario</title>
+
+    <link rel="stylesheet" href="modificar_usuario.css">
+</head>
+<body>
+
+<div class="contenedor">
+    <h1>Modificar Usuario Interno</h1>
+    <p>
+        Busque un usuario y actualice su información.
+    </p>
+
+    <div class="buscar">
+        <input type="number"
+               id="id_usuario"
+               placeholder="ID Usuario">
+        <button onclick="buscarUsuario()">
+            Buscar
+        </button>
+    </div>
+
+    <form id="formulario">
+
+        <label>Nombre completo</label>
+        <input type="text" id="nombres">
+
+        <label>Correo electrónico</label>
+        <input type="email" id="email">
+
+        <label>Rol</label>
+        <select id="id_rol">
+            <option value="1">Administrador</option>
+            <option value="2">Jurídico</option>
+            <option value="3">Contable</option>
+        </select>
+
+        <label>Área</label>
+        <select id="id_area">
+            <option value="1">Administración</option>
+            <option value="2">Jurídica</option>
+            <option value="3">Contable</option>
+        </select>
+
+        <label>Estado</label>
+        <select id="estado">
+            <option value="ACTIVO">ACTIVO</option>
+            <option value="INACTIVO">INACTIVO</option>
+        </select>
+
+        <button type="button"
+                onclick="actualizarUsuario()">
+            Actualizar Usuario
+        </button>
+
+    </form>
+
+</div>
+
+<script src="modificar_usuario.js"></script>
+</body>
+</html>
