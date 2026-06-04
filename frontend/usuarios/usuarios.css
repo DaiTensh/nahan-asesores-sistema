@@ -1,0 +1,25 @@
+body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--color-background);
+}
+
+.usuarios-container {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 24px;
+}
+
+.usuarios-card {
+    width: 100%;
+    max-width: 550px;
+
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+
+    padding: 32px;
+
+    box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+}
