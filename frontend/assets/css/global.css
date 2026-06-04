@@ -1,0 +1,36 @@
+*{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+}
+
+body{
+  background:var(--color-background);
+  color:var(--color-text);
+  font-family:var(--font-family);
+}
+
+a{
+  text-decoration:none;
+  color:inherit;
+}
+
+ul{
+  list-style:none;
+}
+
+button{
+  cursor:pointer;
+}
+
+input,
+select,
+textarea{
+  font-family:inherit;
+}
+
+.container{
+  width:95%;
+  max-width:1400px;
+  margin:auto;
+}

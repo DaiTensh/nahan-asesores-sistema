@@ -1,0 +1,52 @@
+:root {
+
+  /* PALETA NAHAN ASESORES */
+
+
+  --color-primary: #123A6F;
+  --color-primary-dark: #0F315F;
+  --color-secondary: #2FC3C7;
+
+  --color-background: #F5F7FB;
+  --color-surface: #FFFFFF;
+
+  --color-text: #1F2937;
+  --color-text-light: #6B7280;
+
+  --color-success: #22C55E;
+  --color-warning: #F59E0B;
+  --color-danger: #EF4444;
+  --color-info: #3B82F6;
+
+  --color-border: #E5E7EB;
+
+  /* ESPACIADOS */
+
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+
+  /* BORDES */
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  /* SOMBRAS */
+
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.08);
+  --shadow-md: 0 3px 6px rgba(0,0,0,.12);
+  --shadow-lg: 0 8px 20px rgba(0,0,0,.15);
+
+  /* TIPOGRAFÍA */
+
+  --font-family: Arial, Helvetica, sans-serif;
+
+  --font-xs: 12px;
+  --font-sm: 14px;
+  --font-md: 16px;
+  --font-lg: 20px;
+  --font-xl: 28px;
+}
