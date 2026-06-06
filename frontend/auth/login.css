@@ -1,0 +1,51 @@
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--color-background);
+}
+
+.login-container {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 24px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 430px;
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  padding: 36px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+}
+
+.login-card h1 {
+  font-size: 32px;
+  margin-bottom: 8px;
+  color: var(--color-primary);
+}
+
+.subtitle {
+  color: var(--color-text-light);
+  margin-bottom: 24px;
+}
+
+.btn {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.mensaje {
+  margin-top: 18px;
+  font-weight: bold;
+}
+
+.mensaje.success {
+  color: var(--color-success);
+}
+
+.mensaje.error {
+  color: var(--color-danger);
+}
