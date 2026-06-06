@@ -7,6 +7,19 @@
 <body>
 
 <h1>Bienvenido al Dashboard</h1>
+<button onclick="cerrarSesion()">
+    Cerrar sesión
+</button>
 
+<script src="../auth/logout.js"></script>
+<script>
+
+const usuario = JSON.parse(localStorage.getItem("usuario"));
+
+if (!usuario) {
+    window.location.href = "../auth/login.html";
+}
+
+</script>
 </body>
 </html>
