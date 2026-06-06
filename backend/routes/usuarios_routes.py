@@ -217,3 +217,44 @@ def desactivar_usuario(id_usuario):
 
         if connection:
             connection.close()
+
+
+#Asignar rol a usuario
+@usuarios_bp.route("/usuarios/<int:id_usuario>/rol", methods=["PUT"])
+def asignar_rol_usuario(id_usuario):
+    data = request.get_json()
+
+    id_rol = data.get("id_rol")
+
+    if not id_rol:
+        return jsonify({"error": "Debe seleccionar un rol"}), 400
+
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        sql = """
+            UPDATE usuario
+            SET id_rol = %s
+            WHERE id_usuario = %s
+        """
+
+        cursor.execute(sql, (id_rol, id_usuario))
+        connection.commit()
+
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Usuario no encontrado"}), 404
+
+        return jsonify({
+            "message": "Rol asignado correctamente"
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()

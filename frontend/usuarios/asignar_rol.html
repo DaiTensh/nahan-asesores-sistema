@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Asignar Rol</title>
+
+  <link rel="stylesheet" href="../assets/css/variables.css">
+  <link rel="stylesheet" href="../assets/css/global.css">
+  <link rel="stylesheet" href="../assets/css/buttons.css">
+  <link rel="stylesheet" href="../assets/css/forms.css">
+  <link rel="stylesheet" href="../assets/css/cards.css">
+  <link rel="stylesheet" href="./asignar_rol.css">
+</head>
+<body>
+  <main class="usuarios-container">
+    <section class="usuarios-card">
+      <h1>Asignar Rol a Usuario</h1>
+      <p class="subtitle">Asignación de roles específicos.</p>
+
+      <div class="form-group">
+        <label class="form-label">ID Usuario</label>
+        <input type="number" id="id_usuario" class="form-input" placeholder="Ej: 1">
+      </div>
+
+      <button class="btn btn-primary" onclick="buscarUsuario()">Buscar Usuario</button>
+
+      <div id="datosUsuario" class="datos hidden">
+        <h3>Datos del usuario</h3>
+        <p><strong>Nombre:</strong> <span id="nombres"></span></p>
+        <p><strong>Correo:</strong> <span id="email"></span></p>
+        <p><strong>Rol actual:</strong> <span id="rol_actual"></span></p>
+        <p><strong>Área:</strong> <span id="area"></span></p>
+
+        <div class="form-group">
+          <label class="form-label">Nuevo rol</label>
+          <select id="id_rol" class="form-input">
+            <option value="">Seleccione un rol</option>
+            <option value="1">Administrador</option>
+            <option value="2">Usuario Área Jurídica</option>
+            <option value="3">Usuario Área Contable</option>
+          </select>
+        </div>
+
+        <button class="btn btn-primary" onclick="asignarRol()">
+          Asignar Rol
+        </button>
+      </div>
+
+      <p id="mensaje" class="mensaje"></p>
+    </section>
+  </main>
+
+  <script src="./asignar_rol.js"></script>
+</body>
+</html>
