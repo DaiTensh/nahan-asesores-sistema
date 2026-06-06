@@ -182,4 +182,38 @@ def actualizar_usuario(id_usuario):
             cursor.close()
 
         if connection:
-            connection.close()         
+            connection.close()
+
+
+#Desactivar usuario
+@usuarios_bp.route("/usuarios/<int:id_usuario>/desactivar", methods=["PUT"])
+def desactivar_usuario(id_usuario):
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        sql = """
+            UPDATE usuario
+            SET estado = 'INACTIVO'
+            WHERE id_usuario = %s
+        """
+
+        cursor.execute(sql, (id_usuario,))
+        connection.commit()
+
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Usuario no encontrado"}), 404
+
+        return jsonify({
+            "message": "Usuario deshabilitado correctamente"
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()
