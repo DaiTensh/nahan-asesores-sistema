@@ -1,0 +1,56 @@
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--color-background);
+}
+
+.usuarios-container {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 24px;
+}
+
+.usuarios-card {
+  width: 100%;
+  max-width: 560px;
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  padding: 32px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+}
+
+.subtitle {
+  color: var(--color-text-light);
+  margin-bottom: 24px;
+}
+
+.datos {
+  margin-top: 24px;
+  padding: 18px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+
+.datos p {
+  margin: 8px 0;
+}
+
+.hidden {
+  display: none;
+}
+
+.mensaje {
+  margin-top: 18px;
+  font-weight: bold;
+}
+
+.mensaje.success {
+  color: var(--color-success);
+}
+
+.mensaje.error {
+  color: var(--color-danger);
+}
