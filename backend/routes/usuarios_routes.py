@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from backend.config.db import get_connection
+from config.db import get_connection
 from backend.utils.security import hash_password
 
 usuarios_bp = Blueprint("usuarios", __name__)
