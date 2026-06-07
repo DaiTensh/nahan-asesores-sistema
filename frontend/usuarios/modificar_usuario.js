@@ -10,7 +10,13 @@ async function buscarUsuario() {
         const response = await fetch(
             `http://127.0.0.1:5000/api/usuarios/${id}`
         );
+
         const data = await response.json();
+
+        if (!response.ok) {
+            alert(data.error || "Usuario no encontrado");
+            return;
+        }
 
         document.getElementById("nombres").value = data.nombres;
         document.getElementById("email").value = data.email;
@@ -27,19 +33,26 @@ async function buscarUsuario() {
 
 async function actualizarUsuario() {
     const id = document.getElementById("id_usuario").value;
+
+    if (!id) {
+        alert("Debe buscar un usuario antes de actualizar");
+        return;
+    }
+
+    const confirmar = confirm(
+        "¿Desea guardar los cambios realizados en este usuario?"
+    );
+
+    if (!confirmar) {
+        return;
+    }
+
     const datos = {
-        id_rol: parseInt(
-            document.getElementById("id_rol").value
-        ),
-        id_area: parseInt(
-            document.getElementById("id_area").value
-        ),
-        nombres:
-            document.getElementById("nombres").value,
-        email:
-            document.getElementById("email").value,
-        estado:
-            document.getElementById("estado").value
+        id_rol: parseInt(document.getElementById("id_rol").value),
+        id_area: parseInt(document.getElementById("id_area").value),
+        nombres: document.getElementById("nombres").value,
+        email: document.getElementById("email").value,
+        estado: document.getElementById("estado").value
     };
 
     try {
@@ -55,6 +68,12 @@ async function actualizarUsuario() {
         );
 
         const resultado = await response.json();
+
+        if (!response.ok) {
+            alert(resultado.error || "Error al actualizar usuario");
+            return;
+        }
+
         alert(resultado.message);
 
     }

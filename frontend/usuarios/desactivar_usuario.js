@@ -86,5 +86,11 @@ async function desactivarUsuario() {
 }
 
 function eliminarUsuario() {
+  const confirmar = confirm("¿Está seguro de intentar eliminar este usuario?");
+
+  if (!confirmar) {
+    return;
+  }
+
   alert("Por trazabilidad, el sistema no elimina usuarios físicamente. Se recomienda deshabilitarlos.");
 }
