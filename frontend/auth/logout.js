@@ -1,7 +1,10 @@
 function cerrarSesion() {
+  const confirmar = confirm("¿Desea cerrar sesión?");
 
-    localStorage.removeItem("usuario");
+  if (!confirmar) {
+    return;
+  }
 
-    window.location.href = "../auth/login.html";
-
+  localStorage.removeItem("usuario");
+  window.location.href = "../auth/login.html";
 }

@@ -9,10 +9,16 @@
   <link rel="stylesheet" href="../assets/css/buttons.css">
   <link rel="stylesheet" href="../assets/css/forms.css">
   <link rel="stylesheet" href="../assets/css/cards.css">
+  <link rel="stylesheet" href="../assets/css/navigation.css">
   <link rel="stylesheet" href="./asignar_rol.css">
 </head>
 <body>
-  <main class="usuarios-container">
+
+<div class="app-layout">
+
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main-content">
     <section class="usuarios-card">
       <h1>Asignar Rol a Usuario</h1>
       <p class="subtitle">Asignación de roles específicos.</p>
@@ -50,6 +56,15 @@
     </section>
   </main>
 
-  <script src="./asignar_rol.js"></script>
+</div>
+
+<script src="../auth/logout.js"></script>
+<script src="../assets/js/navigation.js"></script>
+<script src="./asignar_rol.js"></script>
+
+<script>
+    cargarNavegacion("rol");
+</script>
+
 </body>
 </html>

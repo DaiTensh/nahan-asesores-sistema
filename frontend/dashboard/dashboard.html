@@ -3,23 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <title>Dashboard</title>
+
+    <link rel="stylesheet" href="../assets/css/variables.css">
+    <link rel="stylesheet" href="../assets/css/global.css">
+    <link rel="stylesheet" href="../assets/css/navigation.css">
+    <link rel="stylesheet" href="../assets/css/topbar.css">
 </head>
 <body>
 
-<h1>Bienvenido al Dashboard</h1>
-<button onclick="cerrarSesion()">
-    Cerrar sesión
-</button>
+    <div class="app-layout">
 
-<script src="../auth/logout.js"></script>
-<script>
+        <aside class="sidebar" id="sidebar"></aside>
 
-const usuario = JSON.parse(localStorage.getItem("usuario"));
+        <div class="content-wrapper">
 
-if (!usuario) {
-    window.location.href = "../auth/login.html";
-}
+            <header class="topbar" id="topbar"></header>
 
-</script>
+            <main class="main-content">
+                <h1>Dashboard Principal</h1>
+                <p>Sistema de gestión de Nahan Asesores.</p>
+            </main>
+
+        </div>
+
+    </div>
+
+    <script src="../auth/logout.js"></script>
+    <script src="../assets/js/navigation.js"></script>
+    <script src="../assets/js/topbar.js"></script>
+
+    <script>
+        cargarNavegacion("dashboard");
+        cargarTopbar();
+    </script>
+
 </body>
 </html>
