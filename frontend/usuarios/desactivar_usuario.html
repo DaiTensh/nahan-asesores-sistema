@@ -9,11 +9,16 @@
   <link rel="stylesheet" href="../assets/css/buttons.css">
   <link rel="stylesheet" href="../assets/css/forms.css">
   <link rel="stylesheet" href="../assets/css/cards.css">
+  <link rel="stylesheet" href="../assets/css/navigation.css">
   <link rel="stylesheet" href="./desactivar_usuario.css">
 </head>
 <body>
 
-  <main class="usuarios-container">
+<div class="app-layout">
+
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main-content">
     <section class="usuarios-card">
       <h1>Deshabilitar Usuario</h1>
       <p class="subtitle">Eliminar o deshabilitar usuarios del sistema.</p>
@@ -33,11 +38,10 @@
         <p><strong>Área:</strong> <span id="area"></span></p>
         <p><strong>Estado:</strong> <span id="estado"></span></p>
 
-        <!--Deshabilitar usuario-->
         <button class="btn btn-danger" onclick="desactivarUsuario()">
             Deshabilitar Usuario
         </button>
-      <!--Eliminar usuario-->
+
         <button class="btn btn-danger" onclick="eliminarUsuario()">
             Eliminar Usuario
         </button>
@@ -48,6 +52,15 @@
     </section>
   </main>
 
-  <script src="./desactivar_usuario.js"></script>
+</div>
+
+<script src="../auth/logout.js"></script>
+<script src="../assets/js/navigation.js"></script>
+<script src="./desactivar_usuario.js"></script>
+
+<script>
+    cargarNavegacion("desactivar");
+</script>
+
 </body>
 </html>

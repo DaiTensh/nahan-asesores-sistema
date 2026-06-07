@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <title>Registrar Usuario</title>
@@ -9,59 +9,74 @@
     <link rel="stylesheet" href="../assets/css/buttons.css">
     <link rel="stylesheet" href="../assets/css/forms.css">
     <link rel="stylesheet" href="../assets/css/cards.css">
+    <link rel="stylesheet" href="../assets/css/navigation.css">
     <link rel="stylesheet" href="./usuarios.css">
 </head>
 <body>
-    <main class="usuarios-container">
+
+<div class="app-layout">
+
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <main class="main-content">
         <section class="usuarios-card">
-        <h1 class="usuarios-title">Registrar Usuario Interno</h1>
-        <p class="subtitle">Complete el formulario para registrar un nuevo usuario interno en el sistema.</p>
-        
-        <form id="formUsuario">
-            <div class="form-group">
-                <label class="form-label">Nombre completo</label>
-                <input type="text" id="nombres" class="form-input" required>
-            </div>
+            <h1 class="usuarios-title">Registrar Usuario Interno</h1>
+            <p class="subtitle">Complete el formulario para registrar un nuevo usuario interno en el sistema.</p>
+            
+            <form id="formUsuario">
+                <div class="form-group">
+                    <label class="form-label">Nombre completo</label>
+                    <input type="text" id="nombres" class="form-input" required>
+                </div>
 
-             <div class="form-group">
-                <label class="form-label">Correo electrónico</label>
-                <input type="email" id="email" class="form-input" required>
-            </div>
+                <div class="form-group">
+                    <label class="form-label">Correo electrónico</label>
+                    <input type="email" id="email" class="form-input" required>
+                </div>
 
-            <div class="form-group">
-                <label class="form-label">Rol</label>
-                <select id="id_rol" class="form-input" required>
-                    <option value="">Seleccione un rol</option>
-                    <option value="1">Administrador</option>
-                    <option value="2">Usuario Área Jurídica</option>
-                    <option value="3">Usuario Área Contable</option>
-                </select>
-            </div>
+                <div class="form-group">
+                    <label class="form-label">Rol</label>
+                    <select id="id_rol" class="form-input" required>
+                        <option value="">Seleccione un rol</option>
+                        <option value="1">Administrador</option>
+                        <option value="2">Usuario Área Jurídica</option>
+                        <option value="3">Usuario Área Contable</option>
+                    </select>
+                </div>
 
-            <div class="form-group">
-                <label class="form-label">Área</label>
-                <select id="id_area" class="form-input" required>
-                    <option value="">Seleccione un área</option>
-                    <option value="1">Jurídica</option>
-                    <option value="2">Contable</option>
-                    <option value="3">Administración</option>
-                </select>
-            </div>
+                <div class="form-group">
+                    <label class="form-label">Área</label>
+                    <select id="id_area" class="form-input" required>
+                        <option value="">Seleccione un área</option>
+                        <option value="1">Jurídica</option>
+                        <option value="2">Contable</option>
+                        <option value="3">Administración</option>
+                    </select>
+                </div>
 
-            <div class="form-group">
-                <label class="form-label">Contraseña temporal</label>
-                <input type="password" id="password" class="form-input" required>
-            </div>
+                <div class="form-group">
+                    <label class="form-label">Contraseña temporal</label>
+                    <input type="password" id="password" class="form-input" required>
+                </div>
 
-            <button type="submit" class="btn btn-primary">
-            Registrar Usuario
-            </button>
+                <button type="submit" class="btn btn-primary">
+                    Registrar Usuario
+                </button>
 
-            <p id="mensaje" class="mensaje"></p>
-        </form>
-    </section>
-  </main>
+                <p id="mensaje" class="mensaje"></p>
+            </form>
+        </section>
+    </main>
 
-    <script src="./usuarios.js"></script>
+</div>
+
+<script src="../auth/logout.js"></script>
+<script src="../assets/js/navigation.js"></script>
+<script src="./usuarios.js"></script>
+
+<script>
+    cargarNavegacion("registrar");
+</script>
+
 </body>
 </html>

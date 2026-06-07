@@ -2,65 +2,91 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Modificar Usuario</title>
 
-    <link rel="stylesheet" href="modificar_usuario.css">
+    <link rel="stylesheet" href="../assets/css/variables.css">
+    <link rel="stylesheet" href="../assets/css/global.css">
+    <link rel="stylesheet" href="../assets/css/buttons.css">
+    <link rel="stylesheet" href="../assets/css/forms.css">
+    <link rel="stylesheet" href="../assets/css/cards.css">
+    <link rel="stylesheet" href="../assets/css/navigation.css">
+    <link rel="stylesheet" href="./modificar_usuario.css">
 </head>
 <body>
 
-<div class="contenedor">
-    <h1>Modificar Usuario Interno</h1>
-    <p>
-        Busque un usuario y actualice su información.
-    </p>
+<div class="app-layout">
 
-    <div class="buscar">
-        <input type="number"
-               id="id_usuario"
-               placeholder="ID Usuario">
-        <button onclick="buscarUsuario()">
-            Buscar
-        </button>
-    </div>
+    <aside class="sidebar" id="sidebar"></aside>
 
-    <form id="formulario">
+    <main class="main-content">
+        <section class="usuarios-card">
+            <h1>Modificar Usuario Interno</h1>
+            <p class="subtitle">Busque un usuario y actualice su información.</p>
 
-        <label>Nombre completo</label>
-        <input type="text" id="nombres">
+            <div class="form-group">
+                <label class="form-label">ID Usuario</label>
+                <input type="number" id="id_usuario" class="form-input" placeholder="ID Usuario">
+            </div>
 
-        <label>Correo electrónico</label>
-        <input type="email" id="email">
+            <button class="btn btn-primary" onclick="buscarUsuario()">
+                Buscar
+            </button>
 
-        <label>Rol</label>
-        <select id="id_rol">
-            <option value="1">Administrador</option>
-            <option value="2">Jurídico</option>
-            <option value="3">Contable</option>
-        </select>
+            <form id="formulario" class="form-edit">
 
-        <label>Área</label>
-        <select id="id_area">
-            <option value="1">Administración</option>
-            <option value="2">Jurídica</option>
-            <option value="3">Contable</option>
-        </select>
+                <div class="form-group">
+                    <label class="form-label">Nombre completo</label>
+                    <input type="text" id="nombres" class="form-input">
+                </div>
 
-        <label>Estado</label>
-        <select id="estado">
-            <option value="ACTIVO">ACTIVO</option>
-            <option value="INACTIVO">INACTIVO</option>
-        </select>
+                <div class="form-group">
+                    <label class="form-label">Correo electrónico</label>
+                    <input type="email" id="email" class="form-input">
+                </div>
 
-        <button type="button"
-                onclick="actualizarUsuario()">
-            Actualizar Usuario
-        </button>
+                <div class="form-group">
+                    <label class="form-label">Rol</label>
+                    <select id="id_rol" class="form-input">
+                        <option value="1">Administrador</option>
+                        <option value="2">Jurídico</option>
+                        <option value="3">Contable</option>
+                    </select>
+                </div>
 
-    </form>
+                <div class="form-group">
+                    <label class="form-label">Área</label>
+                    <select id="id_area" class="form-input">
+                        <option value="1">Administración</option>
+                        <option value="2">Jurídica</option>
+                        <option value="3">Contable</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Estado</label>
+                    <select id="estado" class="form-input">
+                        <option value="ACTIVO">ACTIVO</option>
+                        <option value="INACTIVO">INACTIVO</option>
+                    </select>
+                </div>
+
+                <button type="button" class="btn btn-primary" onclick="actualizarUsuario()">
+                    Actualizar Usuario
+                </button>
+
+            </form>
+        </section>
+    </main>
 
 </div>
 
-<script src="modificar_usuario.js"></script>
+<script src="../auth/logout.js"></script>
+<script src="../assets/js/navigation.js"></script>
+<script src="./modificar_usuario.js"></script>
+
+<script>
+    cargarNavegacion("modificar");
+</script>
+
 </body>
 </html>
