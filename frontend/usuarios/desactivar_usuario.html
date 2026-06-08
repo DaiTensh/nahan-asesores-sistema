@@ -57,9 +57,11 @@
 <script src="../auth/logout.js"></script>
 <script src="../assets/js/navigation.js"></script>
 <script src="./desactivar_usuario.js"></script>
+<script src="../assets/js/permissions.js"></script>
 
 <script>
-    cargarNavegacion("desactivar");
+  protegerPagina(["ADMINISTRADOR"]);
+  cargarNavegacion("desactivar");
 </script>
 
 </body>
