@@ -83,8 +83,10 @@
 <script src="../auth/logout.js"></script>
 <script src="../assets/js/navigation.js"></script>
 <script src="./modificar_usuario.js"></script>
+<script src="../assets/js/permissions.js"></script>
 
 <script>
+    protegerPagina(["ADMINISTRADOR"]);
     cargarNavegacion("modificar");
 </script>
 
