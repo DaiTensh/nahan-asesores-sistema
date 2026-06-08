@@ -61,9 +61,11 @@
 <script src="../auth/logout.js"></script>
 <script src="../assets/js/navigation.js"></script>
 <script src="./asignar_rol.js"></script>
+<script src="../assets/js/permissions.js"></script>
 
 <script>
-    cargarNavegacion("rol");
+  protegerPagina(["ADMINISTRADOR"]);
+  cargarNavegacion("rol");
 </script>
 
 </body>
