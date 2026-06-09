@@ -1,0 +1,153 @@
+.tareas-header {
+  margin-bottom: 28px;
+}
+
+.tareas-header h1 {
+  font-size: 32px;
+  margin-bottom: 6px;
+  color: var(--color-text);
+}
+
+.tareas-header p {
+  color: var(--color-text-light);
+}
+
+.tareas-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  margin-bottom: 28px;
+}
+
+.tarea-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 22px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+}
+
+.tarea-card p {
+  color: var(--color-text-light);
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.tarea-card h2 {
+  font-size: 34px;
+  color: var(--color-primary);
+}
+
+.tareas-section {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.tareas-section h2 {
+  margin-bottom: 18px;
+}
+
+.tareas-form {
+  margin-top: 12px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px;
+}
+
+.form-full {
+  grid-column: 1 / -1;
+}
+
+.mensaje {
+  margin-top: 16px;
+  font-weight: bold;
+}
+
+.mensaje.success {
+  color: var(--color-success);
+}
+
+.mensaje.error {
+  color: var(--color-danger);
+}
+
+.tareas-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tareas-table th,
+.tareas-table td {
+  padding: 14px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.tareas-table th {
+  background: var(--color-primary);
+  color: white;
+}
+
+.tareas-table select,
+.tareas-table input {
+  width: 130px;
+  padding: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.tareas-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-small {
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.badge {
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-weight: bold;
+  font-size: 13px;
+}
+
+.badge.estado-pendiente {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.badge.estado-en_proceso {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.badge.estado-en_revision {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.badge.prioridad-baja {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.badge.prioridad-media {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.badge.prioridad-alta,
+.badge.prioridad-urgente {
+  background: #fee2e2;
+  color: #dc2626;
+}
