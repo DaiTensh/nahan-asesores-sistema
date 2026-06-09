@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Gestión de Tareas</title>
+
+  <link rel="stylesheet" href="../assets/css/variables.css">
+  <link rel="stylesheet" href="../assets/css/global.css">
+  <link rel="stylesheet" href="../assets/css/buttons.css">
+  <link rel="stylesheet" href="../assets/css/forms.css">
+  <link rel="stylesheet" href="../assets/css/cards.css">
+  <link rel="stylesheet" href="../assets/css/navigation.css">
+  <link rel="stylesheet" href="../assets/css/topbar.css">
+  <link rel="stylesheet" href="./tareas.css">
+</head>
+<body>
+
+<div class="app-layout">
+
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <div class="content-wrapper">
+
+    <header class="topbar" id="topbar"></header>
+
+    <main class="main-content">
+
+      <section class="tareas-header">
+        <div>
+          <h1>Gestión de Tareas</h1>
+          <p>Administra y realiza seguimiento de las tareas del sistema.</p>
+        </div>
+      </section>
+
+      <section class="tareas-cards">
+        <div class="tarea-card">
+          <p>Pendientes</p>
+          <h2 id="totalPendientes">0</h2>
+        </div>
+
+        <div class="tarea-card">
+          <p>En proceso</p>
+          <h2 id="totalProceso">0</h2>
+        </div>
+
+        <div class="tarea-card">
+          <p>En revisión</p>
+          <h2 id="totalRevision">0</h2>
+        </div>
+
+        <div class="tarea-card">
+          <p>Urgentes</p>
+          <h2 id="totalUrgentes">0</h2>
+        </div>
+      </section>
+
+      <section class="tareas-section">
+        <h2>Crear nueva tarea</h2>
+
+        <form id="formTarea" class="tareas-form">
+
+          <div class="form-grid">
+
+            <div class="form-group">
+              <label class="form-label">ID Cliente</label>
+              <input type="number" id="id_cliente" class="form-input" placeholder="Ej: 1" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Área</label>
+              <select id="id_area" class="form-input" required>
+                <option value="">Seleccione un área</option>
+                <option value="1">Jurídica</option>
+                <option value="2">Contable</option>
+                <option value="3">Administración</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">ID Responsable</label>
+              <input type="number" id="id_responsable" class="form-input" placeholder="Ej: 1" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Prioridad</label>
+              <select id="prioridad" class="form-input" required>
+                <option value="BAJA">Baja</option>
+                <option value="MEDIA" selected>Media</option>
+                <option value="ALTA">Alta</option>
+                <option value="URGENTE">Urgente</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Fecha vencimiento</label>
+              <input type="date" id="fecha_vencimiento" class="form-input">
+            </div>
+
+            <div class="form-group form-full">
+              <label class="form-label">Título</label>
+              <input type="text" id="titulo" class="form-input" required>
+            </div>
+
+            <div class="form-group form-full">
+              <label class="form-label">Descripción</label>
+              <textarea id="descripcion" class="form-input" rows="4"></textarea>
+            </div>
+
+          </div>
+
+          <button type="submit" class="btn btn-primary">
+            Crear Tarea
+          </button>
+
+          <p id="mensajeTarea" class="mensaje"></p>
+        </form>
+      </section>
+
+      <section class="tareas-section">
+        <h2>Tareas pendientes</h2>
+
+        <table class="tareas-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Título</th>
+              <th>Cliente</th>
+              <th>Área</th>
+              <th>Responsable</th>
+              <th>Estado</th>
+              <th>Prioridad</th>
+              <th>Vencimiento</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+
+          <tbody id="tablaTareas"></tbody>
+        </table>
+      </section>
+
+    </main>
+
+  </div>
+
+</div>
+
+<script src="../auth/logout.js"></script>
+<script src="../assets/js/navigation.js"></script>
+<script src="../assets/js/topbar.js"></script>
+<script src="../assets/js/permissions.js"></script>
+<script src="./tareas.js"></script>
+
+<script>
+  cargarNavegacion("tareas");
+  cargarTopbar();
+</script>
+
+</body>
+</html>
