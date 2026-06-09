@@ -1,41 +1,102 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <title>Dashboard</title>
+  <meta charset="UTF-8">
+  <title>Dashboard Principal</title>
 
-    <link rel="stylesheet" href="../assets/css/variables.css">
-    <link rel="stylesheet" href="../assets/css/global.css">
-    <link rel="stylesheet" href="../assets/css/navigation.css">
-    <link rel="stylesheet" href="../assets/css/topbar.css">
+  <link rel="stylesheet" href="../assets/css/variables.css">
+  <link rel="stylesheet" href="../assets/css/global.css">
+  <link rel="stylesheet" href="../assets/css/buttons.css">
+  <link rel="stylesheet" href="../assets/css/forms.css">
+  <link rel="stylesheet" href="../assets/css/cards.css">
+  <link rel="stylesheet" href="../assets/css/navigation.css">
+  <link rel="stylesheet" href="../assets/css/topbar.css">
+  <link rel="stylesheet" href="./dashboard.css">
 </head>
 <body>
 
-    <div class="app-layout">
+<div class="app-layout">
 
-        <aside class="sidebar" id="sidebar"></aside>
+  <aside class="sidebar" id="sidebar"></aside>
 
-        <div class="content-wrapper">
+  <div class="content-wrapper">
 
-            <header class="topbar" id="topbar"></header>
+    <header class="topbar" id="topbar"></header>
 
-            <main class="main-content">
-                <h1>Dashboard Principal</h1>
-                <p>Sistema de gestión de Nahan Asesores.</p>
-            </main>
+    <main class="main-content">
 
+      <section class="dashboard-header">
+        <h1>Dashboard Principal</h1>
+        <p>Resumen general del sistema de gestión.</p>
+      </section>
+
+      <section class="dashboard-cards">
+        <div class="dashboard-card">
+          <p>Total usuarios</p>
+          <h2 id="totalUsuarios">0</h2>
         </div>
 
-    </div>
+        <div class="dashboard-card">
+          <p>Usuarios activos</p>
+          <h2 id="usuariosActivos">0</h2>
+        </div>
 
-    <script src="../auth/logout.js"></script>
-    <script src="../assets/js/navigation.js"></script>
-    <script src="../assets/js/topbar.js"></script>
+        <div class="dashboard-card">
+          <p>Usuarios inactivos</p>
+          <h2 id="usuariosInactivos">0</h2>
+        </div>
 
-    <script>
-        cargarNavegacion("dashboard");
-        cargarTopbar();
-    </script>
+        <div class="dashboard-card">
+          <p>Administradores</p>
+          <h2 id="totalAdmins">0</h2>
+        </div>
+      </section>
+
+      <section class="dashboard-section">
+        <h2>Usuario conectado</h2>
+
+        <div class="usuario-info">
+          <p><strong>Nombre:</strong> <span id="nombreUsuario"></span></p>
+          <p><strong>Rol:</strong> <span id="rolUsuario"></span></p>
+          <p><strong>Área:</strong> <span id="areaUsuario"></span></p>
+        </div>
+      </section>
+
+      <section class="dashboard-section">
+        <h2>Usuarios registrados</h2>
+
+        <table class="dashboard-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nombre</th>
+              <th>Correo</th>
+              <th>Rol</th>
+              <th>Área</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+
+          <tbody id="tablaUsuarios"></tbody>
+        </table>
+      </section>
+
+    </main>
+
+  </div>
+
+</div>
+
+<script src="../auth/logout.js"></script>
+<script src="../assets/js/navigation.js"></script>
+<script src="../assets/js/topbar.js"></script>
+<script src="../assets/js/permissions.js"></script>
+<script src="./dashboard.js"></script>
+
+<script>
+  cargarNavegacion("dashboard");
+  cargarTopbar();
+</script>
 
 </body>
 </html>
