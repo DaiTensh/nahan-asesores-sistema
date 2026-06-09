@@ -14,6 +14,12 @@ formUsuario.addEventListener("submit", async (event) => {
     password: document.getElementById("password").value
   };
 
+  const confirmar = confirm("¿Desea registrar este nuevo usuario?");
+
+  if (!confirmar) {
+    return;
+  }
+
   try {
     const response = await fetch(`${API_URL}/usuarios`, {
       method: "POST",
