@@ -18,6 +18,11 @@ nav.innerHTML = `
        href="../dashboard/dashboard.html">
        Dashboard
     </a>
+    
+    <a class="sidebar-link ${rutaActiva === "tareas" ? "active" : ""}"
+      href="../tareas/tareas.html">
+      Tareas
+    </a>
 
     ${
       esAdmin
@@ -41,6 +46,8 @@ nav.innerHTML = `
            href="../usuarios/asignar_rol.html">
            Asignar Rol
         </a>
+        
+
         `
         : ""
     }
