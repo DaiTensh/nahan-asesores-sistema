@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="../assets/css/forms.css">
     <link rel="stylesheet" href="../assets/css/cards.css">
     <link rel="stylesheet" href="../assets/css/navigation.css">
+    <link rel="stylesheet" href="../assets/css/topbar.css">
     <link rel="stylesheet" href="./modificar_usuario.css">
 </head>
 <body>
@@ -18,76 +19,88 @@
 
     <aside class="sidebar" id="sidebar"></aside>
 
-    <main class="main-content">
-        <section class="usuarios-card">
-            <h1>Modificar Usuario Interno</h1>
-            <p class="subtitle">Busque un usuario y actualice su información.</p>
+    <div class="content-wrapper">
 
-            <div class="form-group">
-                <label class="form-label">ID Usuario</label>
-                <input type="number" id="id_usuario" class="form-input" placeholder="ID Usuario">
-            </div>
+        <main class="main-content">
+            <section class="modificar-card">
+                <h1>Modificar Usuario Interno</h1>
+                <p class="subtitle">Busque un usuario y actualice su información.</p>
 
-            <button class="btn btn-primary" onclick="buscarUsuario()">
-                Buscar
-            </button>
+                <div class="buscar-usuario">
+                    <div class="form-group">
+                        <label class="form-label">ID Usuario</label>
+                        <input type="number" id="id_usuario" class="form-input" placeholder="ID Usuario">
+                    </div>
 
-            <form id="formulario" class="form-edit">
-
-                <div class="form-group">
-                    <label class="form-label">Nombre completo</label>
-                    <input type="text" id="nombres" class="form-input">
+                    <button class="btn btn-primary" onclick="buscarUsuario()">
+                        Buscar
+                    </button>
                 </div>
 
-                <div class="form-group">
-                    <label class="form-label">Correo electrónico</label>
-                    <input type="email" id="email" class="form-input">
-                </div>
+                <form id="formulario" class="form-edit">
 
-                <div class="form-group">
-                    <label class="form-label">Rol</label>
-                    <select id="id_rol" class="form-input">
-                        <option value="1">Administrador</option>
-                        <option value="2">Jurídico</option>
-                        <option value="3">Contable</option>
-                    </select>
-                </div>
+                    <div class="form-group">
+                        <label class="form-label">Nombre completo</label>
+                        <input type="text" id="nombres" class="form-input">
+                    </div>
 
-                <div class="form-group">
-                    <label class="form-label">Área</label>
-                    <select id="id_area" class="form-input">
-                        <option value="1">Administración</option>
-                        <option value="2">Jurídica</option>
-                        <option value="3">Contable</option>
-                    </select>
-                </div>
+                    <div class="form-group">
+                        <label class="form-label">Correo electrónico</label>
+                        <input type="email" id="email" class="form-input">
+                    </div>
 
-                <div class="form-group">
-                    <label class="form-label">Estado</label>
-                    <select id="estado" class="form-input">
-                        <option value="ACTIVO">ACTIVO</option>
-                        <option value="INACTIVO">INACTIVO</option>
-                    </select>
-                </div>
+                    <div class="form-group">
+                        <label class="form-label">Rol</label>
+                        <select id="id_rol" class="form-input">
+                            <option value="1">Administrador</option>
+                            <option value="2">Jurídico</option>
+                            <option value="3">Contable</option>
+                        </select>
+                    </div>
 
-                <button type="button" class="btn btn-primary" onclick="actualizarUsuario()">
-                    Actualizar Usuario
-                </button>
+                    <div class="form-group">
+                        <label class="form-label">Área</label>
+                        <select id="id_area" class="form-input">
+                            <option value="1">Administración</option>
+                            <option value="2">Jurídica</option>
+                            <option value="3">Contable</option>
+                        </select>
+                    </div>
 
-            </form>
-        </section>
-    </main>
+                    <div class="form-group">
+                        <label class="form-label">Estado</label>
+                        <select id="estado" class="form-input">
+                            <option value="ACTIVO">ACTIVO</option>
+                            <option value="INACTIVO">INACTIVO</option>
+                        </select>
+                    </div>
+
+                    <button type="button" id="btnActualizarUsuario" class="btn btn-primary" onclick="actualizarUsuario()">
+                        Actualizar Usuario
+                    </button>
+
+                </form>
+            </section>
+        </main>
+
+    </div>
 
 </div>
 
 <script src="../auth/logout.js"></script>
 <script src="../assets/js/navigation.js"></script>
-<script src="./modificar_usuario.js"></script>
+<script src="../assets/js/topbar.js"></script>
 <script src="../assets/js/permissions.js"></script>
+<script src="./modificar_usuario.js"></script>
 
 <script>
     protegerPagina(["ADMINISTRADOR"]);
     cargarNavegacion("modificar");
+    cargarTopbar();
+
+    if (typeof restringirFuncionalidad === "function") {
+        restringirFuncionalidad("btnActualizarUsuario", ["ADMINISTRADOR"]);
+    }
 </script>
 
 </body>
