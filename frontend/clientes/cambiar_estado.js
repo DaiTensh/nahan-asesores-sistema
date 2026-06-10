@@ -1,87 +1,93 @@
-document.addEventListener('DOMContentLoaded', async () => {
-    const txtRazonSocial = document.getElementById('txtRazonSocial');
-    const txtRut = document.getElementById('txtRut');
-    const badgeEstado = document.getElementById('badgeEstado');
-    const btnCambiarEstado = document.getElementById('btnCambiarEstado');
-    const btnVolver = document.getElementById('btnVolver');
-    const mensaje = document.getElementById('mensajeFeedback');
+const API_URL = "http://127.0.0.1:5000/api";
 
-    const parametrosUrl = new URLSearchParams(window.location.search);
-    const idCliente = parametrosUrl.get('id') || 1;
+document.addEventListener("DOMContentLoaded", () => {
+  const txtRazonSocial = document.getElementById("txtRazonSocial");
+  const txtRut = document.getElementById("txtRut");
+  const badgeEstado = document.getElementById("badgeEstado");
+  const btnCambiarEstado = document.getElementById("btnCambiarEstado");
+  const mensaje = document.getElementById("mensajeFeedback");
+  const parametrosUrl = new URLSearchParams(window.location.search);
+  const idCliente = parametrosUrl.get("id");
+  const usuario = JSON.parse(localStorage.getItem("usuario")) || {};
 
-    let estadoActual = "ACTIVO";
+  let estadoActual = "";
 
-    // 1. CARGA INICIAL: Consultar estado actual del cliente
-    const cargarEstadoCliente = async () => {
-        try {
-            const respuesta = await fetch(`http://localhost:5000/api/clientes/${idCliente}`);
-            if (respuesta.ok) {
-                const cliente = await respuesta.json();
-                
-                txtRazonSocial.textContent = cliente.razon_social;
-                txtRut.textContent = cliente.rut;
-                estadoActual = cliente.estado || "ACTIVO";
+  cargarEstadoCliente();
 
-                // Renderizado condicional del badge píldora
-                badgeEstado.textContent = estadoActual;
-                badgeEstado.className = `indicador-estado-actual ${estadoActual.toLowerCase()}`;
+  btnCambiarEstado.addEventListener("click", cambiarEstado);
 
-                // Adaptar el botón de acción según la paleta oficial corporativa
-                if (estadoActual === "ACTIVO") {
-                    btnCambiarEstado.textContent = "Desactivar Cuenta";
-                    btnCambiarEstado.className = "btn-cambiar-accion bg-rojo";
-                } else {
-                    btnCambiarEstado.textContent = "Reactivar Cuenta";
-                    btnCambiarEstado.className = "btn-cambiar-accion bg-azul";
-                }
-            }
-        } catch (error) {
-            console.error("Error al rescatar estado:", error);
-        }
-    };
+  async function cargarEstadoCliente() {
+    if (!idCliente) {
+      bloquearAccion("Sin cliente");
+      mostrarMensaje("No se recibió un cliente válido desde el listado.", "error");
+      return;
+    }
 
-    // 2. DISPARAR CONMUTACIÓN (POST)
-    btnCambiarEstado.addEventListener('click', async () => {
-        mensaje.className = 'mensaje';
-        mensaje.style.display = 'none';
+    try {
+      const response = await fetch(`${API_URL}/clientes/${idCliente}`);
+      const cliente = await response.json();
 
-        const nuevoEstado = (estadoActual === "ACTIVO") ? "INACTIVO" : "ACTIVO";
+      if (!response.ok) {
+        bloquearAccion("No disponible");
+        mostrarMensaje(cliente.error || "No se pudo cargar el cliente.", "error");
+        return;
+      }
 
-        if (!confirm(`¿Confirma que desea cambiar el estado operativo del cliente a ${nuevoEstado}? El cambio quedará registrado en auditoría.`)) {
-            return;
-        }
+      txtRazonSocial.textContent = cliente.razon_social;
+      txtRut.textContent = cliente.rut;
+      estadoActual = cliente.estado || "ACTIVO";
 
-        try {
-            const respuesta = await fetch(`http://localhost:5000/api/clientes/${idCliente}/cambiar-estado`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    nuevo_estado: nuevoEstado,
-                    id_usuario_auditoria: 1 // Simulamos ID del Administrador operativo
-                })
-            });
+      badgeEstado.textContent = estadoActual;
+      badgeEstado.className = `badge estado-${estadoActual.toLowerCase()}`;
+      btnCambiarEstado.textContent = estadoActual === "ACTIVO" ? "Desactivar cliente" : "Reactivar cliente";
+      btnCambiarEstado.disabled = false;
+    } catch (error) {
+      console.error(error);
+      bloquearAccion("No disponible");
+      mostrarMensaje("Error al conectar con el servidor.", "error");
+    }
+  }
 
-            if (respuesta.ok) {
-                mensaje.textContent = `✔ Estado actualizado con éxito a ${nuevoEstado}.`;
-                mensaje.className = "mensaje success";
-                
-                // Refrescar el componente para actualizar la UI
-                await cargarEstadoCliente();
-            } else {
-                const err = await respuesta.json();
-                mensaje.textContent = `❌ Error: ${err.error}`;
-                mensaje.className = "mensaje error";
-            }
-        } catch (error) {
-            mensaje.textContent = "❌ Error de red al procesar el cambio de estado.";
-            mensaje.className = "mensaje error";
-        }
-    });
+  async function cambiarEstado() {
+    const nuevoEstado = estadoActual === "ACTIVO" ? "INACTIVO" : "ACTIVO";
+    const confirmar = confirm(`Desea cambiar el estado del cliente a ${nuevoEstado}?`);
 
-    btnVolver.addEventListener('click', () => {
-        window.location.href = 'listar_clientes.html';
-    });
+    if (!confirmar) return;
 
-    // Ejecutar inicialización
-    await cargarEstadoCliente();
+    try {
+      const response = await fetch(`${API_URL}/clientes/${idCliente}/cambiar-estado`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          nuevo_estado: nuevoEstado,
+          id_usuario_auditoria: usuario.id_usuario || 1
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        mostrarMensaje(data.error || "No se pudo actualizar el estado.", "error");
+        return;
+      }
+
+      mostrarMensaje(data.message || "Estado actualizado correctamente.", "success");
+      cargarEstadoCliente();
+    } catch (error) {
+      console.error(error);
+      mostrarMensaje("Error al conectar con el servidor.", "error");
+    }
+  }
+
+  function bloquearAccion(texto) {
+    btnCambiarEstado.disabled = true;
+    btnCambiarEstado.textContent = texto;
+  }
+
+  function mostrarMensaje(texto, tipo) {
+    mensaje.textContent = texto;
+    mensaje.className = tipo ? `mensaje ${tipo}` : "mensaje";
+  }
 });
