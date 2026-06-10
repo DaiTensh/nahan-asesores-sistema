@@ -1,0 +1,267 @@
+.clientes-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.clientes-header h1 {
+  font-size: 32px;
+  margin-bottom: 6px;
+  color: var(--color-text);
+}
+
+.clientes-header p {
+  color: var(--color-text-light);
+}
+
+.clientes-header-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.clientes-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-bottom: 28px;
+}
+
+.cliente-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 22px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+}
+
+.cliente-card p {
+  color: var(--color-text-light);
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.cliente-card h2 {
+  font-size: 34px;
+  color: var(--color-primary);
+}
+
+.clientes-section {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.clientes-section h2 {
+  margin-bottom: 18px;
+}
+
+.clientes-form {
+  margin-top: 12px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px;
+}
+
+.form-full {
+  grid-column: 1 / -1;
+}
+
+.checkbox-group {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.checkbox-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text);
+  font-size: 14px;
+}
+
+.checkbox-option input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary);
+}
+
+.clientes-toolbar {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 18px;
+  align-items: end;
+}
+
+.clientes-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.clientes-table th,
+.clientes-table td {
+  padding: 14px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.clientes-table th {
+  background: var(--color-primary);
+  color: white;
+}
+
+.clientes-table tr.inactivo td {
+  color: var(--color-text-light);
+  background: #f9fafb;
+}
+
+.clientes-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-small {
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  padding-top: 18px;
+}
+
+.pagination span {
+  color: var(--color-text-light);
+  font-weight: 600;
+}
+
+.mensaje {
+  margin-top: 16px;
+  font-weight: bold;
+}
+
+.mensaje.success {
+  color: var(--color-success);
+}
+
+.mensaje.error {
+  color: var(--color-danger);
+}
+
+.badge {
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-weight: bold;
+  font-size: 13px;
+}
+
+.badge.estado-activo {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.badge.estado-inactivo {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.cliente-detail-grid {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.cliente-detail-label,
+.cliente-detail-value {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.cliente-detail-label {
+  background: #f9fafb;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.cliente-detail-value {
+  color: var(--color-text-light);
+}
+
+.cliente-detail-label:last-of-type,
+.cliente-detail-value:last-of-type {
+  border-bottom: none;
+}
+
+.alert-box {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 16px;
+  color: var(--color-text-light);
+  background: #f9fafb;
+  line-height: 1.5;
+}
+
+.confirm-panel {
+  display: none;
+  margin-top: 18px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 18px;
+}
+
+.confirm-panel.visible {
+  display: block;
+}
+
+.changes-list {
+  margin: 0 0 16px 18px;
+  color: var(--color-text);
+  line-height: 1.7;
+}
+
+.text-loading {
+  text-align: center;
+  color: var(--color-text-light);
+  font-style: italic;
+}
+
+@media (max-width: 900px) {
+  .clientes-header,
+  .clientes-header-actions {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .clientes-cards,
+  .clientes-toolbar,
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .clientes-section {
+    overflow-x: auto;
+  }
+
+  .cliente-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cliente-detail-label {
+    border-bottom: none;
+  }
+}

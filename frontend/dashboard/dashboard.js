@@ -3,6 +3,7 @@ const API_URL = "http://127.0.0.1:5000/api";
 document.addEventListener("DOMContentLoaded", () => {
   cargarDatosUsuario();
   cargarResumenUsuarios();
+  cargarResumenClientes();
 });
 
 function formatearRol(rol) {
@@ -85,4 +86,104 @@ function cargarTablaUsuarios(usuarios) {
 
     tabla.appendChild(fila);
   });
+}
+
+async function cargarResumenClientes() {
+  try {
+    const response = await fetch(`${API_URL}/clientes/resumen`);
+    const data = await leerRespuestaJson(response);
+
+    if (!response.ok) {
+      await cargarClientesDesdeListado();
+      return;
+    }
+
+    document.getElementById("totalClientes").textContent = data.total_clientes;
+    document.getElementById("clientesActivos").textContent = data.clientes_activos;
+    document.getElementById("clientesInactivos").textContent = data.clientes_inactivos;
+
+    cargarTablaClientes(data.ultimos_clientes || []);
+  } catch (error) {
+    console.error(error);
+    await cargarClientesDesdeListado();
+  }
+}
+
+async function cargarClientesDesdeListado() {
+  try {
+    const response = await fetch(`${API_URL}/clientes/listado?pagina=1&limite=5`);
+    const data = await leerRespuestaJson(response);
+
+    if (!response.ok) {
+      console.error(data.error || "Error al cargar clientes");
+      return;
+    }
+
+    const clientes = Array.isArray(data) ? data : data.clientes || [];
+
+    document.getElementById("totalClientes").textContent = clientes.length;
+    document.getElementById("clientesActivos").textContent =
+      clientes.filter(cliente => normalizarEstado(cliente.estado) === "ACTIVO").length;
+    document.getElementById("clientesInactivos").textContent =
+      clientes.filter(cliente => normalizarEstado(cliente.estado) === "INACTIVO").length;
+
+    cargarTablaClientes(clientes);
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+function cargarTablaClientes(clientes) {
+  const tabla = document.getElementById("tablaClientes");
+  tabla.innerHTML = "";
+
+  if (clientes.length === 0) {
+    tabla.innerHTML = `
+      <tr>
+        <td colspan="6">No hay clientes registrados.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  clientes.forEach(cliente => {
+    const fila = document.createElement("tr");
+
+    fila.innerHTML = `
+      <td>${cliente.rut}</td>
+      <td>${cliente.razon_social}</td>
+      <td>${cliente.email || "Sin correo"}</td>
+      <td>${cliente.telefono || "Sin teléfono"}</td>
+      <td>
+        <span class="badge ${normalizarEstado(cliente.estado).toLowerCase()}">
+          ${normalizarEstado(cliente.estado)}
+        </span>
+      </td>
+      <td>
+        <div class="dashboard-row-actions">
+          <a href="../clientes/ficha_cliente.html?id=${cliente.id_cliente}">Ficha</a>
+          <a href="../clientes/modificar_clientes.html?id=${cliente.id_cliente}">Editar</a>
+        </div>
+      </td>
+    `;
+
+    tabla.appendChild(fila);
+  });
+}
+
+async function leerRespuestaJson(response) {
+  const texto = await response.text();
+
+  if (!texto) return {};
+
+  try {
+    return JSON.parse(texto);
+  } catch (error) {
+    console.error("Respuesta no válida del servidor:", texto);
+    return { error: "Respuesta no válida del servidor." };
+  }
+}
+
+function normalizarEstado(estado) {
+  return estado || "ACTIVO";
 }

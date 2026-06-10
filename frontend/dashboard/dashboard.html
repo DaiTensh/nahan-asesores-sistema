@@ -26,8 +26,15 @@
     <main class="main-content">
 
       <section class="dashboard-header">
-        <h1>Dashboard Principal</h1>
-        <p>Resumen general del sistema de gestión.</p>
+        <div>
+          <h1>Dashboard Principal</h1>
+          <p>Resumen general del sistema de gestión.</p>
+        </div>
+
+        <div class="dashboard-actions">
+          <a href="../clientes/listar_clientes.html" class="btn btn-primary">Ver clientes</a>
+          <a href="../clientes/registrar_clientes.html" class="btn btn-secondary">Nuevo cliente</a>
+        </div>
       </section>
 
       <section class="dashboard-cards">
@@ -49,6 +56,21 @@
         <div class="dashboard-card">
           <p>Administradores</p>
           <h2 id="totalAdmins">0</h2>
+        </div>
+
+        <div class="dashboard-card">
+          <p>Total clientes</p>
+          <h2 id="totalClientes">0</h2>
+        </div>
+
+        <div class="dashboard-card">
+          <p>Clientes activos</p>
+          <h2 id="clientesActivos">0</h2>
+        </div>
+
+        <div class="dashboard-card">
+          <p>Clientes inactivos</p>
+          <h2 id="clientesInactivos">0</h2>
         </div>
       </section>
 
@@ -78,6 +100,25 @@
           </thead>
 
           <tbody id="tablaUsuarios"></tbody>
+        </table>
+      </section>
+
+      <section class="dashboard-section">
+        <h2>Últimos clientes registrados</h2>
+
+        <table class="dashboard-table">
+          <thead>
+            <tr>
+              <th>RUT</th>
+              <th>Razón Social</th>
+              <th>Email</th>
+              <th>Teléfono</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+
+          <tbody id="tablaClientes"></tbody>
         </table>
       </section>
 

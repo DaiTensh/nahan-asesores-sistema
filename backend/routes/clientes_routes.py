@@ -69,7 +69,11 @@ def obtener_cliente(id_cliente):
 
         with conexion.cursor(dictionary=True) as cursor:
             # 1. Traer datos base de la tabla cliente
-            cursor.execute("SELECT rut, razon_social, email, telefono, direccion FROM cliente WHERE id_cliente = %s", (id_cliente,))
+            cursor.execute("""
+                SELECT id_cliente, rut, razon_social, email, telefono, direccion, estado
+                FROM cliente
+                WHERE id_cliente = %s
+            """, (id_cliente,))
             cliente = cursor.fetchone()
 
             if not cliente:
@@ -144,7 +148,6 @@ def modificar_cliente(id_cliente):
         return jsonify({"error": "Error inesperado al almacenar cambios."}), 500
 
 
-  
 # ==========================================================================
 # RF03: ENPOINT DE VERIFICACIÓN DE VÍNCULOS COMERCIALES
 # ==========================================================================
@@ -175,12 +178,12 @@ def verificar_vinculos_cliente(id_cliente):
             cursor.execute(query_docs, (id_cliente,))
             total_docs = cursor.fetchone()['conteo']
 
-            vínculos_activos = (total_tareas > 0 or total_docs > 0)
+            vinculos_activos = (total_tareas > 0 or total_docs > 0)
 
         return jsonify({
             "rut": cliente['rut'],
             "razon_social": cliente['razon_social'],
-            "tiene_vinculos": vínculos_activos,
+            "tiene_vinculos": vinculos_activos,
             "tareas_activas": total_tareas,
             "documentos_activos": total_docs
         }), 200
@@ -196,79 +199,8 @@ def verificar_vinculos_cliente(id_cliente):
 @clientes_blueprint.route('/clientes/<int:id_cliente>/deshabilitar', methods=['PATCH'])
 def deshabilitar_cliente_rf3(id_cliente):
     try:
-        id_usuario = request.json.get('id_usuario_auditoria', 1) # Respaldo usuario auditor
-        conexion = get_connection()
-        
-        with conexion.cursor() as cursor:
-            # Modificar estado a INACTIVO
-            cursor.execute("UPDATE cliente SET estado = 'INACTIVO' WHERE id_cliente = %s", (id_cliente,))
-            
-            # Grabar en historial (Tabla Auditoria de tu base de datos)
-            query_auditoria = """
-                INSERT INTO auditoria (id_usuario, tabla_afectada, accion, datos_anteriores, datos_nuevos)
-                VALUES (%s, 'cliente', 'DESHABILITAR', 'estado: ACTIVO', 'estado: INACTIVO')
-            """
-            cursor.execute(query_auditoria, (id_usuario,))
-            conexion.commit()
-
-        return jsonify({"message": "Cliente deshabilitado y registrado en auditoría."}), 200
-    except Exception as e:
-        print(str(e))
-        return jsonify({"error": "Error procesando deshabilitación."}), 500
-
-
-# ==========================================================================
-# RF03: ENPOINT DE VERIFICACIÓN DE VÍNCULOS COMERCIALES
-# ==========================================================================
-@clientes_blueprint.route('/clientes/<int:id_cliente>/verificar-vinculos', methods=['GET'])
-def verificar_vinculos_cliente(id_cliente):
-    try:
-        conexion = get_connection()
-        if conexion is None:
-            return jsonify({"error": "Error de base de datos."}), 500
-
-        with conexion.cursor(dictionary=True) as cursor:
-            # 1. Traer datos básicos
-            cursor.execute("SELECT rut, razon_social FROM cliente WHERE id_cliente = %s", (id_cliente,))
-            cliente = cursor.fetchone()
-            if not cliente:
-                return jsonify({"error": "Cliente no localizado."}), 404
-
-            # 2. Contar tareas en proceso o pendientes según tus ENUM de BD
-            query_tareas = """
-                SELECT COUNT(*) as conteo FROM tarea 
-                WHERE id_cliente = %s AND estado IN ('PENDIENTE', 'EN_PROCESO', 'EN_REVISION')
-            """
-            cursor.execute(query_tareas, (id_cliente,))
-            total_tareas = cursor.fetchone()['conteo']
-
-            # 3. Contar documentos activos vigentes
-            query_docs = "SELECT COUNT(*) as conteo FROM documento WHERE id_cliente = %s AND estado = 'ACTIVO'"
-            cursor.execute(query_docs, (id_cliente,))
-            total_docs = cursor.fetchone()['conteo']
-
-            vínculos_activos = (total_tareas > 0 or total_docs > 0)
-
-        return jsonify({
-            "rut": cliente['rut'],
-            "razon_social": cliente['razon_social'],
-            "tiene_vinculos": vínculos_activos,
-            "tareas_activas": total_tareas,
-            "documentos_activos": total_docs
-        }), 200
-
-    except Exception as e:
-        print(f"Error en verificación RF03: {str(e)}")
-        return jsonify({"error": "Error al calcular dependencias."}), 500
-
-
-# ==========================================================================
-# RF03: ACCIÓN A - DESHABILITACIÓN LÓGICA (CON VÍNCULOS) + AUDITORÍA
-# ==========================================================================
-@clientes_blueprint.route('/clientes/<int:id_cliente>/deshabilitar', methods=['PATCH'])
-def deshabilitar_cliente_rf3(id_cliente):
-    try:
-        id_usuario = request.json.get('id_usuario_auditoria', 1) # Respaldo usuario auditor
+        datos = request.get_json(silent=True) or {}
+        id_usuario = datos.get('id_usuario_auditoria', 1) # Respaldo usuario auditor
         conexion = get_connection()
         
         with conexion.cursor() as cursor:
@@ -295,13 +227,17 @@ def deshabilitar_cliente_rf3(id_cliente):
 @clientes_blueprint.route('/clientes/<int:id_cliente>/eliminar-definitivo', methods=['DELETE'])
 def eliminar_definitivo_cliente(id_cliente):
     try:
-        id_usuario = request.json.get('id_usuario_auditoria', 1)
+        datos = request.get_json(silent=True) or {}
+        id_usuario = datos.get('id_usuario_auditoria', 1)
         conexion = get_connection()
 
         with conexion.cursor() as cursor:
             # Resguardar datos para el log histórico antes de eliminarlos físicamente
             cursor.execute("SELECT rut, razon_social FROM cliente WHERE id_cliente = %s", (id_cliente,))
             info = cursor.fetchone()
+
+            if not info:
+                return jsonify({"error": "Cliente inexistente."}), 404
             
             log_anterior = f"rut: {info[0]}, razon_social: {info[1]}"
 
@@ -551,3 +487,42 @@ def listado_general_paginado_clientes():
     except Exception as e:
         print(f"Error crítico en listado paginado RF11: {str(e)}")
         return jsonify({"error": "Imposible recuperar la matriz general de clientes."}), 500
+
+
+@clientes_blueprint.route('/clientes/resumen', methods=['GET'])
+def resumen_clientes_dashboard():
+    try:
+        conexion = get_connection()
+
+        if conexion is None:
+            return jsonify({"error": "Error interno de base de datos MySQL."}), 500
+
+        with conexion.cursor(dictionary=True) as cursor:
+            cursor.execute("SELECT COUNT(*) AS total FROM cliente")
+            total_clientes = cursor.fetchone()["total"]
+
+            cursor.execute("SELECT COUNT(*) AS total FROM cliente WHERE estado = 'ACTIVO'")
+            clientes_activos = cursor.fetchone()["total"]
+
+            cursor.execute("SELECT COUNT(*) AS total FROM cliente WHERE estado = 'INACTIVO'")
+            clientes_inactivos = cursor.fetchone()["total"]
+
+            query_ultimos = """
+                SELECT id_cliente, rut, razon_social, email, telefono, estado
+                FROM cliente
+                ORDER BY fecha_creacion DESC
+                LIMIT 5
+            """
+            cursor.execute(query_ultimos)
+            ultimos_clientes = cursor.fetchall()
+
+        return jsonify({
+            "total_clientes": total_clientes,
+            "clientes_activos": clientes_activos,
+            "clientes_inactivos": clientes_inactivos,
+            "ultimos_clientes": ultimos_clientes
+        }), 200
+
+    except Exception as e:
+        print(f"Error en resumen de clientes para dashboard: {str(e)}")
+        return jsonify({"error": "No se pudo cargar el resumen de clientes."}), 500
