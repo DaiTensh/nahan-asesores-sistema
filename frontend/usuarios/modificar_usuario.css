@@ -1,45 +1,36 @@
-body{
-    background:#f4f6f9;
-    font-family:Arial, Helvetica, sans-serif;
+.modificar-card {
+    width: 100%;
+    max-width: 760px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    padding: 28px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.04);
 }
 
-.contenedor{
-    max-width:600px;
-    margin:40px auto;
-    background:white;
-    padding:30px;
-    border-radius:10px;
-    box-shadow:0 0 10px rgba(0,0,0,.1);
+.modificar-card h1 {
+    font-size: 32px;
+    margin-bottom: 6px;
+    color: var(--color-text);
 }
 
-h1{
-    margin-bottom:10px;
+.modificar-card .subtitle {
+    color: var(--color-text-light);
+    margin-bottom: 24px;
 }
 
-.buscar{
-    display:flex;
-    gap:10px;
-    margin-bottom:20px;
+.buscar-usuario {
+    margin-bottom: 24px;
 }
 
-input,
-select{
-    width:100%;
-    padding:10px;
-    margin-bottom:15px;
-    border:1px solid #ccc;
-    border-radius:5px;
+.buscar-usuario .btn {
+    margin-top: 8px;
 }
 
-button{
-    background:#0d47a1;
-    color:white;
-    border:none;
-    padding:12px;
-    border-radius:5px;
-    cursor:pointer;
+.form-edit {
+    margin-top: 20px;
 }
 
-button:hover{
-    background:#08306b;
+.form-edit .btn {
+    margin-top: 8px;
 }
