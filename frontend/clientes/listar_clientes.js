@@ -1,91 +1,154 @@
 const API_URL = "http://127.0.0.1:5000/api";
 
-document.addEventListener('DOMContentLoaded', () => {
-    const selectAreaFiltro = document.getElementById('selectAreaFiltro');
-    const inputBuscarTexto = document.getElementById('inputBuscarTexto');
-    const tbody = document.getElementById('tablaClientesGeneralCuerpo');
-    
-    const btnAnterior = document.getElementById('btnPaginaAnterior');
-    const btnSiguiente = document.getElementById('btnPaginaSiguiente');
-    const txtIndicador = document.getElementById('txtIndicadorPagina');
+document.addEventListener("DOMContentLoaded", () => {
+  const selectAreaFiltro = document.getElementById("selectAreaFiltro");
+  const inputBuscarTexto = document.getElementById("inputBuscarTexto");
+  const tbody = document.getElementById("tablaClientesGeneralCuerpo");
+  const btnAnterior = document.getElementById("btnPaginaAnterior");
+  const btnSiguiente = document.getElementById("btnPaginaSiguiente");
+  const txtIndicador = document.getElementById("txtIndicadorPagina");
 
-    // Variables de control de la carga progresiva paginada
-    let paginaActual = 1;
-    const limiteRegistros = 7; // Registros por carátula
+  let paginaActual = 1;
+  const limiteRegistros = 7;
 
-    const cargarListadoGeneral = async () => {
-        tbody.innerHTML = `<tr><td colspan="5" class="text-loading">Sincronizando grilla maestra de clientes...</td></tr>`;
+  async function cargarListadoGeneral() {
+    tbody.innerHTML = `<tr><td colspan="5" class="text-loading">Cargando clientes...</td></tr>`;
 
-        const idArea = selectAreaFiltro.value;
-        const textoBuscar = inputBuscarTexto.value.trim();
+    const idArea = selectAreaFiltro.value;
+    const textoBuscar = inputBuscarTexto.value.trim();
+    const queryParams = [`pagina=${paginaActual}`, `limite=${limiteRegistros}`];
 
-        // Parámetros cruzados incluyendo paginación obligatoria
-        let queryParams = [`pagina=${paginaActual}`, `limite=${limiteRegistros}`];
-        if (idArea !== 'TODOS') queryParams.push(`id_area=${idArea}`);
-        if (textoBuscar !== '') queryParams.push(`buscar=${encodeURIComponent(textoBuscar)}`);
+    if (idArea !== "TODOS") queryParams.push(`id_area=${idArea}`);
+    if (textoBuscar) queryParams.push(`buscar=${encodeURIComponent(textoBuscar)}`);
 
-        try {
-            const respuesta = await fetch(`${API_URL}/clientes/listado?${queryParams.join('&')}`);
+    try {
+      const response = await fetch(`${API_URL}/clientes/listado?${queryParams.join("&")}`);
+      const data = await leerRespuestaJson(response);
 
-            if (!respuesta.ok) {
-                tbody.innerHTML = `<tr><td colspan="5" class="text-loading">No se pudo cargar el listado de clientes.</td></tr>`;
-                return;
-            }
+      if (!response.ok) {
+        await cargarListadoSimple(idArea, textoBuscar, data.error);
+        return;
+      }
 
-            const data = await respuesta.json();
-            tbody.innerHTML = '';
+      const clientes = Array.isArray(data) ? data : data.clientes;
+      renderizarClientes(clientes || []);
+    } catch (error) {
+      console.error(error);
+      await cargarListadoSimple(idArea, textoBuscar);
+    }
+  }
 
-            if (data.clientes.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="text-loading">No se registran antecedentes bajo los criterios provistos.</td></tr>`;
-                btnSiguiente.disabled = true;
-                return;
-            }
+  async function cargarListadoSimple(idArea, textoBuscar, errorOriginal = "") {
+    const parametros = [];
 
-            // Renderizar cada fila inyectando los parámetros id_cliente dinámicamente en los botones
-            data.clientes.forEach(cliente => {
-                const tr = document.createElement('tr');
+    if (idArea !== "TODOS") parametros.push(`id_area=${idArea}`);
+    if (textoBuscar) parametros.push(`buscar=${encodeURIComponent(textoBuscar)}`);
 
-                // Si el estado es INACTIVO, se le inyecta la clase de opacidad exigida por la descripción
-                if (cliente.estado === 'INACTIVO') {
-                    tr.className = 'fila-inactiva';
-                }
+    const queryString = parametros.length > 0 ? `?${parametros.join("&")}` : "";
 
-                tr.innerHTML = `
-                    <td><strong>${cliente.rut}</strong></td>
-                    <td>${cliente.razon_social}</td>
-                    <td>${cliente.areas_nombres || 'Sin área'}</td>
-                    <td><span class="status-pildora">${cliente.estado}</span></td>
-                    <td style="text-align: center;">
-                        <div class="acciones-celda-flex">
-                            <a href="ficha_cliente.html?id=${cliente.id_cliente}" class="btn-accion-tabla btn-view" title="Ver Ficha">Ficha</a>
-                            <a href="modificar_clientes.html?id=${cliente.id_cliente}" class="btn-accion-tabla btn-edit" title="Editar">Editar</a>
-                            <a href="cambiar_estado.html?id=${cliente.id_cliente}" class="btn-accion-tabla btn-state" title="Toggle Estado">Estado</a>
-                            <a href="eliminar_cliente.html?id=${cliente.id_cliente}" class="btn-accion-tabla btn-del" title="Eliminar/Deshabilitar">Quitar</a>
-                        </div>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
+    try {
+      const response = await fetch(`${API_URL}/clientes/filtrar${queryString}`);
+      const clientes = await leerRespuestaJson(response);
 
-            // Control dinámico de los gatillos de la paginación
-            txtIndicador.textContent = `Página ${paginaActual}`;
-            btnAnterior.disabled = (paginaActual === 1);
-            btnSiguiente.disabled = (data.clientes.length < limiteRegistros);
+      if (!response.ok) {
+        const mensaje = clientes.error || errorOriginal || "No se pudo cargar el listado de clientes.";
+        tbody.innerHTML = `<tr><td colspan="5" class="text-loading">${mensaje}</td></tr>`;
+        return;
+      }
 
-        } catch (error) {
-            console.error(error);
-            tbody.innerHTML = `<tr><td colspan="5" class="text-loading">Error al conectar con el backend de Nahan.</td></tr>`;
-        }
-    };
+      renderizarClientes(Array.isArray(clientes) ? clientes : []);
+      btnAnterior.disabled = true;
+      btnSiguiente.disabled = true;
+      txtIndicador.textContent = "Listado";
+    } catch (error) {
+      console.error(error);
+      tbody.innerHTML = `<tr><td colspan="5" class="text-loading">Error al conectar con el servidor.</td></tr>`;
+    }
+  }
 
-    // Escuchadores reactivos para filtros
-    selectAreaFiltro.addEventListener('change', () => { paginaActual = 1; cargarListadoGeneral(); });
-    inputBuscarTexto.addEventListener('input', () => { paginaActual = 1; cargarListadoGeneral(); });
+  async function leerRespuestaJson(response) {
+    const texto = await response.text();
 
-    // Navegación de páginas
-    btnAnterior.addEventListener('click', () => { if (paginaActual > 1) { paginaActual--; cargarListadoGeneral(); } });
-    btnSiguiente.addEventListener('click', () => { paginaActual++; cargarListadoGeneral(); });
+    if (!texto) return {};
 
-    // Carga inicial automatizada
+    try {
+      return JSON.parse(texto);
+    } catch (error) {
+      console.error("Respuesta no válida del servidor:", texto);
+      return { error: "Respuesta no válida del servidor." };
+    }
+  }
+
+  function renderizarClientes(clientes) {
+    tbody.innerHTML = "";
+
+    if (clientes.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5" class="text-loading">No hay clientes para mostrar.</td></tr>`;
+      btnAnterior.disabled = paginaActual === 1;
+      btnSiguiente.disabled = true;
+      txtIndicador.textContent = `Página ${paginaActual}`;
+      return;
+    }
+
+    clientes.forEach(cliente => {
+      const fila = document.createElement("tr");
+
+      if (cliente.estado === "INACTIVO") {
+        fila.classList.add("inactivo");
+      }
+
+      fila.innerHTML = `
+        <td><strong>${cliente.rut}</strong></td>
+        <td>${cliente.razon_social}</td>
+        <td>${cliente.areas_nombres || "Sin área"}</td>
+        <td>
+          <span class="badge estado-${normalizarEstado(cliente.estado).toLowerCase()}">
+            ${normalizarEstado(cliente.estado)}
+          </span>
+        </td>
+        <td>
+          <div class="clientes-actions">
+            <a href="ficha_cliente.html?id=${cliente.id_cliente}" class="btn btn-secondary btn-small">Ficha</a>
+            <a href="modificar_clientes.html?id=${cliente.id_cliente}" class="btn btn-primary btn-small">Editar</a>
+            <a href="cambiar_estado.html?id=${cliente.id_cliente}" class="btn btn-warning btn-small">Estado</a>
+            <a href="eliminar_cliente.html?id=${cliente.id_cliente}" class="btn btn-danger btn-small">Quitar</a>
+          </div>
+        </td>
+      `;
+
+      tbody.appendChild(fila);
+    });
+
+    txtIndicador.textContent = `Página ${paginaActual}`;
+    btnAnterior.disabled = paginaActual === 1;
+    btnSiguiente.disabled = clientes.length < limiteRegistros;
+  }
+
+  function normalizarEstado(estado) {
+    return estado || "ACTIVO";
+  }
+
+  selectAreaFiltro.addEventListener("change", () => {
+    paginaActual = 1;
     cargarListadoGeneral();
+  });
+
+  inputBuscarTexto.addEventListener("input", () => {
+    paginaActual = 1;
+    cargarListadoGeneral();
+  });
+
+  btnAnterior.addEventListener("click", () => {
+    if (paginaActual > 1) {
+      paginaActual--;
+      cargarListadoGeneral();
+    }
+  });
+
+  btnSiguiente.addEventListener("click", () => {
+    paginaActual++;
+    cargarListadoGeneral();
+  });
+
+  cargarListadoGeneral();
 });

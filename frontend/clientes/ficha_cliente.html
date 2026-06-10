@@ -1,110 +1,105 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ficha del Cliente | Nahan Asesores</title>
+  <meta charset="UTF-8">
+  <title>Ficha del Cliente</title>
 
-    <link rel="stylesheet" href="../assets/css/variables.css">
-    <link rel="stylesheet" href="../assets/css/global.css">
-    <link rel="stylesheet" href="../assets/css/buttons.css">
-    <link rel="stylesheet" href="../assets/css/forms.css">
-    <link rel="stylesheet" href="../assets/css/cards.css">
-    <link rel="stylesheet" href="../assets/css/navigation.css">
-    <link rel="stylesheet" href="../assets/css/topbar.css">
-    <link rel="stylesheet" href="ficha_cliente.css">
+  <link rel="stylesheet" href="../assets/css/variables.css">
+  <link rel="stylesheet" href="../assets/css/global.css">
+  <link rel="stylesheet" href="../assets/css/buttons.css">
+  <link rel="stylesheet" href="../assets/css/forms.css">
+  <link rel="stylesheet" href="../assets/css/cards.css">
+  <link rel="stylesheet" href="../assets/css/navigation.css">
+  <link rel="stylesheet" href="../assets/css/topbar.css">
+  <link rel="stylesheet" href="./clientes.css">
 </head>
 <body>
 
-    <div class="app-layout">
-        <aside class="sidebar" id="sidebar"></aside>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
 
-        <div class="content-wrapper">
-            <header class="topbar" id="topbar"></header>
+  <div class="content-wrapper">
+    <header class="topbar" id="topbar"></header>
 
-            <main class="main-content">
-                <div class="mockup-wrapper-ficha">
-                    <div class="header-ficha-flex">
-                        <h3 class="mockup-title">Ficha Consolidada del Cliente</h3>
-                        <button type="button" id="btnVolver" class="btn-primary-azul">Volver al listado</button>
-                    </div>
-
-                    <div class="usuarios-card ficha-card-contenedor">
-                        <div class="ficha-seccion-titulo">Antecedentes Generales</div>
-                        <div class="mockup-table">
-                            <div class="mockup-row">
-                                <div class="mockup-label">RUT</div>
-                                <div class="mockup-info-cell" id="fichaRut">-</div>
-                            </div>
-                            <div class="mockup-row">
-                                <div class="mockup-label">Razón Social</div>
-                                <div class="mockup-info-cell" id="fichaRazonSocial">-</div>
-                            </div>
-                            <div class="mockup-row">
-                                <div class="mockup-label">Dirección</div>
-                                <div class="mockup-info-cell" id="fichaDireccion">-</div>
-                            </div>
-                            <div class="mockup-row">
-                                <div class="mockup-label">Teléfono / Fono</div>
-                                <div class="mockup-info-cell" id="fichaTelefono">-</div>
-                            </div>
-                            <div class="mockup-row">
-                                <div class="mockup-label">Correo Electrónico</div>
-                                <div class="mockup-info-cell" id="fichaEmail">-</div>
-                            </div>
-                            <div class="mockup-row no-border">
-                                <div class="mockup-label">Áreas de Servicio</div>
-                                <div class="mockup-info-cell" id="fichaAreas">-</div>
-                            </div>
-                        </div>
-
-                        <div class="ficha-seccion-titulo">Historial de Tareas y Gestiones</div>
-                        <div class="contenedor-tabla-interna">
-                            <table class="tabla-ficha-consolidada">
-                                <thead>
-                                    <tr>
-                                        <th>Título de la Gestión</th>
-                                        <th>Área</th>
-                                        <th>Vencimiento</th>
-                                        <th>Estado</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="tablaTareasCuerpo">
-                                    <tr><td colspan="4" class="text-loading">Cargando tareas realizadas...</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <div class="ficha-seccion-titulo">Referencias a Documentos Vinculados</div>
-                        <div class="contenedor-tabla-interna">
-                            <table class="tabla-ficha-consolidada">
-                                <thead>
-                                    <tr>
-                                        <th>Nombre del Documento</th>
-                                        <th>Fecha de Subida</th>
-                                        <th>Acción</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="tablaDocumentoCuerpo">
-                                    <tr><td colspan="3" class="text-loading">Cargando repositorio documental...</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </main>
+    <main class="main-content">
+      <section class="clientes-header">
+        <div>
+          <h1>Ficha del Cliente</h1>
+          <p>Antecedentes generales, tareas y documentos vinculados.</p>
         </div>
-    </div>
 
-    <script src="../auth/logout.js"></script>
-    <script src="../assets/js/navigation.js"></script>
-    <script src="../assets/js/topbar.js"></script>
-    <script src="../assets/js/permissions.js"></script>
-    <script src="ficha_cliente.js"></script>
+        <div class="clientes-header-actions">
+          <a href="listar_clientes.html" class="btn btn-secondary">Volver al listado</a>
+        </div>
+      </section>
 
-    <script>
-        cargarNavegacion("clientes");
-        cargarTopbar();
-    </script>
+      <section class="clientes-section">
+        <h2>Antecedentes generales</h2>
+
+        <div class="cliente-detail-grid">
+          <div class="cliente-detail-label">RUT</div>
+          <div class="cliente-detail-value" id="fichaRut">-</div>
+          <div class="cliente-detail-label">Razón Social</div>
+          <div class="cliente-detail-value" id="fichaRazonSocial">-</div>
+          <div class="cliente-detail-label">Dirección</div>
+          <div class="cliente-detail-value" id="fichaDireccion">-</div>
+          <div class="cliente-detail-label">Teléfono</div>
+          <div class="cliente-detail-value" id="fichaTelefono">-</div>
+          <div class="cliente-detail-label">Correo</div>
+          <div class="cliente-detail-value" id="fichaEmail">-</div>
+          <div class="cliente-detail-label">Áreas</div>
+          <div class="cliente-detail-value" id="fichaAreas">-</div>
+        </div>
+      </section>
+
+      <section class="clientes-section">
+        <h2>Tareas y gestiones</h2>
+
+        <table class="clientes-table">
+          <thead>
+            <tr>
+              <th>Título</th>
+              <th>Área</th>
+              <th>Vencimiento</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody id="tablaTareasCuerpo">
+            <tr><td colspan="4" class="text-loading">Cargando tareas...</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="clientes-section">
+        <h2>Documentos vinculados</h2>
+
+        <table class="clientes-table">
+          <thead>
+            <tr>
+              <th>Documento</th>
+              <th>Fecha de subida</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody id="tablaDocumentoCuerpo">
+            <tr><td colspan="3" class="text-loading">Cargando documentos...</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script src="../auth/logout.js"></script>
+<script src="../assets/js/navigation.js"></script>
+<script src="../assets/js/topbar.js"></script>
+<script src="../assets/js/permissions.js"></script>
+<script src="./ficha_cliente.js"></script>
+
+<script>
+  cargarNavegacion("clientes");
+  cargarTopbar();
+</script>
+
 </body>
 </html>

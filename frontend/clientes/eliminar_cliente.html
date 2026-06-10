@@ -1,64 +1,72 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Eliminar Cliente | Nahan Asesores</title>
+  <meta charset="UTF-8">
+  <title>Eliminar Cliente</title>
 
-    <link rel="stylesheet" href="../assets/css/variables.css">
-    <link rel="stylesheet" href="../assets/css/global.css">
-    <link rel="stylesheet" href="../assets/css/buttons.css">
-    <link rel="stylesheet" href="../assets/css/forms.css">
-    <link rel="stylesheet" href="../assets/css/cards.css">
-    <link rel="stylesheet" href="../assets/css/navigation.css">
-    <link rel="stylesheet" href="../assets/css/topbar.css">
-    <link rel="stylesheet" href="eliminar_cliente.css">
+  <link rel="stylesheet" href="../assets/css/variables.css">
+  <link rel="stylesheet" href="../assets/css/global.css">
+  <link rel="stylesheet" href="../assets/css/buttons.css">
+  <link rel="stylesheet" href="../assets/css/forms.css">
+  <link rel="stylesheet" href="../assets/css/cards.css">
+  <link rel="stylesheet" href="../assets/css/navigation.css">
+  <link rel="stylesheet" href="../assets/css/topbar.css">
+  <link rel="stylesheet" href="./clientes.css">
 </head>
 <body>
 
-    <div class="app-layout">
-        <aside class="sidebar" id="sidebar"></aside>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
 
-        <div class="content-wrapper">
-            <header class="topbar" id="topbar"></header>
+  <div class="content-wrapper">
+    <header class="topbar" id="topbar"></header>
 
-            <main class="main-content">
-                <div class="mockup-wrapper">
-                    <h3 class="mockup-title">Eliminar o deshabilitar cliente</h3>
-
-                    <div class="mockup-card central-modal">
-                        <div class="warning-icon">!</div>
-                        <h4 class="modal-alert-title">Revisión previa del cliente</h4>
-                        <p class="modal-alert-text">
-                            El sistema verificará si existen tareas o documentos activos antes de ejecutar la acción.
-                        </p>
-
-                        <div class="info-resumen-box">
-                            <p><strong>RUT:</strong> <span id="resumenRut">Cargando...</span></p>
-                            <p><strong>Razón Social:</strong> <span id="resumenNombre">Cargando...</span></p>
-                        </div>
-
-                        <div id="mensajeFeedback" class="mensaje"></div>
-
-                        <div class="modal-actions-vertical">
-                            <button type="button" id="btnConfirmarDeshabilitar" class="btn-danger-block">Procesar cliente</button>
-                            <button type="button" id="btnVolver" class="btn-volver-link">Volver al listado</button>
-                        </div>
-                    </div>
-                </div>
-            </main>
+    <main class="main-content">
+      <section class="clientes-header">
+        <div>
+          <h1>Eliminar Cliente</h1>
+          <p>El sistema verifica vínculos activos antes de ejecutar la acción.</p>
         </div>
-    </div>
 
-    <script src="../auth/logout.js"></script>
-    <script src="../assets/js/navigation.js"></script>
-    <script src="../assets/js/topbar.js"></script>
-    <script src="../assets/js/permissions.js"></script>
-    <script src="eliminar_cliente.js"></script>
+        <div class="clientes-header-actions">
+          <a href="listar_clientes.html" class="btn btn-secondary">Volver al listado</a>
+        </div>
+      </section>
 
-    <script>
-        cargarNavegacion("clientes");
-        cargarTopbar();
-    </script>
+      <section class="clientes-section">
+        <h2>Revisión del cliente</h2>
+
+        <div class="cliente-detail-grid">
+          <div class="cliente-detail-label">RUT</div>
+          <div class="cliente-detail-value" id="resumenRut">Cargando...</div>
+          <div class="cliente-detail-label">Razón Social</div>
+          <div class="cliente-detail-value" id="resumenNombre">Cargando...</div>
+        </div>
+
+        <p id="textoVerificacion" class="alert-box">
+          Consultando vínculos del cliente...
+        </p>
+
+        <p id="mensajeFeedback" class="mensaje"></p>
+
+        <div class="clientes-actions">
+          <button type="button" id="btnConfirmarAccion" class="btn btn-danger">Procesar cliente</button>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script src="../auth/logout.js"></script>
+<script src="../assets/js/navigation.js"></script>
+<script src="../assets/js/topbar.js"></script>
+<script src="../assets/js/permissions.js"></script>
+<script src="./eliminar_cliente.js"></script>
+
+<script>
+  cargarNavegacion("clientes");
+  cargarTopbar();
+</script>
+
 </body>
 </html>

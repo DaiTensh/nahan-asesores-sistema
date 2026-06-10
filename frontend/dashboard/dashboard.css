@@ -101,8 +101,8 @@
 
 .dashboard-row-actions {
   display: flex;
-  flex-wrap: wrap;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .dashboard-row-actions a {
@@ -121,5 +121,9 @@
 
   .dashboard-actions {
     justify-content: flex-start;
+  }
+
+  .dashboard-cards {
+    grid-template-columns: 1fr;
   }
 }

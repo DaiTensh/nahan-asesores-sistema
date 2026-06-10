@@ -1,97 +1,97 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Listado de Clientes | Nahan Asesores</title>
+  <meta charset="UTF-8">
+  <title>Gestión de Clientes</title>
 
-    <link rel="stylesheet" href="../assets/css/variables.css">
-    <link rel="stylesheet" href="../assets/css/global.css">
-    <link rel="stylesheet" href="../assets/css/buttons.css">
-    <link rel="stylesheet" href="../assets/css/forms.css">
-    <link rel="stylesheet" href="../assets/css/cards.css">
-    <link rel="stylesheet" href="../assets/css/navigation.css">
-    <link rel="stylesheet" href="../assets/css/topbar.css">
-    <link rel="stylesheet" href="listar_clientes.css">
+  <link rel="stylesheet" href="../assets/css/variables.css">
+  <link rel="stylesheet" href="../assets/css/global.css">
+  <link rel="stylesheet" href="../assets/css/buttons.css">
+  <link rel="stylesheet" href="../assets/css/forms.css">
+  <link rel="stylesheet" href="../assets/css/cards.css">
+  <link rel="stylesheet" href="../assets/css/navigation.css">
+  <link rel="stylesheet" href="../assets/css/topbar.css">
+  <link rel="stylesheet" href="./clientes.css">
 </head>
 <body>
 
-    <div class="app-layout">
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
 
-        <aside class="sidebar" id="sidebar"></aside>
+  <div class="content-wrapper">
+    <header class="topbar" id="topbar"></header>
 
-        <div class="content-wrapper">
-
-            <header class="topbar" id="topbar"></header>
-
-            <main class="main-content">
-            <div class="mockup-wrapper-listado">
-                
-                <section class="clientes-header">
-                    <div>
-                        <h1>Listado General de Clientes</h1>
-                        <p>Consulta, filtra y administra los clientes registrados en el sistema.</p>
-                    </div>
-
-                    <a href="registrar_clientes.html" class="btn btn-primary">+ Nuevo Cliente</a>
-                </section>
-
-                <div class="usuarios-card barra-herramientas-card">
-                    <div class="filtro-flex-grid">
-                        <div class="item-control">
-                            <label class="label-filtro-min">Filtrar por Área:</label>
-                            <select id="selectAreaFiltro" class="select-listado">
-                                <option value="TODOS">Todas las áreas</option>
-                                <option value="1">JURÍDICA</option>
-                                <option value="2">CONTABLE</option>
-                            </select>
-                        </div>
-                        <div class="item-control input-busqueda-grow">
-                            <label class="label-filtro-min">Búsqueda rápida (Nombre o RUT):</label>
-                            <input type="text" id="inputBuscarTexto" class="input-listado" placeholder="Escriba para buscar en tiempo real...">
-                        </div>
-                    </div>
-                </div>
-
-                <div class="usuarios-card tabla-contenedor-borde">
-                    <table class="tabla-general-clientes">
-                        <thead>
-                            <tr>
-                                <th>RUT</th>
-                                <th>Nombre / Razón Social</th>
-                                <th>Área Asociada</th>
-                                <th>Estado</th>
-                                <th style="text-align: center;">Acciones Conectadas</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tablaClientesGeneralCuerpo">
-                            <tr><td colspan="5" class="text-loading">Cargando base consolidada de clientes...</td></tr>
-                        </tbody>
-                    </table>
-
-                    <div class="paginacion-flex-footer">
-                        <button type="button" id="btnPaginaAnterior" class="btn-pag-nav" disabled>◀ Anterior</button>
-                        <span id="txtIndicadorPagina" class="indicador-pag">Página 1</span>
-                        <button type="button" id="btnPaginaSiguiente" class="btn-pag-nav">Siguiente ▶</button>
-                    </div>
-                </div>
-
-            </div>
-            </main>
-
+    <main class="main-content">
+      <section class="clientes-header">
+        <div>
+          <h1>Gestión de Clientes</h1>
+          <p>Consulta, filtra y administra los clientes registrados.</p>
         </div>
-        
-    </div>
 
-    <script src="../auth/logout.js"></script>
-    <script src="../assets/js/navigation.js"></script>
-    <script src="../assets/js/topbar.js"></script>
-    <script src="../assets/js/permissions.js"></script>
-    <script src="listar_clientes.js"></script>
+        <div class="clientes-header-actions">
+          <a href="registrar_clientes.html" class="btn btn-primary">Nuevo Cliente</a>
+          <a href="filtrar_clientes.html" class="btn btn-secondary">Filtro Avanzado</a>
+        </div>
+      </section>
 
-    <script>
-        cargarNavegacion("clientes");
-        cargarTopbar();
-    </script>
+      <section class="clientes-section">
+        <h2>Filtros</h2>
+
+        <div class="clientes-toolbar">
+          <div class="form-group">
+            <label class="form-label" for="selectAreaFiltro">Área</label>
+            <select id="selectAreaFiltro" class="form-input">
+              <option value="TODOS">Todas las áreas</option>
+              <option value="1">Jurídica</option>
+              <option value="2">Contable</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="inputBuscarTexto">Búsqueda rápida</label>
+            <input type="text" id="inputBuscarTexto" class="form-input" placeholder="Nombre o RUT">
+          </div>
+        </div>
+      </section>
+
+      <section class="clientes-section">
+        <h2>Clientes registrados</h2>
+
+        <table class="clientes-table">
+          <thead>
+            <tr>
+              <th>RUT</th>
+              <th>Razón Social</th>
+              <th>Área Asociada</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tablaClientesGeneralCuerpo">
+            <tr><td colspan="5" class="text-loading">Cargando clientes...</td></tr>
+          </tbody>
+        </table>
+
+        <div class="pagination">
+          <button type="button" id="btnPaginaAnterior" class="btn btn-secondary btn-small" disabled>Anterior</button>
+          <span id="txtIndicadorPagina">Página 1</span>
+          <button type="button" id="btnPaginaSiguiente" class="btn btn-secondary btn-small">Siguiente</button>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script src="../auth/logout.js"></script>
+<script src="../assets/js/navigation.js"></script>
+<script src="../assets/js/topbar.js"></script>
+<script src="../assets/js/permissions.js"></script>
+<script src="./listar_clientes.js"></script>
+
+<script>
+  cargarNavegacion("clientes");
+  cargarTopbar();
+</script>
+
 </body>
 </html>
