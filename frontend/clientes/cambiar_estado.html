@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nahan Asesores - Cambiar Estado de Cliente</title>
+    <!-- CSS Globales Obligatorios -->
+    <link rel="stylesheet" href="../assets/css/variables.css">
+    <link rel="stylesheet" href="../assets/css/global.css">
+    <link rel="stylesheet" href="../assets/css/buttons.css">
+    <link rel="stylesheet" href="../assets/css/forms.css">
+    <link rel="stylesheet" href="../assets/css/cards.css">
+    <!-- CSS Propio -->
+    <link rel="stylesheet" href="cambiar_estado.css">
+</head>
+<body>
+    <div class="usuarios-container">
+        
+        <!-- SIDEBAR -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>NAHAN</h2>
+                <span>Asesores</span>
+            </div>
+            <nav class="sidebar-menu">
+                <a href="../usuarios/usuarios.html" class="menu-item">
+                    <span class="icon">👤</span> Usuarios
+                </a>
+                <a href="listar_clientes.html" class="menu-item active">
+                    <span class="icon">💼</span> Clientes
+                </a>
+            </nav>
+        </aside>
+
+        <!-- CONTENIDO PRINCIPAL: CONTROL COMPACTO CENTRADO -->
+        <main class="main-content">
+            <div class="mockup-wrapper-estado">
+                
+                <h3 class="mockup-title">Gestión de Estado de Clientes</h3>
+                
+                <div class="usuarios-card panel-estado-card">
+                    <!-- Resumen del cliente seleccionado -->
+                    <div class="cliente-info-header">
+                        <h4 id="txtRazonSocial">Cargando Cliente...</h4>
+                        <p>RUT: <span id="txtRut">-</span></p>
+                    </div>
+
+                    <!-- Bloque del Switch / Estado Actual -->
+                    <div class="estado-control-box">
+                        <span class="label-estado-switch">Estado Operativo:</span>
+                        <div class="indicador-estado-actual" id="badgeEstado">ACTIVO</div>
+                    </div>
+
+                    <p class="nota-auditoria-texto">
+                        ⚠️ Al cambiar el estado, se registrará de forma automática la trazabilidad de la acción en el historial de auditoría, incluyendo el usuario supervisor responsable.
+                    </p>
+
+                    <!-- Mensaje Feedback de la API -->
+                    <div id="mensajeFeedback" class="mensaje"></div>
+
+                    <!-- Botonera Alternable Dinámica -->
+                    <div class="acciones-estado-flex">
+                        <button type="button" id="btnVolver" class="btn-volver-gris">Volver</button>
+                        <button type="button" id="btnCambiarEstado" class="btn-cambiar-accion">Alternar Estado</button>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+        
+    </div>
+
+    <script src="cambiar_estado.js"></script>
+</body>
+</html>

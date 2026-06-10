@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nahan Asesores - Modificar Cliente</title>
+    <link rel="stylesheet" href="../assets/css/variables.css">
+    <link rel="stylesheet" href="../assets/css/global.css">
+    <link rel="stylesheet" href="../assets/css/buttons.css">
+    <link rel="stylesheet" href="../assets/css/forms.css">
+    <link rel="stylesheet" href="../assets/css/cards.css">
+    <link rel="stylesheet" href="modificar_clientes.css">
+</head>
+<body>
+    <div class="usuarios-container">
+        
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>NAHAN</h2>
+                <span>Asesores</span>
+            </div>
+            <nav class="sidebar-menu">
+                <a href="../usuarios/usuarios.html" class="menu-item">
+                    <span class="icon">👤</span> Usuarios
+                </a>
+                <a href="listar_clientes.html" class="menu-item active">
+                    <span class="icon">💼</span> Clientes
+                </a>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <div class="modificar-layout-flex">
+                
+                <div class="mockup-wrapper">
+                    <h3 class="mockup-title">Modificar clientes</h3>
+                    <form id="formModificarCliente" class="mockup-card">
+                        <div class="mockup-table">
+                            <div class="mockup-row">
+                                <div class="mockup-label">Rut</div>
+                                <div class="mockup-input-cell">
+                                    <input type="text" id="rut" placeholder="12.345.678-9" required>
+                                </div>
+                            </div>
+                            <div class="mockup-row">
+                                <div class="mockup-label">Direccion</div>
+                                <div class="mockup-input-cell">
+                                    <input type="text" id="direccion" placeholder="Dirección del cliente" required>
+                                </div>
+                            </div>
+                            <div class="mockup-row">
+                                <div class="mockup-label">Nombre contacto 1</div>
+                                <div class="mockup-input-cell">
+                                    <input type="text" id="razon_social" placeholder="Nombre completo o Razón Social" required>
+                                </div>
+                            </div>
+                            <div class="mockup-row">
+                                <div class="mockup-label">Nombre contacto 2</div>
+                                <div class="mockup-input-cell">
+                                    <input type="text" id="nombre_contacto_2" placeholder="Nombre secundario (Opcional)">
+                                </div>
+                            </div>
+                            <div class="mockup-row">
+                                <div class="mockup-label">Fono</div>
+                                <div class="mockup-input-cell">
+                                    <input type="tel" id="telefono" placeholder="+56 9 1234 5678" required>
+                                </div>
+                            </div>
+                            <div class="mockup-row">
+                                <div class="mockup-label">Correo</div>
+                                <div class="mockup-input-cell">
+                                    <input type="email" id="email" placeholder="correo@empresa.cl" required>
+                                </div>
+                            </div>
+                            <div class="mockup-row no-border">
+                                <div class="mockup-label">Asignar cliente a</div>
+                                <div class="mockup-input-cell checkboxes-flex">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" name="area_check" value="1" id="checkLegal">
+                                        <span></span> Legal
+                                    </label>
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" name="area_check" value="2" id="checkContable">
+                                        <span></span> Contable
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mockup-actions">
+                            <button type="button" id="btnDispararGuardado" class="btn-guardar-cambios">Guardar cambios</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div id="flujoFlecha" class="flujo-flecha">➔</div>
+
+                <div id="panelConfirmacion" class="panel-confirmacion">
+                    <h4 class="panel-title">Seguro que quieres aplicar los siguientes cambios?</h4>
+                    <ol id="listaCambios" class="lista-cambios">
+                        </ol>
+                    <div id="mensajeFeedback" class="mensaje"></div>
+                    <div class="panel-actions">
+                        <button type="button" id="btnConfirmarFinal" class="btn-confirmar-cambios">Confirmar cambios</button>
+                        <button type="button" id="btnVolver" class="btn-volver">Volver</button>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+        
+    </div>
+
+    <script src="modificar_clientes.js"></script>
+</body>
+</html>
