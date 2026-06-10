@@ -3,39 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nahan Asesores - Panel General de Clientes</title>
+    <title>Listado de Clientes | Nahan Asesores</title>
+
     <link rel="stylesheet" href="../assets/css/variables.css">
     <link rel="stylesheet" href="../assets/css/global.css">
     <link rel="stylesheet" href="../assets/css/buttons.css">
     <link rel="stylesheet" href="../assets/css/forms.css">
     <link rel="stylesheet" href="../assets/css/cards.css">
+    <link rel="stylesheet" href="../assets/css/navigation.css">
+    <link rel="stylesheet" href="../assets/css/topbar.css">
     <link rel="stylesheet" href="listar_clientes.css">
 </head>
 <body>
-    <div class="usuarios-container">
-        
-        <aside class="sidebar">
-            <div class="sidebar-header">
-                <h2>NAHAN</h2>
-                <span>Asesores</span>
-            </div>
-            <nav class="sidebar-menu">
-                <a href="../usuarios/usuarios.html" class="menu-item">
-                    <span class="icon">👤</span> Usuarios
-                </a>
-                <a href="listar_clientes.html" class="menu-item active">
-                    <span class="icon">💼</span> Clientes
-                </a>
-            </nav>
-        </aside>
 
-        <main class="main-content">
+    <div class="app-layout">
+
+        <aside class="sidebar" id="sidebar"></aside>
+
+        <div class="content-wrapper">
+
+            <header class="topbar" id="topbar"></header>
+
+            <main class="main-content">
             <div class="mockup-wrapper-listado">
                 
-                <div class="header-listado-flex">
-                    <h3 class="mockup-title">Listado General de Clientes</h3>
-                    <a href="registrar_clientes.html" class="btn-primary-azul">+ Nuevo Cliente</a>
-                </div>
+                <section class="clientes-header">
+                    <div>
+                        <h1>Listado General de Clientes</h1>
+                        <p>Consulta, filtra y administra los clientes registrados en el sistema.</p>
+                    </div>
+
+                    <a href="registrar_clientes.html" class="btn btn-primary">+ Nuevo Cliente</a>
+                </section>
 
                 <div class="usuarios-card barra-herramientas-card">
                     <div class="filtro-flex-grid">
@@ -78,10 +77,21 @@
                 </div>
 
             </div>
-        </main>
+            </main>
+
+        </div>
         
     </div>
 
+    <script src="../auth/logout.js"></script>
+    <script src="../assets/js/navigation.js"></script>
+    <script src="../assets/js/topbar.js"></script>
+    <script src="../assets/js/permissions.js"></script>
     <script src="listar_clientes.js"></script>
+
+    <script>
+        cargarNavegacion("clientes");
+        cargarTopbar();
+    </script>
 </body>
 </html>

@@ -11,3 +11,10 @@
   font-weight:600;
   margin-bottom:12px;
 }
+
+.usuarios-card{
+  background:white;
+  border:1px solid var(--color-border);
+  border-radius:var(--radius-sm);
+  box-shadow:var(--shadow-sm);
+}
