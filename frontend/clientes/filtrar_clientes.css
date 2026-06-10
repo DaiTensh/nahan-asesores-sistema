@@ -188,3 +188,13 @@ body {
 .btn-tabla-ver:hover {
     background-color: var(--color-primary-dark);
 }
+
+.badge-estado {
+    display: inline-block;
+    font-size: var(--font-xs);
+    font-weight: 700;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: 999px;
+    background-color: #dcfce7;
+    color: #16a34a;
+}

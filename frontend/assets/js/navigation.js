@@ -24,6 +24,11 @@ nav.innerHTML = `
       Tareas
     </a>
 
+    <a class="sidebar-link ${rutaActiva === "clientes" ? "active" : ""}"
+      href="../clientes/listar_clientes.html">
+      Clientes
+    </a>
+
     ${
       esAdmin
         ? `

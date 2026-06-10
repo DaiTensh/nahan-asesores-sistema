@@ -3,79 +3,77 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nahan Asesores - Filtrar Clientes</title>
+    <title>Filtrar Clientes | Nahan Asesores</title>
+
     <link rel="stylesheet" href="../assets/css/variables.css">
     <link rel="stylesheet" href="../assets/css/global.css">
     <link rel="stylesheet" href="../assets/css/buttons.css">
     <link rel="stylesheet" href="../assets/css/forms.css">
     <link rel="stylesheet" href="../assets/css/cards.css">
+    <link rel="stylesheet" href="../assets/css/navigation.css">
+    <link rel="stylesheet" href="../assets/css/topbar.css">
     <link rel="stylesheet" href="filtrar_clientes.css">
 </head>
 <body>
-    <div class="usuarios-container">
-        
-        <aside class="sidebar">
-            <div class="sidebar-header">
-                <h2>NAHAN</h2>
-                <span>Asesores</span>
-            </div>
-            <nav class="sidebar-menu">
-                <a href="../usuarios/usuarios.html" class="menu-item">
-                    <span class="icon">👤</span> Usuarios
-                </a>
-                <a href="listar_clientes.html" class="menu-item active">
-                    <span class="icon">💼</span> Clientes
-                </a>
-            </nav>
-        </aside>
 
-        <main class="main-content">
-            <div class="mockup-wrapper-filtro">
-                
-                <h3 class="mockup-title">Segmentación de Clientes por Área</h3>
-                
-                <div class="usuarios-card barra-filtro-contenedor">
-                    <div class="filtro-grupo-flex">
-                        
-                        <div class="campo-busqueda-item">
-                            <label for="selectArea" class="form-label-filtro">Área de Servicio:</label>
-                            <select id="selectArea" class="form-select-custom">
-                                <option value="TODOS">--- Todas ---</option>
-                                <option value="1">JURÍDICA</option>
-                                <option value="2">CONTABLE</option>
-                            </select>
+    <div class="app-layout">
+        <aside class="sidebar" id="sidebar"></aside>
+
+        <div class="content-wrapper">
+            <header class="topbar" id="topbar"></header>
+
+            <main class="main-content">
+                <div class="mockup-wrapper-filtro">
+                    <h3 class="mockup-title">Segmentación de Clientes por Área</h3>
+
+                    <div class="usuarios-card barra-filtro-contenedor">
+                        <div class="filtro-grupo-flex">
+                            <div class="campo-busqueda-item">
+                                <label for="selectArea" class="form-label-filtro">Área de Servicio:</label>
+                                <select id="selectArea" class="form-select-custom">
+                                    <option value="TODOS">Todas</option>
+                                    <option value="1">JURÍDICA</option>
+                                    <option value="2">CONTABLE</option>
+                                </select>
+                            </div>
+
+                            <div class="campo-busqueda-item input-crecido">
+                                <label for="inputBuscar" class="form-label-filtro">Buscar por Nombre o RUT:</label>
+                                <input type="text" id="inputBuscar" class="form-input-custom" placeholder="Ej: 12.345.678 o Nombre empresa...">
+                            </div>
                         </div>
+                    </div>
 
-                        <div class="campo-busqueda-item input-crecido">
-                            <label for="inputBuscar" class="form-label-filtro">Buscar por Nombre o RUT:</label>
-                            <input type="text" id="inputBuscar" class="form-input-custom" placeholder="Ej: 12.345.678 o Nombre empresa...">
-                        </div>
-
+                    <div class="usuarios-card tabla-resultados-contenedor">
+                        <table class="tabla-corporativa-proyectos">
+                            <thead>
+                                <tr>
+                                    <th>RUT</th>
+                                    <th>Razón Social / Contacto</th>
+                                    <th>Teléfono</th>
+                                    <th>Estado</th>
+                                    <th style="text-align: center;">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaClientesCuerpo">
+                                <tr><td colspan="5" class="text-loading">Consultando registros...</td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-
-                <div class="usuarios-card tabla-resultados-contenedor">
-                    <table class="tabla-corporativa-proyectos">
-                        <thead>
-                            <tr>
-                                <th>RUT</th>
-                                <th>Razón Social / Contacto</th>
-                                <th>Teléfono</th>
-                                <th>Estado</th>
-                                <th style="text-align: center;">Acción</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tablaClientesCuerpo">
-                            <tr><td colspan="5" class="text-loading">Consultando registros...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-
-            </div>
-        </main>
-        
+            </main>
+        </div>
     </div>
 
+    <script src="../auth/logout.js"></script>
+    <script src="../assets/js/navigation.js"></script>
+    <script src="../assets/js/topbar.js"></script>
+    <script src="../assets/js/permissions.js"></script>
     <script src="filtrar_clientes.js"></script>
+
+    <script>
+        cargarNavegacion("clientes");
+        cargarTopbar();
+    </script>
 </body>
 </html>
