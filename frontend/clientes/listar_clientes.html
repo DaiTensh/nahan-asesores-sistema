@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nahan Asesores - Panel General de Clientes</title>
+    <link rel="stylesheet" href="../assets/css/variables.css">
+    <link rel="stylesheet" href="../assets/css/global.css">
+    <link rel="stylesheet" href="../assets/css/buttons.css">
+    <link rel="stylesheet" href="../assets/css/forms.css">
+    <link rel="stylesheet" href="../assets/css/cards.css">
+    <link rel="stylesheet" href="listar_clientes.css">
+</head>
+<body>
+    <div class="usuarios-container">
+        
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>NAHAN</h2>
+                <span>Asesores</span>
+            </div>
+            <nav class="sidebar-menu">
+                <a href="../usuarios/usuarios.html" class="menu-item">
+                    <span class="icon">👤</span> Usuarios
+                </a>
+                <a href="listar_clientes.html" class="menu-item active">
+                    <span class="icon">💼</span> Clientes
+                </a>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <div class="mockup-wrapper-listado">
+                
+                <div class="header-listado-flex">
+                    <h3 class="mockup-title">Listado General de Clientes</h3>
+                    <a href="registrar_clientes.html" class="btn-primary-azul">+ Nuevo Cliente</a>
+                </div>
+
+                <div class="usuarios-card barra-herramientas-card">
+                    <div class="filtro-flex-grid">
+                        <div class="item-control">
+                            <label class="label-filtro-min">Filtrar por Área:</label>
+                            <select id="selectAreaFiltro" class="select-listado">
+                                <option value="TODOS">Todas las áreas</option>
+                                <option value="1">JURÍDICA</option>
+                                <option value="2">CONTABLE</option>
+                            </select>
+                        </div>
+                        <div class="item-control input-busqueda-grow">
+                            <label class="label-filtro-min">Búsqueda rápida (Nombre o RUT):</label>
+                            <input type="text" id="inputBuscarTexto" class="input-listado" placeholder="Escriba para buscar en tiempo real...">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="usuarios-card tabla-contenedor-borde">
+                    <table class="tabla-general-clientes">
+                        <thead>
+                            <tr>
+                                <th>RUT</th>
+                                <th>Nombre / Razón Social</th>
+                                <th>Área Asociada</th>
+                                <th>Estado</th>
+                                <th style="text-align: center;">Acciones Conectadas</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaClientesGeneralCuerpo">
+                            <tr><td colspan="5" class="text-loading">Cargando base consolidada de clientes...</td></tr>
+                        </tbody>
+                    </table>
+
+                    <div class="paginacion-flex-footer">
+                        <button type="button" id="btnPaginaAnterior" class="btn-pag-nav" disabled>◀ Anterior</button>
+                        <span id="txtIndicadorPagina" class="indicador-pag">Página 1</span>
+                        <button type="button" id="btnPaginaSiguiente" class="btn-pag-nav">Siguiente ▶</button>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+        
+    </div>
+
+    <script src="listar_clientes.js"></script>
+</body>
+</html>

@@ -1,0 +1,553 @@
+from flask import Blueprint, request, jsonify
+from datetime import datetime
+from backend.config.db import get_connection
+
+clientes_blueprint = Blueprint('clientes_blueprint', __name__)
+
+@clientes_blueprint.route('/clientes', methods=['POST'])
+def registrar_cliente():
+    try:
+        datos = request.json
+        
+        rut = datos.get('rut', '').strip()
+        razon_social = datos.get('razon_social', '').strip()
+        email = datos.get('email', '').strip()
+        telefono = datos.get('telefono', '').strip()
+        direccion = datos.get('direccion', '').strip()
+        areas = datos.get('areas', []) # Array de IDs de áreas [1, 2]
+
+        # Validaciones de campos obligatorios según esquema de BD
+        if not all([rut, razon_social]):
+            return jsonify({"error": "RUT y Nombre de contacto 1 (Razón Social) son estrictamente obligatorios."}), 400
+
+        if not areas:
+            return jsonify({"error": "Debe asignar el cliente a por lo menos un área activa."}), 400
+
+        conexion = get_connection()
+        if conexion is None:
+            return jsonify({"error": "Fallo interno de comunicación con la base de datos."}), 500
+
+        with conexion.cursor() as cursor:
+            # Control preventivo de RUT duplicado
+            cursor.execute("SELECT id_cliente FROM cliente WHERE rut = %s", (rut,))
+            if cursor.fetchone():
+                return jsonify({"error": "El RUT ingresado ya pertenece a un cliente registrado."}), 400
+
+            # 1. Insertar el cliente en la tabla base
+            query_cliente = """
+                INSERT INTO cliente (rut, razon_social, email, telefono, direccion, estado)
+                VALUES (%s, %s, %s, %s, %s, 'ACTIVO')
+            """
+            cursor.execute(query_cliente, (rut, razon_social, email, telefono, direccion))
+            
+            # Obtener el id_cliente recién generado
+            id_nuevo_cliente = cursor.lastrowid
+
+            # 2. Insertar las relaciones en la tabla intermedia cliente_area
+            query_area = """
+                INSERT INTO cliente_area (id_cliente, id_area, fecha_asignacion)
+                VALUES (%s, %s, %s)
+            """
+            fecha_hoy = datetime.now().date()
+            for id_area in areas:
+                cursor.execute(query_area, (id_nuevo_cliente, id_area, fecha_hoy))
+            
+            conexion.commit()
+
+        return jsonify({"message": "Cliente incorporado exitosamente junto a sus áreas asociadas."}), 201
+
+    except Exception as e:
+        print(f"Excepción controlada en RF01: {str(e)}")
+        return jsonify({"error": "Ocurrió una anomalía interna en el servidor al guardar el expediente."}), 500
+
+@clientes_blueprint.route('/clientes/<int:id_cliente>', methods=['GET'])
+def obtener_cliente(id_cliente):
+    try:
+        conexion = get_connection()
+        if conexion is None:
+            return jsonify({"error": "Fallo de conexión."}), 500
+
+        with conexion.cursor(dictionary=True) as cursor:
+            # 1. Traer datos base de la tabla cliente
+            cursor.execute("SELECT rut, razon_social, email, telefono, direccion FROM cliente WHERE id_cliente = %s", (id_cliente,))
+            cliente = cursor.fetchone()
+
+            if not cliente:
+                return jsonify({"error": "El expediente solicitado no existe."}), 404
+
+            # 2. Buscar relaciones en la tabla intermedia cliente_area
+            cursor.execute("SELECT id_area FROM cliente_area WHERE id_cliente = %s", (id_cliente,))
+            filas_areas = cursor.fetchall()
+            
+            # Formateamos los IDs de las áreas en una lista simple: [1, 2]
+            cliente['areas'] = [item['id_area'] for item in filas_areas]
+
+        return jsonify(cliente), 200
+
+    except Exception as e:
+        print(f"Error en GET individual: {str(e)}")
+        return jsonify({"error": "Error interno del servidor."}), 500
+
+
+
+
+@clientes_blueprint.route('/clientes/<int:id_cliente>', methods=['PUT'])
+def modificar_cliente(id_cliente):
+    try:
+        datos = request.json
+        razon_social = datos.get('razon_social', '').strip()
+        email = datos.get('email', '').strip()
+        telefono = datos.get('telefono', '').strip()
+        direccion = datos.get('direccion', '').strip()
+        areas = datos.get('areas', []) # Arreglo de enteros [1] o [2] o [1,2]
+
+        if not razon_social:
+            return jsonify({"error": "El campo Nombre contacto 1 es mandatorio."}), 400
+
+        if not areas:
+            return jsonify({"error": "Debe mantener al menos una asignación de área."}), 400
+
+        conexion = get_connection()
+        if conexion is None:
+            return jsonify({"error": "Error de base de datos."}), 500
+
+        with conexion.cursor() as cursor:
+            # Verificar existencia del cliente
+            cursor.execute("SELECT id_cliente FROM cliente WHERE id_cliente = %s", (id_cliente,))
+            if not cursor.fetchone():
+                return jsonify({"error": "Cliente inexistente."}), 404
+
+            # 1. Actualizar tabla base cliente
+            query_update = """
+                UPDATE cliente 
+                SET razon_social = %s, email = %s, telefono = %s, direccion = %s
+                WHERE id_cliente = %s
+            """
+            cursor.execute(query_update, (razon_social, email, telefono, direccion, id_cliente))
+
+            # 2. Sincronizar tabla intermedia (Limpiar previas e insertar nuevas asignaciones)
+            cursor.execute("DELETE FROM cliente_area WHERE id_cliente = %s", (id_cliente,))
+            
+            query_insert_area = """
+                INSERT INTO cliente_area (id_cliente, id_area, fecha_asignacion)
+                VALUES (%s, %s, CURRENT_DATE)
+            """
+            for id_area in areas:
+                cursor.execute(query_insert_area, (id_cliente, id_area))
+
+            conexion.commit()
+
+        return jsonify({"message": "Expediente modificado con éxito."}), 200
+
+    except Exception as e:
+        print(f"Error en PUT individual: {str(e)}")
+        return jsonify({"error": "Error inesperado al almacenar cambios."}), 500
+
+
+  
+# ==========================================================================
+# RF03: ENPOINT DE VERIFICACIÓN DE VÍNCULOS COMERCIALES
+# ==========================================================================
+@clientes_blueprint.route('/clientes/<int:id_cliente>/verificar-vinculos', methods=['GET'])
+def verificar_vinculos_cliente(id_cliente):
+    try:
+        conexion = get_connection()
+        if conexion is None:
+            return jsonify({"error": "Error de base de datos."}), 500
+
+        with conexion.cursor(dictionary=True) as cursor:
+            # 1. Traer datos básicos
+            cursor.execute("SELECT rut, razon_social FROM cliente WHERE id_cliente = %s", (id_cliente,))
+            cliente = cursor.fetchone()
+            if not cliente:
+                return jsonify({"error": "Cliente no localizado."}), 404
+
+            # 2. Contar tareas en proceso o pendientes según tus ENUM de BD
+            query_tareas = """
+                SELECT COUNT(*) as conteo FROM tarea 
+                WHERE id_cliente = %s AND estado IN ('PENDIENTE', 'EN_PROCESO', 'EN_REVISION')
+            """
+            cursor.execute(query_tareas, (id_cliente,))
+            total_tareas = cursor.fetchone()['conteo']
+
+            # 3. Contar documentos activos vigentes
+            query_docs = "SELECT COUNT(*) as conteo FROM documento WHERE id_cliente = %s AND estado = 'ACTIVO'"
+            cursor.execute(query_docs, (id_cliente,))
+            total_docs = cursor.fetchone()['conteo']
+
+            vínculos_activos = (total_tareas > 0 or total_docs > 0)
+
+        return jsonify({
+            "rut": cliente['rut'],
+            "razon_social": cliente['razon_social'],
+            "tiene_vinculos": vínculos_activos,
+            "tareas_activas": total_tareas,
+            "documentos_activos": total_docs
+        }), 200
+
+    except Exception as e:
+        print(f"Error en verificación RF03: {str(e)}")
+        return jsonify({"error": "Error al calcular dependencias."}), 500
+
+
+# ==========================================================================
+# RF03: ACCIÓN A - DESHABILITACIÓN LÓGICA (CON VÍNCULOS) + AUDITORÍA
+# ==========================================================================
+@clientes_blueprint.route('/clientes/<int:id_cliente>/deshabilitar', methods=['PATCH'])
+def deshabilitar_cliente_rf3(id_cliente):
+    try:
+        id_usuario = request.json.get('id_usuario_auditoria', 1) # Respaldo usuario auditor
+        conexion = get_connection()
+        
+        with conexion.cursor() as cursor:
+            # Modificar estado a INACTIVO
+            cursor.execute("UPDATE cliente SET estado = 'INACTIVO' WHERE id_cliente = %s", (id_cliente,))
+            
+            # Grabar en historial (Tabla Auditoria de tu base de datos)
+            query_auditoria = """
+                INSERT INTO auditoria (id_usuario, tabla_afectada, accion, datos_anteriores, datos_nuevos)
+                VALUES (%s, 'cliente', 'DESHABILITAR', 'estado: ACTIVO', 'estado: INACTIVO')
+            """
+            cursor.execute(query_auditoria, (id_usuario,))
+            conexion.commit()
+
+        return jsonify({"message": "Cliente deshabilitado y registrado en auditoría."}), 200
+    except Exception as e:
+        print(str(e))
+        return jsonify({"error": "Error procesando deshabilitación."}), 500
+
+
+# ==========================================================================
+# RF03: ENPOINT DE VERIFICACIÓN DE VÍNCULOS COMERCIALES
+# ==========================================================================
+@clientes_blueprint.route('/clientes/<int:id_cliente>/verificar-vinculos', methods=['GET'])
+def verificar_vinculos_cliente(id_cliente):
+    try:
+        conexion = get_connection()
+        if conexion is None:
+            return jsonify({"error": "Error de base de datos."}), 500
+
+        with conexion.cursor(dictionary=True) as cursor:
+            # 1. Traer datos básicos
+            cursor.execute("SELECT rut, razon_social FROM cliente WHERE id_cliente = %s", (id_cliente,))
+            cliente = cursor.fetchone()
+            if not cliente:
+                return jsonify({"error": "Cliente no localizado."}), 404
+
+            # 2. Contar tareas en proceso o pendientes según tus ENUM de BD
+            query_tareas = """
+                SELECT COUNT(*) as conteo FROM tarea 
+                WHERE id_cliente = %s AND estado IN ('PENDIENTE', 'EN_PROCESO', 'EN_REVISION')
+            """
+            cursor.execute(query_tareas, (id_cliente,))
+            total_tareas = cursor.fetchone()['conteo']
+
+            # 3. Contar documentos activos vigentes
+            query_docs = "SELECT COUNT(*) as conteo FROM documento WHERE id_cliente = %s AND estado = 'ACTIVO'"
+            cursor.execute(query_docs, (id_cliente,))
+            total_docs = cursor.fetchone()['conteo']
+
+            vínculos_activos = (total_tareas > 0 or total_docs > 0)
+
+        return jsonify({
+            "rut": cliente['rut'],
+            "razon_social": cliente['razon_social'],
+            "tiene_vinculos": vínculos_activos,
+            "tareas_activas": total_tareas,
+            "documentos_activos": total_docs
+        }), 200
+
+    except Exception as e:
+        print(f"Error en verificación RF03: {str(e)}")
+        return jsonify({"error": "Error al calcular dependencias."}), 500
+
+
+# ==========================================================================
+# RF03: ACCIÓN A - DESHABILITACIÓN LÓGICA (CON VÍNCULOS) + AUDITORÍA
+# ==========================================================================
+@clientes_blueprint.route('/clientes/<int:id_cliente>/deshabilitar', methods=['PATCH'])
+def deshabilitar_cliente_rf3(id_cliente):
+    try:
+        id_usuario = request.json.get('id_usuario_auditoria', 1) # Respaldo usuario auditor
+        conexion = get_connection()
+        
+        with conexion.cursor() as cursor:
+            # Modificar estado a INACTIVO
+            cursor.execute("UPDATE cliente SET estado = 'INACTIVO' WHERE id_cliente = %s", (id_cliente,))
+            
+            # Grabar en historial (Tabla Auditoria de tu base de datos)
+            query_auditoria = """
+                INSERT INTO auditoria (id_usuario, tabla_afectada, accion, datos_anteriores, datos_nuevos)
+                VALUES (%s, 'cliente', 'DESHABILITAR', 'estado: ACTIVO', 'estado: INACTIVO')
+            """
+            cursor.execute(query_auditoria, (id_usuario,))
+            conexion.commit()
+
+        return jsonify({"message": "Cliente deshabilitado y registrado en auditoría."}), 200
+    except Exception as e:
+        print(str(e))
+        return jsonify({"error": "Error procesando deshabilitación."}), 500
+
+
+# ==========================================================================
+# RF03: ACCIÓN B - ELIMINACIÓN DEFINITIVA FÍSICA (SIN VÍNCULOS) + AUDITORÍA
+# ==========================================================================
+@clientes_blueprint.route('/clientes/<int:id_cliente>/eliminar-definitivo', methods=['DELETE'])
+def eliminar_definitivo_cliente(id_cliente):
+    try:
+        id_usuario = request.json.get('id_usuario_auditoria', 1)
+        conexion = get_connection()
+
+        with conexion.cursor() as cursor:
+            # Resguardar datos para el log histórico antes de eliminarlos físicamente
+            cursor.execute("SELECT rut, razon_social FROM cliente WHERE id_cliente = %s", (id_cliente,))
+            info = cursor.fetchone()
+            
+            log_anterior = f"rut: {info[0]}, razon_social: {info[1]}"
+
+            # 1. Limpiar amarras en la tabla intermedia cliente_area para evitar error de FK
+            cursor.execute("DELETE FROM cliente_area WHERE id_cliente = %s", (id_cliente,))
+
+            # 2. Remover físicamente de la tabla cliente
+            cursor.execute("DELETE FROM cliente WHERE id_cliente = %s", (id_cliente,))
+
+            # 3. Grabar en historial de auditoría
+            query_auditoria = """
+                INSERT INTO auditoria (id_usuario, tabla_afectada, accion, datos_anteriores, datos_nuevos)
+                VALUES (%s, 'cliente', 'ELIMINACION_DEFINITIVA', %s, 'REMOVIDO_COMPLETAMENTE')
+            """
+            cursor.execute(query_auditoria, (id_usuario, log_anterior))
+            conexion.commit()
+
+        return jsonify({"message": "Cliente eliminado físicamente y registrado en auditoría."}), 200
+    except Exception as e:
+        print(f"Error en DELETE RF03: {str(e)}")
+        return jsonify({"error": "No se pudo realizar la eliminación por dependencias."}), 500
+
+# ==========================================================================
+# RF04: VISUALIZANDO LA FICHA COMPLETA Y CONSOLIDADA DEL CLIENTE
+# ==========================================================================
+@clientes_blueprint.route('/clientes/<int:id_cliente>/ficha', methods=['GET'])
+def obtener_ficha_consolidada(id_cliente):
+    try:
+        conexion = get_connection()
+        if conexion is None:
+            return jsonify({"error": "Error interno de base de datos."}), 500
+
+        with conexion.cursor(dictionary=True) as cursor:
+            # 1. Traer la información base del cliente
+            cursor.execute("SELECT id_cliente, rut, razon_social, email, telefono, direccion FROM cliente WHERE id_cliente = %s", (id_cliente,))
+            cliente = cursor.fetchone()
+            
+            if not cliente:
+                return jsonify({"error": "El expediente solicitado no existe en los registros activos."}), 404
+
+            # 2. Consultar las áreas asociadas concatenando sus nombres de forma limpia
+            query_areas = """
+                SELECT a.nombre_area FROM cliente_area ca
+                JOIN area a ON ca.id_area = a.id_area
+                WHERE ca.id_cliente = %s
+            """
+            cursor.execute(query_areas, (id_cliente,))
+            areas_filas = cursor.fetchall()
+            nombres_areas = [f["nombre_area"] for f in areas_filas]
+            cliente["areas_nombres"] = ", ".join(nombres_areas) if nombres_areas else "Sin área asignada"
+
+            # 3. Traer el historial completo de tareas vinculadas
+            query_tareas = """
+                SELECT t.titulo, t.estado, DATE_FORMAT(t.fecha_vencimiento, '%%d-%%m-%%Y') as fecha_vencimiento, a.nombre_area 
+                FROM tarea t
+                JOIN area a ON t.id_area = a.id_area
+                WHERE t.id_cliente = %s
+                ORDER BY t.fecha_creacion DESC
+            """
+            cursor.execute(query_tareas, (id_cliente,))
+            cliente["tareas"] = cursor.fetchall()
+
+            # 4. Traer los documentos e instrumentos guardados en la plataforma
+            query_docs = """
+                SELECT nombre_documento, url_archivo, DATE_FORMAT(fecha_subida, '%%d-%%m-%%Y %%H:%%i') as fecha_subida 
+                FROM documento 
+                WHERE id_cliente = %s AND estado = 'ACTIVO'
+                ORDER BY fecha_subida DESC
+            """
+            cursor.execute(query_docs, (id_cliente,))
+            cliente["documentos"] = cursor.fetchall()
+
+        return jsonify(cliente), 200
+
+    except Exception as e:
+        print(f"Error crítico en consolidación RF04: {str(e)}")
+        return jsonify({"error": "Ocurrió una anomalía interna al consolidar los antecedentes del cliente."}), 500
+
+# ==========================================================================
+# RF06: FILTRANDO CLIENTES POR ÁREA DE SERVICIO Y CRITERIO DE TEXTO (LIKE)
+# ==========================================================================
+@clientes_blueprint.route('/clientes/filtrar', methods=['GET'])
+def filtrar_clientes_combinado():
+    try:
+        # Captura de parámetros opcionales (?id_area=1&buscar=alfa)
+        id_area = request.args.get('id_area')
+        texto_buscar = request.args.get('buscar', '').strip()
+        
+        conexion = get_connection()
+        if conexion is None:
+            return jsonify({"error": "Fallo de conexión con MySQL."}), 500
+
+        with conexion.cursor(dictionary=True) as cursor:
+            # Base de la consulta
+            query = """
+                SELECT DISTINCT c.id_cliente, c.rut, c.razon_social, c.telefono, c.estado 
+                FROM cliente c
+            """
+            condiciones = []
+            parametros = []
+
+            # Si el usuario seleccionó un departamento, unimos con la intermedia
+            if id_area:
+                query += " JOIN cliente_area ca ON c.id_cliente = ca.id_cliente"
+                condiciones.append("ca.id_area = %s")
+                parametros.append(id_area)
+
+            # Si el usuario escribió en el input de texto, agregamos la cláusula LIKE cruzada
+            if texto_buscar:
+                condiciones.append("(c.razon_social LIKE %s OR c.rut LIKE %s)")
+                parametro_like = f"%{texto_buscar}%"
+                parametros.append(parametro_like)
+                parametros.append(parametro_like)
+
+            # Si existen condiciones acumuladas, las inyectamos dinámicamente con un WHERE
+            if condiciones:
+                query += " WHERE " + " AND ".join(condiciones)
+                
+            query += " ORDER BY c.razon_social ASC"
+            
+            cursor.execute(query, tuple(parametros))
+            resultados = cursor.fetchall()
+
+        return jsonify(resultados), 200
+
+    except Exception as e:
+        print(f"Error combinado en RF06: {str(e)}")
+        return jsonify({"error": "Ocurrió una anomalía al procesar el filtrado multi-criterio."}), 500
+
+
+# ==========================================================================
+# RF10: CAMBIANDO EL ESTADO DE CLIENTES (ACTIVO <=> INACTIVO) + TRAZABILIDAD
+# ==========================================================================
+@clientes_blueprint.route('/clientes/<int:id_cliente>/cambiar-estado', methods=['POST'])
+def cambiar_estado_cliente_rf10(id_cliente):
+    try:
+        datos = request.json
+        nuevo_estado = datos.get('nuevo_estado', '').strip().upper()
+        id_usuario = datos.get('id_usuario_auditoria', 1)
+
+        if nuevo_estado not in ['ACTIVO', 'INACTIVO']:
+            return jsonify({"error": "El estado solicitado no corresponde a un parámetro válido."}), 400
+
+        conexion = get_connection()
+        if conexion is None:
+            return jsonify({"error": "Fallo interno de comunicación con el motor SQL."}), 500
+
+        with conexion.cursor() as cursor:
+            # 1. Rescatar el estado previo para asegurar la trazabilidad del log
+            cursor.execute("SELECT estado FROM cliente WHERE id_cliente = %s", (id_cliente,))
+            fila = cursor.fetchone()
+
+            if not fila:
+                return jsonify({"error": "El cliente especificado no existe."}), 404
+
+            estado_anterior = fila[0]
+
+            if estado_anterior == nuevo_estado:
+                return jsonify({"error": f"El cliente ya posee el estado {nuevo_estado} actualmente."}), 400
+
+            # 2. Impactar el nuevo estado en la base de datos
+            cursor.execute("UPDATE cliente SET estado = %s WHERE id_cliente = %s", (nuevo_estado, id_cliente))
+
+            # 3. Registrar automáticamente en el historial de la tabla auditoria
+            log_anterior = f"estado: {estado_anterior}"
+            log_nuevo = f"estado: {nuevo_estado}"
+            
+            query_auditoria = """
+                INSERT INTO auditoria (id_usuario, tabla_afectada, accion, datos_anteriores, datos_nuevos)
+                VALUES (%s, 'cliente', 'CAMBIO_ESTADO', %s, %s)
+            """
+            cursor.execute(query_auditoria, (id_usuario, log_anterior, log_nuevo))
+            
+            conexion.commit()
+
+        return jsonify({"message": f"Estado actualizado exitosamente a {nuevo_estado}."}), 200
+
+    except Exception as e:
+        print(f"Error en conmutación de estados RF10: {str(e)}")
+        return jsonify({"error": "Error interno al procesar el cambio de estado."}), 500
+
+
+# ==========================================================================
+# RF11: LISTANDO GENERALMENTE LOS CLIENTES (CON PAGINACIÓN Y FILTROS CRUZADOS)
+# ==========================================================================
+@clientes_blueprint.route('/clientes/listado', methods=['GET'])
+def listado_general_paginado_clientes():
+    try:
+        # Captura de parámetros de orden y paginación (?pagina=1&limite=7)
+        pagina = int(request.args.get('pagina', 1))
+        limite = int(request.args.get('limite', 7))
+        id_area = request.args.get('id_area')
+        texto_buscar = request.args.get('buscar', '').strip()
+
+        # Cálculo matemático del desplazamiento en base de datos
+        offset = (pagina - 1) * limite
+
+        conexion = get_connection()
+        if conexion is None:
+            return jsonify({"error": "Error interno de base de datos MySQL."}), 500
+
+        with conexion.cursor(dictionary=True) as cursor:
+            # Consulta base estructurada
+            query_base = """
+                SELECT DISTINCT c.id_cliente, c.rut, c.razon_social, c.estado, c.telefono 
+                FROM cliente c
+            """
+            condiciones = []
+            parametros = []
+
+            if id_area:
+                query_base += " JOIN cliente_area ca ON c.id_cliente = ca.id_cliente"
+                condiciones.append("ca.id_area = %s")
+                parametros.append(id_area)
+
+            if texto_buscar:
+                condiciones.append("(c.razon_social LIKE %s OR c.rut LIKE %s)")
+                parametro_like = f"%{texto_buscar}%"
+                parametros.append(parametro_like)
+                parametros.append(parametro_like)
+
+            if condiciones:
+                query_base += " WHERE " + " AND ".join(condiciones)
+
+            # Inyección de paginación controlada
+            query_base += " ORDER BY c.razon_social ASC LIMIT %s OFFSET %s"
+            parametros.append(limite)
+            parametros.append(offset)
+
+            cursor.execute(query_base, tuple(parametros))
+            clientes = cursor.fetchall()
+
+            # Bloque de resolución secundaria: Concatenar nombres de áreas para cada fila
+            for cliente in clientes:
+                query_sub_areas = """
+                    SELECT a.nombre_area FROM cliente_area ca
+                    JOIN area a ON ca.id_area = a.id_area
+                    WHERE ca.id_cliente = %s
+                """
+                cursor.execute(query_sub_areas, (cliente['id_cliente'],))
+                areas_filas = cursor.fetchall()
+                nombres = [f['nombre_area'] for f in areas_filas]
+                cliente['areas_nombres'] = " / ".join(nombres) if nombres else "Sin área"
+
+        return jsonify({"clientes": clientes}), 200
+
+    except Exception as e:
+        print(f"Error crítico en listado paginado RF11: {str(e)}")
+        return jsonify({"error": "Imposible recuperar la matriz general de clientes."}), 500
