@@ -10,6 +10,10 @@
   justify-content: space-between;
 }
 
+.content-wrapper .topbar {
+  margin-left: 0;
+}
+
 .topbar-search {
   width: 420px;
 }

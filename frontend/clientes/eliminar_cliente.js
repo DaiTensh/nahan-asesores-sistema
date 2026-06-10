@@ -1,92 +1,114 @@
-document.addEventListener('DOMContentLoaded', async () => {
-    const btnConfirmarDeshabilitar = document.getElementById('btnConfirmarDeshabilitar');
-    const btnVolver = document.getElementById('btnVolver');
-    const txtRut = document.getElementById('resumenRut');
-    const txtNombre = document.getElementById('resumenNombre');
-    const txtAlertaText = document.querySelector('.modal-alert-text');
-    const mensaje = document.getElementById('mensajeFeedback');
+const API_URL = "http://127.0.0.1:5000/api";
+
+document.addEventListener("DOMContentLoaded", async () => {
+    const btnConfirmarDeshabilitar = document.getElementById("btnConfirmarDeshabilitar");
+    const btnVolver = document.getElementById("btnVolver");
+    const txtRut = document.getElementById("resumenRut");
+    const txtNombre = document.getElementById("resumenNombre");
+    const txtAlertaText = document.querySelector(".modal-alert-text");
+    const mensaje = document.getElementById("mensajeFeedback");
 
     const parametrosUrl = new URLSearchParams(window.location.search);
-    const idCliente = parametrosUrl.get('id') || 1;
+    const idCliente = parametrosUrl.get("id");
+    const usuario = JSON.parse(localStorage.getItem("usuario")) || {};
 
     let puedeEliminarDefinitivo = false;
 
-    // 1. CARGA INICIAL: Validar el estado de los vínculos del cliente en tiempo real
-    try {
-        const respuesta = await fetch(`http://localhost:5000/api/clientes/${idCliente}/verificar-vinculos`);
-        if (respuesta.ok) {
-            const data = await respuesta.json();
-            txtRut.textContent = data.rut;
-            txtNombre.textContent = data.razon_social;
-            
-            if (data.tiene_vinculos) {
-                // Regla de negocio: Posee vínculos activos, solo ofrece deshabilitar
-                puedeEliminarDefinitivo = false;
-                txtAlertaText.innerHTML = `
-                    ⚠️ <strong>Opción Única: Deshabilitación.</strong> Este cliente posee <strong>${data.tareas_activas} tareas vigentes</strong> o documentos en revisión. Por integridad legal, el sistema solo permite deshabilitarlo para congelar la creación de nuevas tareas.
-                `;
-                btnConfirmarDeshabilitar.textContent = "Deshabilitar cliente (Borrado Lógico)";
-            } else {
-                // Cliente limpio: Se permite la remoción completa del registro activo
-                puedeEliminarDefinitivo = true;
-                txtAlertaText.innerHTML = `
-                    ✔ <strong>Eliminación Definitiva Permitida.</strong> Este cliente no posee tareas activas ni documentos pendientes. Puede proceder a borrarlo completamente del registro del sistema.
-                `;
-                btnConfirmarDeshabilitar.textContent = "Eliminar definitivamente (Borrado Físico)";
-            }
-        } else {
-            mensaje.textContent = "❌ Error: No se pudo verificar el estado del expediente.";
-            mensaje.className = "mensaje error";
-            btnConfirmarDeshabilitar.disabled = true;
-        }
-    } catch (error) {
-        console.error(error);
-        mensaje.textContent = "❌ Error de red al consultar el estado del cliente.";
-        mensaje.className = "mensaje error";
+    function mostrarMensaje(texto, tipo) {
+        mensaje.textContent = texto;
+        mensaje.className = `mensaje ${tipo}`;
     }
 
-    // 2. DISPARAR ACCIÓN (Rutea a PATCH o a DELETE según la regla de negocio)
-    btnConfirmarDeshabilitar.addEventListener('click', async () => {
-        mensaje.className = 'mensaje';
-        mensaje.style.display = 'none';
+    function bloquearAccion(texto) {
+        btnConfirmarDeshabilitar.disabled = true;
+        btnConfirmarDeshabilitar.textContent = texto;
+    }
 
-        const accionTexto = puedeEliminarDefinitivo ? 'ELIMINAR DEFINITIVAMENTE' : 'DESHABILITAR';
-        if (!confirm(`¿Está seguro de que desea ${accionTexto} este cliente? Esta acción quedará registrada en el historial de auditoría.`)) {
+    async function cargarVerificacion() {
+        if (!idCliente) {
+            txtRut.textContent = "-";
+            txtNombre.textContent = "Cliente no seleccionado";
+            bloquearAccion("Sin cliente");
+            mostrarMensaje("No se recibió un cliente válido desde el listado.", "error");
             return;
         }
 
-        // Seleccionamos dinámicamente el endpoint y el método HTTP
-        const urlEndpoint = puedeEliminarDefinitivo 
-            ? `http://localhost:5000/api/clientes/${idCliente}/eliminar-definitivo`
-            : `http://localhost:5000/api/clientes/${idCliente}/deshabilitar`;
-        
-        const metodoHttp = puedeEliminarDefinitivo ? 'DELETE' : 'PATCH';
+        try {
+            const respuesta = await fetch(`${API_URL}/clientes/${idCliente}/verificar-vinculos`);
+            const data = await respuesta.json();
+
+            if (!respuesta.ok) {
+                bloquearAccion("No disponible");
+                mostrarMensaje(data.error || "No se pudo verificar el expediente.", "error");
+                return;
+            }
+
+            txtRut.textContent = data.rut;
+            txtNombre.textContent = data.razon_social;
+
+            if (data.tiene_vinculos) {
+                puedeEliminarDefinitivo = false;
+                txtAlertaText.innerHTML = `
+                    <strong>Deshabilitación disponible.</strong> Este cliente posee ${data.tareas_activas} tareas vigentes o documentos activos. Por integridad, se mantendrá el registro y quedará INACTIVO.
+                `;
+                btnConfirmarDeshabilitar.textContent = "Deshabilitar cliente";
+            } else {
+                puedeEliminarDefinitivo = true;
+                txtAlertaText.innerHTML = `
+                    <strong>Eliminación definitiva disponible.</strong> Este cliente no posee tareas activas ni documentos pendientes.
+                `;
+                btnConfirmarDeshabilitar.textContent = "Eliminar definitivamente";
+            }
+        } catch (error) {
+            console.error(error);
+            bloquearAccion("No disponible");
+            mostrarMensaje("Error de red al consultar el estado del cliente.", "error");
+        }
+    }
+
+    btnConfirmarDeshabilitar.addEventListener("click", async () => {
+        mensaje.className = "mensaje";
+
+        const accionTexto = puedeEliminarDefinitivo ? "eliminar definitivamente" : "deshabilitar";
+        const confirmado = confirm(`¿Está seguro de que desea ${accionTexto} este cliente?`);
+
+        if (!confirmado) return;
+
+        const urlEndpoint = puedeEliminarDefinitivo
+            ? `${API_URL}/clientes/${idCliente}/eliminar-definitivo`
+            : `${API_URL}/clientes/${idCliente}/deshabilitar`;
+
+        const metodoHttp = puedeEliminarDefinitivo ? "DELETE" : "PATCH";
 
         try {
             const respuesta = await fetch(urlEndpoint, {
                 method: metodoHttp,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id_usuario_auditoria: 1 }) // Simulamos id_usuario=1 (Administrador) para la auditoría
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id_usuario_auditoria: usuario.id_usuario || 1 })
             });
 
-            if (respuesta.ok) {
-                mensaje.textContent = puedeEliminarDefinitivo 
-                    ? "✔ El cliente ha sido eliminado definitivamente del registro activo."
-                    : "✔ El cliente ha sido deshabilitado con éxito (Estado: INACTIVO).";
-                mensaje.className = "mensaje success";
-                btnConfirmarDeshabilitar.disabled = true;
-                
-                setTimeout(() => { window.location.href = 'listar_clientes.html'; }, 2500);
-            } else {
-                const err = await respuesta.json();
-                mensaje.textContent = `❌ Error: ${err.error}`;
-                mensaje.className = "mensaje error";
+            const resultado = await respuesta.json();
+
+            if (!respuesta.ok) {
+                mostrarMensaje(resultado.error || "No se pudo procesar la acción.", "error");
+                return;
             }
+
+            mostrarMensaje(resultado.message || "Acción completada correctamente.", "success");
+            bloquearAccion("Acción completada");
+
+            setTimeout(() => {
+                window.location.href = "listar_clientes.html";
+            }, 1500);
         } catch (error) {
-            mensaje.textContent = "❌ Error de red al procesar la solicitud.";
-            mensaje.className = "mensaje error";
+            console.error(error);
+            mostrarMensaje("Error de red al procesar la solicitud.", "error");
         }
     });
 
-    btnVolver.addEventListener('click', () => { window.location.href = 'listar_clientes.html'; });
+    btnVolver.addEventListener("click", () => {
+        window.location.href = "listar_clientes.html";
+    });
+
+    await cargarVerificacion();
 });
