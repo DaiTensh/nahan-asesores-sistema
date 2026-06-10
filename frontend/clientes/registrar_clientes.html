@@ -1,116 +1,101 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Registrar Cliente | Nahan Asesores</title>
+  <meta charset="UTF-8">
+  <title>Registrar Cliente</title>
 
-    <link rel="stylesheet" href="../assets/css/variables.css">
-    <link rel="stylesheet" href="../assets/css/global.css">
-    <link rel="stylesheet" href="../assets/css/buttons.css">
-    <link rel="stylesheet" href="../assets/css/forms.css">
-    <link rel="stylesheet" href="../assets/css/cards.css">
-    <link rel="stylesheet" href="../assets/css/navigation.css">
-    <link rel="stylesheet" href="../assets/css/topbar.css">
-    <link rel="stylesheet" href="registrar_clientes.css">
+  <link rel="stylesheet" href="../assets/css/variables.css">
+  <link rel="stylesheet" href="../assets/css/global.css">
+  <link rel="stylesheet" href="../assets/css/buttons.css">
+  <link rel="stylesheet" href="../assets/css/forms.css">
+  <link rel="stylesheet" href="../assets/css/cards.css">
+  <link rel="stylesheet" href="../assets/css/navigation.css">
+  <link rel="stylesheet" href="../assets/css/topbar.css">
+  <link rel="stylesheet" href="./clientes.css">
 </head>
 <body>
 
-    <div class="app-layout">
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
 
-        <aside class="sidebar" id="sidebar"></aside>
+  <div class="content-wrapper">
+    <header class="topbar" id="topbar"></header>
 
-        <div class="content-wrapper">
-
-            <header class="topbar" id="topbar"></header>
-
-            <main class="main-content">
-                <div class="mockup-wrapper">
-                    <h3 class="mockup-title">Creación de cliente</h3>
-
-                    <form id="formRegistroCliente" class="mockup-card">
-                        <div class="mockup-table">
-
-                            <div class="mockup-row">
-                                <div class="mockup-label">RUT</div>
-                                <div class="mockup-input-cell">
-                                    <input type="text" id="rut" placeholder="12.345.678-9" required>
-                                </div>
-                            </div>
-
-                            <div class="mockup-row">
-                                <div class="mockup-label">Direccion</div>
-                                <div class="mockup-input-cell">
-                                    <input type="text" id="direccion" placeholder="Ej. Av. Andrés Bello 2777" required>
-                                </div>
-                            </div>
-
-                            <div class="mockup-row">
-                                <div class="mockup-label">Nombre contacto 1</div>
-                                <div class="mockup-input-cell">
-                                    <input type="text" id="razon_social" placeholder="Nombre completo o Razón Social" required>
-                                </div>
-                            </div>
-
-                            <div class="mockup-row">
-                                <div class="mockup-label">Nombre contacto 2</div>
-                                <div class="mockup-input-cell">
-                                    <input type="text" id="nombre_contacto_2" placeholder="Nombre secundario (Opcional)">
-                                </div>
-                            </div>
-
-                            <div class="mockup-row">
-                                <div class="mockup-label">Fono</div>
-                                <div class="mockup-input-cell">
-                                    <input type="tel" id="telefono" placeholder="+56 9 1234 5678" required>
-                                </div>
-                            </div>
-
-                            <div class="mockup-row">
-                                <div class="mockup-label">Correo</div>
-                                <div class="mockup-input-cell">
-                                    <input type="email" id="email" placeholder="nombre@correo.com" required>
-                                </div>
-                            </div>
-
-                            <div class="mockup-row no-border">
-                                <div class="mockup-label">Asignar cliente a</div>
-                                <div class="mockup-input-cell checkboxes-flex">
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" name="area_check" value="1" id="checkLegal">
-                                        <span></span> Legal
-                                    </label>
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" name="area_check" value="2" id="checkContable">
-                                        <span></span> Contable
-                                    </label>
-                                </div>
-                            </div>
-
-                        </div>
-
-                        <div id="mensajeFeedback" class="mensaje"></div>
-
-                        <div class="mockup-actions">
-                            <button type="submit" class="btn-crear-mockup">Crear</button>
-                        </div>
-                    </form>
-                </div>
-            </main>
-
+    <main class="main-content">
+      <section class="clientes-header">
+        <div>
+          <h1>Registrar Cliente</h1>
+          <p>Ingresa los antecedentes básicos y áreas asociadas.</p>
         </div>
-        
-    </div>
 
-    <script src="../auth/logout.js"></script>
-    <script src="../assets/js/navigation.js"></script>
-    <script src="../assets/js/topbar.js"></script>
-    <script src="../assets/js/permissions.js"></script>
-    <script src="registrar_clientes.js"></script>
+        <div class="clientes-header-actions">
+          <a href="listar_clientes.html" class="btn btn-secondary">Volver al listado</a>
+        </div>
+      </section>
 
-    <script>
-        cargarNavegacion("clientes");
-        cargarTopbar();
-    </script>
+      <section class="clientes-section">
+        <h2>Datos del cliente</h2>
+
+        <form id="formRegistroCliente" class="clientes-form">
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label" for="rut">RUT</label>
+              <input type="text" id="rut" class="form-input" placeholder="12.345.678-9" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="razon_social">Razón Social</label>
+              <input type="text" id="razon_social" class="form-input" required>
+            </div>
+
+            <div class="form-group form-full">
+              <label class="form-label" for="direccion">Dirección</label>
+              <input type="text" id="direccion" class="form-input" placeholder="Ej: Av. Andrés Bello 2777">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="telefono">Teléfono</label>
+              <input type="tel" id="telefono" class="form-input" placeholder="+56 9 1234 5678">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="email">Correo</label>
+              <input type="email" id="email" class="form-input" placeholder="nombre@correo.com">
+            </div>
+
+            <div class="form-group form-full">
+              <label class="form-label">Áreas</label>
+              <div class="checkbox-group">
+                <label class="checkbox-option">
+                  <input type="checkbox" name="area_check" value="1" id="checkLegal">
+                  Jurídica
+                </label>
+                <label class="checkbox-option">
+                  <input type="checkbox" name="area_check" value="2" id="checkContable">
+                  Contable
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary">Crear Cliente</button>
+          <p id="mensajeFeedback" class="mensaje"></p>
+        </form>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script src="../auth/logout.js"></script>
+<script src="../assets/js/navigation.js"></script>
+<script src="../assets/js/topbar.js"></script>
+<script src="../assets/js/permissions.js"></script>
+<script src="./registrar_clientes.js"></script>
+
+<script>
+  cargarNavegacion("clientes");
+  cargarTopbar();
+</script>
+
 </body>
 </html>

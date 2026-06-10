@@ -1,59 +1,69 @@
 const API_URL = "http://127.0.0.1:5000/api";
 
 document.addEventListener("DOMContentLoaded", () => {
-    const selectArea = document.getElementById("selectArea");
-    const inputBuscar = document.getElementById("inputBuscar");
-    const tbodyClientes = document.getElementById("tablaClientesCuerpo");
+  const selectArea = document.getElementById("selectArea");
+  const inputBuscar = document.getElementById("inputBuscar");
+  const tbodyClientes = document.getElementById("tablaClientesCuerpo");
 
-    async function cargarClientesFiltrados() {
-        const idArea = selectArea.value;
-        const textoBusqueda = inputBuscar.value.trim();
-        const parametros = [];
+  async function cargarClientesFiltrados() {
+    const idArea = selectArea.value;
+    const textoBusqueda = inputBuscar.value.trim();
+    const parametros = [];
 
-        if (idArea !== "TODOS") parametros.push(`id_area=${idArea}`);
-        if (textoBusqueda !== "") parametros.push(`buscar=${encodeURIComponent(textoBusqueda)}`);
+    if (idArea !== "TODOS") parametros.push(`id_area=${idArea}`);
+    if (textoBusqueda) parametros.push(`buscar=${encodeURIComponent(textoBusqueda)}`);
 
-        const queryString = parametros.length > 0 ? `?${parametros.join("&")}` : "";
+    const queryString = parametros.length > 0 ? `?${parametros.join("&")}` : "";
 
-        tbodyClientes.innerHTML = `<tr><td colspan="5" class="text-loading">Consultando registros...</td></tr>`;
+    tbodyClientes.innerHTML = `<tr><td colspan="5" class="text-loading">Consultando registros...</td></tr>`;
 
-        try {
-            const respuesta = await fetch(`${API_URL}/clientes/filtrar${queryString}`);
-            const clientes = await respuesta.json();
+    try {
+      const response = await fetch(`${API_URL}/clientes/filtrar${queryString}`);
+      const clientes = await response.json();
 
-            if (!respuesta.ok) {
-                tbodyClientes.innerHTML = `<tr><td colspan="5" class="text-loading">${clientes.error || "Error al procesar la segmentación."}</td></tr>`;
-                return;
-            }
+      if (!response.ok) {
+        tbodyClientes.innerHTML = `<tr><td colspan="5" class="text-loading">${clientes.error || "No se pudo procesar el filtro."}</td></tr>`;
+        return;
+      }
 
-            tbodyClientes.innerHTML = "";
+      renderizarResultados(clientes);
+    } catch (error) {
+      console.error(error);
+      tbodyClientes.innerHTML = `<tr><td colspan="5" class="text-loading">Error al conectar con el servidor.</td></tr>`;
+    }
+  }
 
-            if (clientes.length === 0) {
-                tbodyClientes.innerHTML = `<tr><td colspan="5" class="text-loading">No se encontraron clientes con los criterios seleccionados.</td></tr>`;
-                return;
-            }
+  function renderizarResultados(clientes) {
+    tbodyClientes.innerHTML = "";
 
-            clientes.forEach(cliente => {
-                const tr = document.createElement("tr");
-                tr.innerHTML = `
-                    <td><strong>${cliente.rut}</strong></td>
-                    <td>${cliente.razon_social}</td>
-                    <td>${cliente.telefono || "Sin fono"}</td>
-                    <td><span class="badge-estado">${cliente.estado}</span></td>
-                    <td style="text-align: center;">
-                        <a href="ficha_cliente.html?id=${cliente.id_cliente}" class="btn-tabla-ver">Ver Ficha</a>
-                    </td>
-                `;
-                tbodyClientes.appendChild(tr);
-            });
-        } catch (error) {
-            console.error(error);
-            tbodyClientes.innerHTML = `<tr><td colspan="5" class="text-loading">Error: sin respuesta del backend Flask.</td></tr>`;
-        }
+    if (clientes.length === 0) {
+      tbodyClientes.innerHTML = `<tr><td colspan="5" class="text-loading">No se encontraron clientes con los criterios seleccionados.</td></tr>`;
+      return;
     }
 
-    selectArea.addEventListener("change", cargarClientesFiltrados);
-    inputBuscar.addEventListener("input", cargarClientesFiltrados);
+    clientes.forEach(cliente => {
+      const fila = document.createElement("tr");
 
-    cargarClientesFiltrados();
+      fila.innerHTML = `
+        <td><strong>${cliente.rut}</strong></td>
+        <td>${cliente.razon_social}</td>
+        <td>${cliente.telefono || "Sin teléfono"}</td>
+        <td>
+          <span class="badge estado-${cliente.estado.toLowerCase()}">
+            ${cliente.estado}
+          </span>
+        </td>
+        <td>
+          <a href="ficha_cliente.html?id=${cliente.id_cliente}" class="btn btn-primary btn-small">Ver Ficha</a>
+        </td>
+      `;
+
+      tbodyClientes.appendChild(fila);
+    });
+  }
+
+  selectArea.addEventListener("change", cargarClientesFiltrados);
+  inputBuscar.addEventListener("input", cargarClientesFiltrados);
+
+  cargarClientesFiltrados();
 });

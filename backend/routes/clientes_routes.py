@@ -148,8 +148,9 @@ def modificar_cliente(id_cliente):
         return jsonify({"error": "Error inesperado al almacenar cambios."}), 500
 
 
-  
+# ==========================================================================
 # RF03: ENPOINT DE VERIFICACIÓN DE VÍNCULOS COMERCIALES
+# ==========================================================================
 @clientes_blueprint.route('/clientes/<int:id_cliente>/verificar-vinculos', methods=['GET'])
 def verificar_vinculos_cliente(id_cliente):
     try:
@@ -192,7 +193,9 @@ def verificar_vinculos_cliente(id_cliente):
         return jsonify({"error": "Error al calcular dependencias."}), 500
 
 
+# ==========================================================================
 # RF03: ACCIÓN A - DESHABILITACIÓN LÓGICA (CON VÍNCULOS) + AUDITORÍA
+# ==========================================================================
 @clientes_blueprint.route('/clientes/<int:id_cliente>/deshabilitar', methods=['PATCH'])
 def deshabilitar_cliente_rf3(id_cliente):
     try:
@@ -218,9 +221,9 @@ def deshabilitar_cliente_rf3(id_cliente):
         return jsonify({"error": "Error procesando deshabilitación."}), 500
 
 
-
-
+# ==========================================================================
 # RF03: ACCIÓN B - ELIMINACIÓN DEFINITIVA FÍSICA (SIN VÍNCULOS) + AUDITORÍA
+# ==========================================================================
 @clientes_blueprint.route('/clientes/<int:id_cliente>/eliminar-definitivo', methods=['DELETE'])
 def eliminar_definitivo_cliente(id_cliente):
     try:
@@ -235,7 +238,7 @@ def eliminar_definitivo_cliente(id_cliente):
 
             if not info:
                 return jsonify({"error": "Cliente inexistente."}), 404
-
+            
             log_anterior = f"rut: {info[0]}, razon_social: {info[1]}"
 
             # 1. Limpiar amarras en la tabla intermedia cliente_area para evitar error de FK
@@ -269,11 +272,7 @@ def obtener_ficha_consolidada(id_cliente):
 
         with conexion.cursor(dictionary=True) as cursor:
             # 1. Traer la información base del cliente
-            cursor.execute("""
-                SELECT id_cliente, rut, razon_social, email, telefono, direccion, estado
-                FROM cliente
-                WHERE id_cliente = %s
-            """, (id_cliente,))
+            cursor.execute("SELECT id_cliente, rut, razon_social, email, telefono, direccion FROM cliente WHERE id_cliente = %s", (id_cliente,))
             cliente = cursor.fetchone()
             
             if not cliente:
@@ -317,7 +316,9 @@ def obtener_ficha_consolidada(id_cliente):
         print(f"Error crítico en consolidación RF04: {str(e)}")
         return jsonify({"error": "Ocurrió una anomalía interna al consolidar los antecedentes del cliente."}), 500
 
+# ==========================================================================
 # RF06: FILTRANDO CLIENTES POR ÁREA DE SERVICIO Y CRITERIO DE TEXTO (LIKE)
+# ==========================================================================
 @clientes_blueprint.route('/clientes/filtrar', methods=['GET'])
 def filtrar_clientes_combinado():
     try:
@@ -367,7 +368,9 @@ def filtrar_clientes_combinado():
         return jsonify({"error": "Ocurrió una anomalía al procesar el filtrado multi-criterio."}), 500
 
 
+# ==========================================================================
 # RF10: CAMBIANDO EL ESTADO DE CLIENTES (ACTIVO <=> INACTIVO) + TRAZABILIDAD
+# ==========================================================================
 @clientes_blueprint.route('/clientes/<int:id_cliente>/cambiar-estado', methods=['POST'])
 def cambiar_estado_cliente_rf10(id_cliente):
     try:
@@ -417,7 +420,9 @@ def cambiar_estado_cliente_rf10(id_cliente):
         return jsonify({"error": "Error interno al procesar el cambio de estado."}), 500
 
 
+# ==========================================================================
 # RF11: LISTANDO GENERALMENTE LOS CLIENTES (CON PAGINACIÓN Y FILTROS CRUZADOS)
+# ==========================================================================
 @clientes_blueprint.route('/clientes/listado', methods=['GET'])
 def listado_general_paginado_clientes():
     try:
@@ -484,7 +489,6 @@ def listado_general_paginado_clientes():
         return jsonify({"error": "Imposible recuperar la matriz general de clientes."}), 500
 
 
-# DASHBOARD: RESUMEN GENERAL DE CLIENTES
 @clientes_blueprint.route('/clientes/resumen', methods=['GET'])
 def resumen_clientes_dashboard():
     try:
@@ -504,13 +508,7 @@ def resumen_clientes_dashboard():
             clientes_inactivos = cursor.fetchone()["total"]
 
             query_ultimos = """
-                SELECT
-                    id_cliente,
-                    rut,
-                    razon_social,
-                    email,
-                    telefono,
-                    estado
+                SELECT id_cliente, rut, razon_social, email, telefono, estado
                 FROM cliente
                 ORDER BY fecha_creacion DESC
                 LIMIT 5

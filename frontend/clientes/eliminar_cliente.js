@@ -1,114 +1,106 @@
 const API_URL = "http://127.0.0.1:5000/api";
 
-document.addEventListener("DOMContentLoaded", async () => {
-    const btnConfirmarDeshabilitar = document.getElementById("btnConfirmarDeshabilitar");
-    const btnVolver = document.getElementById("btnVolver");
-    const txtRut = document.getElementById("resumenRut");
-    const txtNombre = document.getElementById("resumenNombre");
-    const txtAlertaText = document.querySelector(".modal-alert-text");
-    const mensaje = document.getElementById("mensajeFeedback");
+document.addEventListener("DOMContentLoaded", () => {
+  const btnConfirmarAccion = document.getElementById("btnConfirmarAccion");
+  const txtRut = document.getElementById("resumenRut");
+  const txtNombre = document.getElementById("resumenNombre");
+  const textoVerificacion = document.getElementById("textoVerificacion");
+  const mensaje = document.getElementById("mensajeFeedback");
+  const parametrosUrl = new URLSearchParams(window.location.search);
+  const idCliente = parametrosUrl.get("id");
+  const usuario = JSON.parse(localStorage.getItem("usuario")) || {};
 
-    const parametrosUrl = new URLSearchParams(window.location.search);
-    const idCliente = parametrosUrl.get("id");
-    const usuario = JSON.parse(localStorage.getItem("usuario")) || {};
+  let puedeEliminarDefinitivo = false;
 
-    let puedeEliminarDefinitivo = false;
+  cargarVerificacion();
 
-    function mostrarMensaje(texto, tipo) {
-        mensaje.textContent = texto;
-        mensaje.className = `mensaje ${tipo}`;
+  btnConfirmarAccion.addEventListener("click", procesarCliente);
+
+  async function cargarVerificacion() {
+    if (!idCliente) {
+      bloquearAccion("Sin cliente");
+      mostrarMensaje("No se recibió un cliente válido desde el listado.", "error");
+      return;
     }
 
-    function bloquearAccion(texto) {
-        btnConfirmarDeshabilitar.disabled = true;
-        btnConfirmarDeshabilitar.textContent = texto;
+    try {
+      const response = await fetch(`${API_URL}/clientes/${idCliente}/verificar-vinculos`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        bloquearAccion("No disponible");
+        mostrarMensaje(data.error || "No se pudo verificar el cliente.", "error");
+        return;
+      }
+
+      txtRut.textContent = data.rut;
+      txtNombre.textContent = data.razon_social;
+
+      if (data.tiene_vinculos) {
+        puedeEliminarDefinitivo = false;
+        textoVerificacion.textContent = `Este cliente posee ${data.tareas_activas} tareas activas o documentos vigentes. Se aplicará deshabilitación lógica para conservar el historial.`;
+        btnConfirmarAccion.textContent = "Deshabilitar cliente";
+      } else {
+        puedeEliminarDefinitivo = true;
+        textoVerificacion.textContent = "Este cliente no posee vínculos activos. Puede eliminarse definitivamente del registro.";
+        btnConfirmarAccion.textContent = "Eliminar definitivamente";
+      }
+    } catch (error) {
+      console.error(error);
+      bloquearAccion("No disponible");
+      mostrarMensaje("Error al conectar con el servidor.", "error");
     }
+  }
 
-    async function cargarVerificacion() {
-        if (!idCliente) {
-            txtRut.textContent = "-";
-            txtNombre.textContent = "Cliente no seleccionado";
-            bloquearAccion("Sin cliente");
-            mostrarMensaje("No se recibió un cliente válido desde el listado.", "error");
-            return;
-        }
+  async function procesarCliente() {
+    const accion = puedeEliminarDefinitivo ? "eliminar definitivamente" : "deshabilitar";
+    const confirmar = confirm(`Desea ${accion} este cliente?`);
 
-        try {
-            const respuesta = await fetch(`${API_URL}/clientes/${idCliente}/verificar-vinculos`);
-            const data = await respuesta.json();
+    if (!confirmar) return;
 
-            if (!respuesta.ok) {
-                bloquearAccion("No disponible");
-                mostrarMensaje(data.error || "No se pudo verificar el expediente.", "error");
-                return;
-            }
+    const endpoint = puedeEliminarDefinitivo
+      ? `${API_URL}/clientes/${idCliente}/eliminar-definitivo`
+      : `${API_URL}/clientes/${idCliente}/deshabilitar`;
 
-            txtRut.textContent = data.rut;
-            txtNombre.textContent = data.razon_social;
+    const method = puedeEliminarDefinitivo ? "DELETE" : "PATCH";
 
-            if (data.tiene_vinculos) {
-                puedeEliminarDefinitivo = false;
-                txtAlertaText.innerHTML = `
-                    <strong>Deshabilitación disponible.</strong> Este cliente posee ${data.tareas_activas} tareas vigentes o documentos activos. Por integridad, se mantendrá el registro y quedará INACTIVO.
-                `;
-                btnConfirmarDeshabilitar.textContent = "Deshabilitar cliente";
-            } else {
-                puedeEliminarDefinitivo = true;
-                txtAlertaText.innerHTML = `
-                    <strong>Eliminación definitiva disponible.</strong> Este cliente no posee tareas activas ni documentos pendientes.
-                `;
-                btnConfirmarDeshabilitar.textContent = "Eliminar definitivamente";
-            }
-        } catch (error) {
-            console.error(error);
-            bloquearAccion("No disponible");
-            mostrarMensaje("Error de red al consultar el estado del cliente.", "error");
-        }
-    }
+    try {
+      const response = await fetch(endpoint, {
+        method,
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          id_usuario_auditoria: usuario.id_usuario || 1
+        })
+      });
 
-    btnConfirmarDeshabilitar.addEventListener("click", async () => {
-        mensaje.className = "mensaje";
+      const data = await response.json();
 
-        const accionTexto = puedeEliminarDefinitivo ? "eliminar definitivamente" : "deshabilitar";
-        const confirmado = confirm(`¿Está seguro de que desea ${accionTexto} este cliente?`);
+      if (!response.ok) {
+        mostrarMensaje(data.error || "No se pudo procesar la acción.", "error");
+        return;
+      }
 
-        if (!confirmado) return;
+      mostrarMensaje(data.message || "Acción completada correctamente.", "success");
+      bloquearAccion("Acción completada");
 
-        const urlEndpoint = puedeEliminarDefinitivo
-            ? `${API_URL}/clientes/${idCliente}/eliminar-definitivo`
-            : `${API_URL}/clientes/${idCliente}/deshabilitar`;
-
-        const metodoHttp = puedeEliminarDefinitivo ? "DELETE" : "PATCH";
-
-        try {
-            const respuesta = await fetch(urlEndpoint, {
-                method: metodoHttp,
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ id_usuario_auditoria: usuario.id_usuario || 1 })
-            });
-
-            const resultado = await respuesta.json();
-
-            if (!respuesta.ok) {
-                mostrarMensaje(resultado.error || "No se pudo procesar la acción.", "error");
-                return;
-            }
-
-            mostrarMensaje(resultado.message || "Acción completada correctamente.", "success");
-            bloquearAccion("Acción completada");
-
-            setTimeout(() => {
-                window.location.href = "listar_clientes.html";
-            }, 1500);
-        } catch (error) {
-            console.error(error);
-            mostrarMensaje("Error de red al procesar la solicitud.", "error");
-        }
-    });
-
-    btnVolver.addEventListener("click", () => {
+      setTimeout(() => {
         window.location.href = "listar_clientes.html";
-    });
+      }, 1200);
+    } catch (error) {
+      console.error(error);
+      mostrarMensaje("Error al conectar con el servidor.", "error");
+    }
+  }
 
-    await cargarVerificacion();
+  function bloquearAccion(texto) {
+    btnConfirmarAccion.disabled = true;
+    btnConfirmarAccion.textContent = texto;
+  }
+
+  function mostrarMensaje(texto, tipo) {
+    mensaje.textContent = texto;
+    mensaje.className = tipo ? `mensaje ${tipo}` : "mensaje";
+  }
 });

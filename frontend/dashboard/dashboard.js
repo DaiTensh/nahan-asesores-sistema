@@ -91,23 +91,43 @@ function cargarTablaUsuarios(usuarios) {
 async function cargarResumenClientes() {
   try {
     const response = await fetch(`${API_URL}/clientes/resumen`);
-    const data = await response.json();
+    const data = await leerRespuestaJson(response);
+
+    if (!response.ok) {
+      await cargarClientesDesdeListado();
+      return;
+    }
+
+    document.getElementById("totalClientes").textContent = data.total_clientes;
+    document.getElementById("clientesActivos").textContent = data.clientes_activos;
+    document.getElementById("clientesInactivos").textContent = data.clientes_inactivos;
+
+    cargarTablaClientes(data.ultimos_clientes || []);
+  } catch (error) {
+    console.error(error);
+    await cargarClientesDesdeListado();
+  }
+}
+
+async function cargarClientesDesdeListado() {
+  try {
+    const response = await fetch(`${API_URL}/clientes/listado?pagina=1&limite=5`);
+    const data = await leerRespuestaJson(response);
 
     if (!response.ok) {
       console.error(data.error || "Error al cargar clientes");
       return;
     }
 
-    const totalClientes = document.getElementById("totalClientes");
-    const clientesActivos = document.getElementById("clientesActivos");
-    const clientesInactivos = document.getElementById("clientesInactivos");
+    const clientes = Array.isArray(data) ? data : data.clientes || [];
 
-    if (totalClientes) totalClientes.textContent = data.total_clientes;
-    if (clientesActivos) clientesActivos.textContent = data.clientes_activos;
-    if (clientesInactivos) clientesInactivos.textContent = data.clientes_inactivos;
+    document.getElementById("totalClientes").textContent = clientes.length;
+    document.getElementById("clientesActivos").textContent =
+      clientes.filter(cliente => normalizarEstado(cliente.estado) === "ACTIVO").length;
+    document.getElementById("clientesInactivos").textContent =
+      clientes.filter(cliente => normalizarEstado(cliente.estado) === "INACTIVO").length;
 
-    cargarTablaClientes(data.ultimos_clientes || []);
-
+    cargarTablaClientes(clientes);
   } catch (error) {
     console.error(error);
   }
@@ -115,9 +135,6 @@ async function cargarResumenClientes() {
 
 function cargarTablaClientes(clientes) {
   const tabla = document.getElementById("tablaClientes");
-
-  if (!tabla) return;
-
   tabla.innerHTML = "";
 
   if (clientes.length === 0) {
@@ -138,20 +155,35 @@ function cargarTablaClientes(clientes) {
       <td>${cliente.email || "Sin correo"}</td>
       <td>${cliente.telefono || "Sin teléfono"}</td>
       <td>
-        <span class="badge ${cliente.estado.toLowerCase()}">
-          ${cliente.estado}
+        <span class="badge ${normalizarEstado(cliente.estado).toLowerCase()}">
+          ${normalizarEstado(cliente.estado)}
         </span>
       </td>
       <td>
         <div class="dashboard-row-actions">
           <a href="../clientes/ficha_cliente.html?id=${cliente.id_cliente}">Ficha</a>
           <a href="../clientes/modificar_clientes.html?id=${cliente.id_cliente}">Editar</a>
-          <a href="../clientes/cambiar_estado.html?id=${cliente.id_cliente}">Estado</a>
-          <a href="../clientes/eliminar_cliente.html?id=${cliente.id_cliente}">Quitar</a>
         </div>
       </td>
     `;
 
     tabla.appendChild(fila);
   });
+}
+
+async function leerRespuestaJson(response) {
+  const texto = await response.text();
+
+  if (!texto) return {};
+
+  try {
+    return JSON.parse(texto);
+  } catch (error) {
+    console.error("Respuesta no válida del servidor:", texto);
+    return { error: "Respuesta no válida del servidor." };
+  }
+}
+
+function normalizarEstado(estado) {
+  return estado || "ACTIVO";
 }
