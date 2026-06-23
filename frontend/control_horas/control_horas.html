@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Control de Horas y Cobros</title>
+
+  <link rel="stylesheet" href="../assets/css/variables.css">
+  <link rel="stylesheet" href="../assets/css/global.css">
+  <link rel="stylesheet" href="../assets/css/buttons.css">
+  <link rel="stylesheet" href="../assets/css/forms.css">
+  <link rel="stylesheet" href="../assets/css/cards.css">
+  <link rel="stylesheet" href="../assets/css/tables.css">
+  <link rel="stylesheet" href="../assets/css/navigation.css">
+  <link rel="stylesheet" href="../assets/css/topbar.css">
+  <link rel="stylesheet" href="./control_horas.css">
+</head>
+<body>
+
+<div class="app-layout">
+
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <div class="content-wrapper">
+
+    <header class="topbar" id="topbar"></header>
+
+    <main class="main-content">
+
+      <section class="control-header">
+        <h1>Control de Horas y Cobros</h1>
+        <p>Registra las horas trabajadas y los montos a facturar.</p>
+      </section>
+
+      <section class="temporizador-card">
+        <div class="temporizador-campos">
+          <div class="form-group">
+            <label class="form-label" for="selectTarea">Nombre tarea</label>
+            <select id="selectTarea" class="form-input">
+              <option value="">Seleccione una tarea</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Nombre cliente</label>
+            <p id="nombreCliente" class="temporizador-cliente">Seleccione una tarea</p>
+          </div>
+        </div>
+
+        <div id="temporizador" class="temporizador-display">00h 00m 00s</div>
+
+        <div class="temporizador-actions">
+          <button type="button" id="btnIniciar" class="btn btn-success">
+            INICIAR
+          </button>
+          <button type="button" id="btnDetener" class="btn btn-danger" disabled>
+            DETENER Y REGISTRAR
+          </button>
+        </div>
+
+        <p id="mensajeControl" class="mensaje" aria-live="polite"></p>
+      </section>
+
+      <section class="control-section">
+        <h2>Registros de horas</h2>
+
+        <div class="table-responsive">
+          <table class="table control-table">
+            <thead>
+              <tr>
+                <th>Tarea</th>
+                <th>Cliente</th>
+                <th>Inicio</th>
+                <th>Fin</th>
+                <th>Duración</th>
+                <th>Tarifa por hora</th>
+                <th>Monto calculado</th>
+                <th>Usuario responsable</th>
+              </tr>
+            </thead>
+            <tbody id="tablaRegistros">
+              <tr>
+                <td colspan="8" class="text-loading">Cargando registros...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="control-section">
+        <h2>Resumen</h2>
+
+        <div class="resumen-cards">
+          <div class="resumen-card">
+            <p>Horas acumuladas</p>
+            <h3 id="horasAcumuladas">00h 00m</h3>
+          </div>
+
+          <div class="resumen-card">
+            <p>Monto acumulado</p>
+            <h3 id="montoAcumulado">$0</h3>
+          </div>
+        </div>
+
+        <div class="resumen-detalle">
+          <div>
+            <h3>Totales por cliente</h3>
+            <div id="totalesCliente" class="totales-lista"></div>
+          </div>
+
+          <div>
+            <h3>Totales por tarea</h3>
+            <div id="totalesTarea" class="totales-lista"></div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+  </div>
+
+</div>
+
+<script src="../auth/logout.js"></script>
+<script src="../assets/js/navigation.js"></script>
+<script src="../assets/js/topbar.js"></script>
+<script src="../assets/js/permissions.js"></script>
+<script src="./control_horas.js"></script>
+
+<script>
+  protegerPagina([
+    "ADMINISTRADOR",
+    "USUARIO_AREA_JURIDICA",
+    "USUARIO_AREA_CONTABLE"
+  ]);
+  cargarNavegacion("control-horas");
+  cargarTopbar();
+</script>
+
+</body>
+</html>

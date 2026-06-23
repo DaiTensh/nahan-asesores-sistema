@@ -29,6 +29,11 @@ nav.innerHTML = `
       Clientes
     </a>
 
+    <a class="sidebar-link ${rutaActiva === "control-horas" ? "active" : ""}"
+      href="../control_horas/control_horas.html">
+      Control de Horas y Cobros
+    </a>
+
     ${
       esAdmin
         ? `

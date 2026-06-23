@@ -196,6 +196,36 @@ CREATE TABLE tarifa_hora (
         FOREIGN KEY (id_area) REFERENCES area(id_area)
 );
 
+CREATE TABLE IF NOT EXISTS registro_tiempo (
+    id_registro INT AUTO_INCREMENT PRIMARY KEY,
+    id_usuario INT NOT NULL,
+    id_cliente INT NOT NULL,
+    id_tarea INT NOT NULL,
+    fecha DATE NOT NULL,
+    hora_inicio TIME NOT NULL,
+    hora_fin TIME,
+    duracion_minutos DECIMAL(10,2),
+    tarifa_hora DECIMAL(10,2) NOT NULL,
+    monto DECIMAL(12,2)
+        GENERATED ALWAYS AS (
+            ROUND((duracion_minutos / 60) * tarifa_hora, 2)
+        ) STORED,
+    fecha_creacion DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_registro_tiempo_usuario
+        FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario),
+
+    CONSTRAINT fk_registro_tiempo_cliente
+        FOREIGN KEY (id_cliente) REFERENCES cliente(id_cliente),
+
+    CONSTRAINT fk_registro_tiempo_tarea
+        FOREIGN KEY (id_tarea) REFERENCES tarea(id_tarea),
+
+    INDEX idx_registro_tiempo_usuario_activo (id_usuario, hora_fin),
+    INDEX idx_registro_tiempo_cliente (id_cliente),
+    INDEX idx_registro_tiempo_tarea (id_tarea)
+);
+
 CREATE TABLE cobro (
     id_cobro INT AUTO_INCREMENT PRIMARY KEY,
     id_cliente INT NOT NULL,
@@ -290,4 +320,5 @@ INSERT INTO area (nombre_area, descripcion) VALUES
 INSERT INTO parametros_sistema (nombre_parametro, valor_parametro, tipo_dato, descripcion) VALUES
 ('NOMBRE_EMPRESA', 'Nahan Asesores', 'VARCHAR', 'Nombre de la empresa'),
 ('MONEDA_DEFAULT', 'CLP', 'VARCHAR', 'Moneda utilizada por defecto'),
-('HORAS_JORNADA_DIARIA', '8', 'INT', 'Cantidad de horas referenciales por jornada');
+('HORAS_JORNADA_DIARIA', '8', 'INT', 'Cantidad de horas referenciales por jornada'),
+('TARIFA_HORA_DEFAULT', '30000', 'DECIMAL', 'Tarifa global por hora utilizada cuando no existe una tarifa vigente para el área');
