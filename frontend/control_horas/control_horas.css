@@ -1,0 +1,182 @@
+.control-header {
+  margin-bottom: 28px;
+}
+
+.control-header h1 {
+  font-size: 32px;
+  margin-bottom: 6px;
+  color: var(--color-text);
+}
+
+.control-header p {
+  color: var(--color-text-light);
+}
+
+.temporizador-card {
+  background: var(--color-primary);
+  color: white;
+  border-radius: 10px;
+  padding: 28px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.temporizador-campos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.temporizador-card .form-label {
+  color: white;
+}
+
+.temporizador-cliente {
+  min-height: 42px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.12);
+  font-weight: 600;
+}
+
+.temporizador-display {
+  margin: 18px 0 24px;
+  text-align: center;
+  font-size: 52px;
+  line-height: 1;
+  font-weight: bold;
+  letter-spacing: 2px;
+}
+
+.temporizador-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.temporizador-actions .btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.temporizador-card .mensaje {
+  min-height: 20px;
+  margin-top: 18px;
+  text-align: center;
+}
+
+.temporizador-card .mensaje.success {
+  color: #dcfce7;
+}
+
+.temporizador-card .mensaje.error {
+  color: #fecaca;
+}
+
+.control-section {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.control-section h2 {
+  margin-bottom: 18px;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.control-table {
+  min-width: 1050px;
+}
+
+.text-loading {
+  text-align: center;
+  color: var(--color-text-light);
+  font-style: italic;
+}
+
+.resumen-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.resumen-card {
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 22px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+.resumen-card p {
+  color: var(--color-text-light);
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.resumen-card h3 {
+  font-size: 30px;
+  color: var(--color-primary);
+}
+
+.resumen-detalle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.resumen-detalle h3 {
+  margin-bottom: 12px;
+}
+
+.totales-lista {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.total-fila {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 14px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--color-border);
+  align-items: center;
+}
+
+.total-fila:last-child {
+  border-bottom: none;
+}
+
+.total-fila span:first-child {
+  font-weight: 600;
+}
+
+.total-fila span:not(:first-child) {
+  color: var(--color-text-light);
+  white-space: nowrap;
+}
+
+.total-vacio {
+  padding: 14px;
+  color: var(--color-text-light);
+}
+
+@media (max-width: 900px) {
+  .temporizador-campos,
+  .resumen-cards,
+  .resumen-detalle {
+    grid-template-columns: 1fr;
+  }
+
+  .temporizador-display {
+    font-size: 40px;
+  }
+}
