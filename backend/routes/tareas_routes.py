@@ -1,28 +1,62 @@
+import logging
+
 from flask import Blueprint, request, jsonify
 from backend.config.db import get_connection
+from backend.utils.auth import ROL_ADMINISTRADOR, login_required, obtener_usuario_actual
 
 tareas_bp = Blueprint("tareas", __name__)
+logger = logging.getLogger(__name__)
+
+ESTADOS_FINALES = {"COMPLETADA", "CANCELADA"}
 
 
 @tareas_bp.route("/tareas", methods=["POST"])
+@login_required
 def crear_tarea():
+    connection = None
+    cursor = None
     data = request.get_json()
 
     id_cliente = data.get("id_cliente")
     id_area = data.get("id_area")
+    areas = data.get("areas")
     id_responsable = data.get("id_responsable")
-    id_creador = data.get("id_creador")
+    id_creador = obtener_usuario_actual()["id_usuario"]
     titulo = data.get("titulo")
     descripcion = data.get("descripcion")
     prioridad = data.get("prioridad", "MEDIA")
     fecha_vencimiento = data.get("fecha_vencimiento")
 
-    if not id_cliente or not id_area or not id_responsable or not id_creador or not titulo:
+    if areas is None:
+        areas = [1, 2] if id_area == "AMBAS" else [id_area]
+
+    try:
+        areas = list(dict.fromkeys(int(area) for area in areas if area))
+    except (TypeError, ValueError):
+        return jsonify({"error": "El área seleccionada no es válida"}), 400
+
+    if not id_cliente or not areas or not id_responsable or not id_creador or not titulo:
         return jsonify({"error": "Los campos obligatorios no están completos"}), 400
+
+    if any(area not in [1, 2] for area in areas):
+        return jsonify({"error": "El área seleccionada no es válida"}), 400
 
     try:
         connection = get_connection()
         cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            SELECT id_usuario, estado
+            FROM usuario
+            WHERE id_usuario = %s
+            """,
+            (id_responsable,)
+        )
+        responsable = cursor.fetchone()
+
+        if not responsable or responsable[1] != "ACTIVO":
+            return jsonify({"error": "El responsable seleccionado no es válido"}), 422
 
         sql = """
             INSERT INTO tarea (
@@ -38,26 +72,33 @@ def crear_tarea():
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """
 
-        values = (
-            id_cliente,
-            id_area,
-            id_responsable,
-            id_creador,
-            titulo,
-            descripcion,
-            prioridad,
-            fecha_vencimiento
-        )
+        for area in areas:
+            values = (
+                id_cliente,
+                area,
+                id_responsable,
+                id_creador,
+                titulo,
+                descripcion,
+                prioridad,
+                fecha_vencimiento
+            )
 
-        cursor.execute(sql, values)
+            cursor.execute(sql, values)
+
         connection.commit()
 
+        mensaje = "Tarea creada correctamente"
+        if len(areas) > 1:
+            mensaje = "Tareas creadas correctamente"
+
         return jsonify({
-            "message": "Tarea creada correctamente"
+            "message": mensaje
         }), 201
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        logger.exception("Error al crear tarea")
+        return jsonify({"error": "Error interno al crear tarea"}), 500
 
     finally:
         if cursor:
@@ -67,6 +108,7 @@ def crear_tarea():
 
 
 @tareas_bp.route("/tareas/pendientes", methods=["GET"])
+@login_required
 def listar_tareas_pendientes():
     try:
         connection = get_connection()
@@ -97,8 +139,9 @@ def listar_tareas_pendientes():
 
         return jsonify(tareas), 200
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        logger.exception("Error al listar tareas pendientes")
+        return jsonify({"error": "Error interno al listar tareas"}), 500
 
     finally:
         if cursor:
@@ -108,6 +151,7 @@ def listar_tareas_pendientes():
 
 
 @tareas_bp.route("/tareas/<int:id_tarea>/asignar", methods=["PUT"])
+@login_required
 def asignar_tarea(id_tarea):
     data = request.get_json()
 
@@ -119,6 +163,19 @@ def asignar_tarea(id_tarea):
     try:
         connection = get_connection()
         cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            SELECT id_usuario, estado
+            FROM usuario
+            WHERE id_usuario = %s
+            """,
+            (id_responsable,)
+        )
+        responsable = cursor.fetchone()
+
+        if not responsable or responsable[1] != "ACTIVO":
+            return jsonify({"error": "El responsable seleccionado no es válido"}), 422
 
         sql = """
             UPDATE tarea
@@ -134,8 +191,9 @@ def asignar_tarea(id_tarea):
 
         return jsonify({"message": "Tarea asignada correctamente"}), 200
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        logger.exception("Error al asignar tarea")
+        return jsonify({"error": "Error interno al asignar tarea"}), 500
 
     finally:
         if cursor:
@@ -145,8 +203,10 @@ def asignar_tarea(id_tarea):
 
 
 @tareas_bp.route("/tareas/<int:id_tarea>/estado", methods=["PUT"])
+@login_required
 def actualizar_estado_tarea(id_tarea):
     data = request.get_json()
+    usuario = obtener_usuario_actual()
 
     estado = data.get("estado")
 
@@ -160,6 +220,11 @@ def actualizar_estado_tarea(id_tarea):
 
     if estado not in estados_validos:
         return jsonify({"error": "Estado no válido"}), 400
+
+    if estado in ESTADOS_FINALES and usuario["nombre_rol"] != ROL_ADMINISTRADOR:
+        return jsonify({
+            "error": "Solo un administrador puede aplicar estados finales"
+        }), 403
 
     try:
         connection = get_connection()
@@ -179,8 +244,9 @@ def actualizar_estado_tarea(id_tarea):
 
         return jsonify({"message": "Estado actualizado correctamente"}), 200
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        logger.exception("Error al actualizar estado de tarea")
+        return jsonify({"error": "Error interno al actualizar estado"}), 500
 
     finally:
         if cursor:
@@ -190,6 +256,7 @@ def actualizar_estado_tarea(id_tarea):
 
 
 @tareas_bp.route("/tareas/<int:id_tarea>/prioridad", methods=["PUT"])
+@login_required
 def actualizar_prioridad_tarea(id_tarea):
     data = request.get_json()
 
@@ -223,8 +290,9 @@ def actualizar_prioridad_tarea(id_tarea):
 
         return jsonify({"message": "Prioridad actualizada correctamente"}), 200
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        logger.exception("Error al actualizar prioridad de tarea")
+        return jsonify({"error": "Error interno al actualizar prioridad"}), 500
 
     finally:
         if cursor:

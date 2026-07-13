@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="../assets/css/forms.css">
   <link rel="stylesheet" href="../assets/css/cards.css">
   <link rel="stylesheet" href="../assets/css/tables.css">
+  <link rel="stylesheet" href="../assets/css/badges.css">
   <link rel="stylesheet" href="../assets/css/navigation.css">
   <link rel="stylesheet" href="../assets/css/topbar.css">
   <link rel="stylesheet" href="./control_horas.css">
@@ -17,87 +18,123 @@
 <body>
 
 <div class="app-layout">
-
   <aside class="sidebar" id="sidebar"></aside>
 
   <div class="content-wrapper">
-
     <header class="topbar" id="topbar"></header>
 
     <main class="main-content">
-
       <section class="control-header">
-        <h1>Control de Horas y Cobros</h1>
-        <p>Registra las horas trabajadas y los montos a facturar.</p>
+        <div>
+          <h1>Control de Horas y Cobros</h1>
+          <p>Registra el tiempo trabajado y los montos asociados a tareas reales.</p>
+        </div>
       </section>
 
-      <section class="temporizador-card">
-        <div class="temporizador-campos">
+      <section class="time-shell" aria-labelledby="timerTitle">
+        <div class="time-main-card" id="timerPanel">
+          <div class="timer-heading">
+            <div>
+              <span class="badge timer-status" id="estadoTemporizador">Sin temporizador activo</span>
+              <h2 id="timerTitle">Temporizador</h2>
+            </div>
+            <p id="inicioTemporizador">Seleccione una tarea para comenzar.</p>
+          </div>
+
+          <div class="timer-display-wrap">
+            <div id="temporizador" class="temporizador-display" aria-live="polite">00:00:00</div>
+            <p class="timer-caption">El tiempo final se calcula en el servidor.</p>
+          </div>
+
+          <div class="timer-active-detail" aria-live="polite">
+            <div>
+              <span class="detail-label">Cliente asociado</span>
+              <strong id="clienteActivo">Sin cliente seleccionado</strong>
+            </div>
+            <div>
+              <span class="detail-label">Tarea seleccionada</span>
+              <strong id="tareaActiva">Sin tarea seleccionada</strong>
+            </div>
+            <div class="detail-full">
+              <span class="detail-label">Descripción</span>
+              <p id="descripcionActiva">Sin descripción disponible.</p>
+            </div>
+          </div>
+
+          <div class="timer-actions">
+            <button type="button" id="btnIniciar" class="btn btn-success" disabled aria-label="Iniciar temporizador">
+              Iniciar
+            </button>
+            <button type="button" id="btnDetener" class="btn btn-danger" disabled aria-label="Detener y registrar temporizador">
+              Detener y registrar
+            </button>
+          </div>
+
+          <p id="mensajeControl" class="mensaje" aria-live="polite"></p>
+        </div>
+
+        <aside class="time-side-card" aria-label="Seleccion de tarea">
+          <h2>Nueva medición</h2>
+          <p>Elija una tarea habilitada. El cliente se asociará automáticamente.</p>
+
           <div class="form-group">
-            <label class="form-label" for="selectTarea">Nombre tarea</label>
-            <select id="selectTarea" class="form-input">
-              <option value="">Seleccione una tarea</option>
-            </select>
+            <label class="form-label" for="clienteBusqueda">Cliente</label>
+            <input
+              type="text"
+              id="clienteBusqueda"
+              class="form-input"
+              list="clientesControlDatalist"
+              placeholder="Buscar cliente"
+              autocomplete="off"
+            >
+            <input type="hidden" id="idClienteSeleccionado">
+            <datalist id="clientesControlDatalist"></datalist>
           </div>
 
           <div class="form-group">
-            <label class="form-label">Nombre cliente</label>
-            <p id="nombreCliente" class="temporizador-cliente">Seleccione una tarea</p>
+            <label class="form-label" for="tareaBusqueda">Tarea</label>
+            <input
+              type="text"
+              id="tareaBusqueda"
+              class="form-input"
+              list="tareasControlDatalist"
+              placeholder="Buscar tarea"
+              autocomplete="off"
+            >
+            <input type="hidden" id="idTareaSeleccionada">
+            <datalist id="tareasControlDatalist"></datalist>
+            <p id="ayudaTareas" class="form-help">Cargando tareas disponibles.</p>
+          </div>
+        </aside>
+      </section>
+
+      <section class="control-section">
+        <div class="section-heading">
+          <div>
+            <h2>Resumen</h2>
+            <p>Totales calculados con registros cerrados.</p>
           </div>
         </div>
-
-        <div id="temporizador" class="temporizador-display">00h 00m 00s</div>
-
-        <div class="temporizador-actions">
-          <button type="button" id="btnIniciar" class="btn btn-success">
-            INICIAR
-          </button>
-          <button type="button" id="btnDetener" class="btn btn-danger" disabled>
-            DETENER Y REGISTRAR
-          </button>
-        </div>
-
-        <p id="mensajeControl" class="mensaje" aria-live="polite"></p>
-      </section>
-
-      <section class="control-section">
-        <h2>Registros de horas</h2>
-
-        <div class="table-responsive">
-          <table class="table control-table">
-            <thead>
-              <tr>
-                <th>Tarea</th>
-                <th>Cliente</th>
-                <th>Inicio</th>
-                <th>Fin</th>
-                <th>Duración</th>
-                <th>Tarifa por hora</th>
-                <th>Monto calculado</th>
-                <th>Usuario responsable</th>
-              </tr>
-            </thead>
-            <tbody id="tablaRegistros">
-              <tr>
-                <td colspan="8" class="text-loading">Cargando registros...</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="control-section">
-        <h2>Resumen</h2>
 
         <div class="resumen-cards">
-          <div class="resumen-card">
-            <p>Horas acumuladas</p>
+          <div class="resumen-card metric-card">
+            <p>Horas trabajadas hoy</p>
+            <h3 id="horasHoy">00h 00m</h3>
+          </div>
+
+          <div class="resumen-card metric-card">
+            <p>Total de horas</p>
             <h3 id="horasAcumuladas">00h 00m</h3>
           </div>
 
-          <div class="resumen-card">
+          <div class="resumen-card metric-card">
             <p>Monto acumulado</p>
             <h3 id="montoAcumulado">$0</h3>
+          </div>
+
+          <div class="resumen-card metric-card">
+            <p>Registros cerrados</p>
+            <h3 id="totalRegistros">0</h3>
           </div>
         </div>
 
@@ -114,12 +151,41 @@
         </div>
       </section>
 
+      <section class="control-section">
+        <div class="section-heading">
+          <div>
+            <h2>Historial</h2>
+            <p>Registros de horas terminados y calculados por backend.</p>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table control-table">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Cliente</th>
+                <th>Tarea</th>
+                <th>Inicio</th>
+                <th>Término</th>
+                <th>Duración</th>
+                <th>Tarifa</th>
+                <th>Monto</th>
+              </tr>
+            </thead>
+            <tbody id="tablaRegistros">
+              <tr>
+                <td colspan="8" class="text-loading">Cargando registros...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
     </main>
-
   </div>
-
 </div>
 
+<script src="../assets/js/api_config.js"></script>
 <script src="../auth/logout.js"></script>
 <script src="../assets/js/navigation.js"></script>
 <script src="../assets/js/topbar.js"></script>

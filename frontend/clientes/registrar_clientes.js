@@ -1,4 +1,4 @@
-const API_URL = "http://127.0.0.1:5000/api";
+const API_URL = window.API_CONFIG.API_URL;
 
 document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("formRegistroCliente");
@@ -30,6 +30,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const response = await fetch(`${API_URL}/clientes`, {
         method: "POST",
+        credentials: window.API_CONFIG.credentials,
         headers: {
           "Content-Type": "application/json"
         },
@@ -47,7 +48,7 @@ document.addEventListener("DOMContentLoaded", () => {
       form.reset();
     } catch (error) {
       console.error(error);
-      mostrarMensaje("No se pudo contactar la API. Verifica que Flask esté corriendo en http://127.0.0.1:5000.", "error");
+      mostrarMensaje("No se pudo contactar la API. Verifique que el servidor esté disponible.", "error");
     }
   });
 
