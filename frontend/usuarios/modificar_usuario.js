@@ -1,14 +1,58 @@
-async function buscarUsuario() {
-    const id = document.getElementById("id_usuario").value;
+const API_URL = window.API_CONFIG.API_URL;
 
-    if (!id) {
-        alert("Ingrese un ID");
+let usuarioActual = null;
+
+const AREA_POR_ROL = {
+    1: 3,
+    2: 1,
+    3: 2
+};
+
+function sincronizarAreaConRol() {
+    const selectorRol = document.getElementById("id_rol");
+    const selectorArea = document.getElementById("id_area");
+    const idRol = Number(selectorRol.value);
+    const idArea = AREA_POR_ROL[idRol];
+
+    if (!idArea) {
+        selectorArea.disabled = false;
         return;
     }
 
+    selectorArea.value = String(idArea);
+    selectorArea.disabled = true;
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    UsuariosAutocomplete.configurarSelectorUsuario({
+        inputId: "usuario_busqueda",
+        hiddenId: "id_usuario",
+        datalistId: "usuarios_datalist",
+        onSelect: (usuario) => cargarUsuarioPorId(usuario.id_usuario)
+    });
+
+    document.getElementById("id_rol").addEventListener("change", sincronizarAreaConRol);
+    sincronizarAreaConRol();
+});
+
+async function buscarUsuario() {
+    const usuario = await UsuariosAutocomplete.obtenerUsuarioSeleccionado("usuario_busqueda");
+
+    if (!usuario) {
+        alert("Seleccione un usuario de la lista");
+        return;
+    }
+
+    await cargarUsuarioPorId(usuario.id_usuario);
+}
+
+async function cargarUsuarioPorId(id) {
     try {
         const response = await fetch(
-            `http://127.0.0.1:5000/api/usuarios/${id}`
+            `${API_URL}/usuarios/${id}`,
+            {
+                credentials: window.API_CONFIG.credentials
+            }
         );
 
         const data = await response.json();
@@ -18,11 +62,15 @@ async function buscarUsuario() {
             return;
         }
 
+        usuarioActual = data;
+        UsuariosAutocomplete.mostrarUsuarioEnInput("usuario_busqueda", "id_usuario", data);
+
         document.getElementById("nombres").value = data.nombres;
         document.getElementById("email").value = data.email;
         document.getElementById("id_rol").value = data.id_rol;
         document.getElementById("id_area").value = data.id_area;
         document.getElementById("estado").value = data.estado;
+        sincronizarAreaConRol();
 
     }
     catch(error) {
@@ -32,7 +80,8 @@ async function buscarUsuario() {
 }
 
 async function actualizarUsuario() {
-    const id = document.getElementById("id_usuario").value;
+    const botonActualizar = document.getElementById("btnActualizarUsuario");
+    const id = usuarioActual ? usuarioActual.id_usuario : document.getElementById("id_usuario").value;
 
     if (!id) {
         alert("Debe buscar un usuario antes de actualizar");
@@ -47,6 +96,8 @@ async function actualizarUsuario() {
         return;
     }
 
+    sincronizarAreaConRol();
+
     const datos = {
         id_rol: parseInt(document.getElementById("id_rol").value),
         id_area: parseInt(document.getElementById("id_area").value),
@@ -56,10 +107,14 @@ async function actualizarUsuario() {
     };
 
     try {
+        botonActualizar.disabled = true;
+        botonActualizar.textContent = "Actualizando...";
+
         const response = await fetch(
-            `http://127.0.0.1:5000/api/usuarios/${id}`,
+            `${API_URL}/usuarios/${id}`,
             {
                 method: "PUT",
+                credentials: window.API_CONFIG.credentials,
                 headers: {
                     "Content-Type": "application/json"
                 },
@@ -75,10 +130,18 @@ async function actualizarUsuario() {
         }
 
         alert(resultado.message);
+        usuarioActual = {
+            ...usuarioActual,
+            ...datos,
+            id_usuario: id
+        };
 
     }
     catch(error) {
         console.error(error);
         alert("Error al actualizar usuario");
+    } finally {
+        botonActualizar.disabled = false;
+        botonActualizar.textContent = "Guardar cambios";
     }
 }

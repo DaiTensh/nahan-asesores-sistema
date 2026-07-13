@@ -1,38 +1,58 @@
-const API_URL = "http://127.0.0.1:5000/api";
+const API_URL = window.API_CONFIG.API_URL;
 
-const usuarioActual = JSON.parse(localStorage.getItem("usuario"));
-const selectTarea = document.getElementById("selectTarea");
-const nombreCliente = document.getElementById("nombreCliente");
+let usuarioActual = null;
+let tareasDisponibles = [];
+let clientesDisponibles = [];
+let temporizadorActivo = null;
+let intervaloTemporizador = null;
+
+const clienteBusqueda = document.getElementById("clienteBusqueda");
+const idClienteSeleccionado = document.getElementById("idClienteSeleccionado");
+const clientesControlDatalist = document.getElementById("clientesControlDatalist");
+const tareaBusqueda = document.getElementById("tareaBusqueda");
+const idTareaSeleccionada = document.getElementById("idTareaSeleccionada");
+const tareasControlDatalist = document.getElementById("tareasControlDatalist");
+const ayudaTareas = document.getElementById("ayudaTareas");
+const timerPanel = document.getElementById("timerPanel");
+const estadoTemporizador = document.getElementById("estadoTemporizador");
+const inicioTemporizador = document.getElementById("inicioTemporizador");
+const clienteActivo = document.getElementById("clienteActivo");
+const tareaActiva = document.getElementById("tareaActiva");
+const descripcionActiva = document.getElementById("descripcionActiva");
 const temporizador = document.getElementById("temporizador");
 const btnIniciar = document.getElementById("btnIniciar");
 const btnDetener = document.getElementById("btnDetener");
 const mensajeControl = document.getElementById("mensajeControl");
 const tablaRegistros = document.getElementById("tablaRegistros");
-
-let tareasDisponibles = [];
-let temporizadorActivo = null;
-let intervaloTemporizador = null;
+const horasHoy = document.getElementById("horasHoy");
+const horasAcumuladas = document.getElementById("horasAcumuladas");
+const montoAcumulado = document.getElementById("montoAcumulado");
+const totalRegistros = document.getElementById("totalRegistros");
 
 document.addEventListener("DOMContentLoaded", async () => {
-  if (!usuarioActual) return;
+  usuarioActual = await obtenerUsuarioActual();
+
+  if (!usuarioActual) {
+    window.location.href = "../auth/login.html";
+    return;
+  }
+
+  clienteBusqueda.addEventListener("input", manejarCambioCliente);
+  tareaBusqueda.addEventListener("input", manejarCambioTarea);
+  btnIniciar.addEventListener("click", iniciarTemporizador);
+  btnDetener.addEventListener("click", detenerTemporizador);
 
   await cargarContexto();
   await cargarRegistros();
 });
 
-selectTarea.addEventListener("change", () => {
-  const tarea = obtenerTareaSeleccionada();
-  nombreCliente.textContent = tarea ? tarea.cliente : "Seleccione una tarea";
-});
-
-btnIniciar.addEventListener("click", iniciarTemporizador);
-btnDetener.addEventListener("click", detenerTemporizador);
-
 async function cargarContexto() {
   try {
-    const response = await fetch(
-      `${API_URL}/control-horas/contexto?id_usuario=${usuarioActual.id_usuario}`
-    );
+    mostrarMensaje("Cargando control de horas...", "info");
+
+    const response = await fetch(`${API_URL}/control-horas/contexto`, {
+      credentials: window.API_CONFIG.credentials
+    });
     const data = await leerRespuestaJson(response);
 
     if (!response.ok) {
@@ -41,12 +61,24 @@ async function cargarContexto() {
     }
 
     tareasDisponibles = data.tareas || [];
-    renderizarTareas();
+
+    if (data.temporizador_activo) {
+      tareasDisponibles = asegurarTareaTemporizador(
+        tareasDisponibles,
+        data.temporizador_activo
+      );
+    }
+
+    clientesDisponibles = obtenerClientesDesdeTareas(tareasDisponibles);
+    renderizarClientes();
+    renderizarTareas("");
 
     if (data.temporizador_activo) {
       activarTemporizador(data.temporizador_activo);
+      mostrarMensaje("Temporizador activo recuperado.", "info");
     } else {
-      desactivarTemporizador();
+      desactivarTemporizador({ limpiarMensaje: false });
+      mostrarMensaje("");
     }
   } catch (error) {
     console.error(error);
@@ -54,49 +86,244 @@ async function cargarContexto() {
   }
 }
 
-function renderizarTareas() {
-  selectTarea.innerHTML = "";
+function asegurarTareaTemporizador(tareas, datosTemporizador) {
+  const existe = tareas.some(
+    tarea => Number(tarea.id_tarea) === Number(datosTemporizador.id_tarea)
+  );
 
-  const opcionInicial = document.createElement("option");
-  opcionInicial.value = "";
-  opcionInicial.textContent = tareasDisponibles.length
-    ? "Seleccione una tarea"
-    : "No hay tareas disponibles";
-  selectTarea.appendChild(opcionInicial);
+  if (existe) return tareas;
 
-  tareasDisponibles.forEach(tarea => {
-    const opcion = document.createElement("option");
-    opcion.value = tarea.id_tarea;
-    opcion.textContent = `${tarea.titulo} - ${tarea.cliente}`;
-    selectTarea.appendChild(opcion);
+  return [
+    ...tareas,
+    {
+      id_tarea: datosTemporizador.id_tarea,
+      id_cliente: datosTemporizador.id_cliente,
+      titulo: datosTemporizador.tarea,
+      descripcion: datosTemporizador.descripcion,
+      cliente: datosTemporizador.cliente,
+      cliente_rut: datosTemporizador.cliente_rut
+    }
+  ];
+}
+
+function obtenerClientesDesdeTareas(tareas) {
+  const clientesPorId = new Map();
+
+  tareas.forEach(tarea => {
+    if (!clientesPorId.has(Number(tarea.id_cliente))) {
+      clientesPorId.set(Number(tarea.id_cliente), {
+        id_cliente: Number(tarea.id_cliente),
+        razon_social: tarea.cliente,
+        rut: tarea.cliente_rut
+      });
+    }
   });
+
+  return Array.from(clientesPorId.values())
+    .sort((clienteA, clienteB) =>
+      clienteA.razon_social.localeCompare(clienteB.razon_social, "es")
+    );
+}
+
+function renderizarClientes() {
+  clientesControlDatalist.textContent = "";
+
+  clientesDisponibles.forEach(cliente => {
+    const opcion = document.createElement("option");
+    opcion.value = obtenerTextoCliente(cliente);
+    clientesControlDatalist.appendChild(opcion);
+  });
+}
+
+function renderizarTareas(clienteId) {
+  tareasControlDatalist.textContent = "";
+
+  const tareas = obtenerTareasParaBusqueda(clienteId);
+
+  tareas.forEach(tarea => {
+    const opcion = document.createElement("option");
+    opcion.value = obtenerTextoTarea(tarea, !clienteId);
+    tareasControlDatalist.appendChild(opcion);
+  });
+
+  actualizarAyudaTareas(clienteId, tareas.length);
+}
+
+function obtenerTareasParaBusqueda(clienteId) {
+  if (!clienteId) {
+    return [...tareasDisponibles].sort(ordenarTareasPorCliente);
+  }
+
+  return tareasDisponibles
+    .filter(tarea => Number(tarea.id_cliente) === Number(clienteId))
+    .sort(ordenarTareasPorTitulo);
+}
+
+function ordenarTareasPorCliente(tareaA, tareaB) {
+  return (
+    tareaA.cliente.localeCompare(tareaB.cliente, "es") ||
+    tareaA.titulo.localeCompare(tareaB.titulo, "es")
+  );
+}
+
+function ordenarTareasPorTitulo(tareaA, tareaB) {
+  return tareaA.titulo.localeCompare(tareaB.titulo, "es");
 }
 
 function obtenerTareaSeleccionada() {
   return tareasDisponibles.find(
-    tarea => Number(tarea.id_tarea) === Number(selectTarea.value)
+    tarea => Number(tarea.id_tarea) === Number(idTareaSeleccionada.value)
   );
+}
+
+function manejarCambioCliente() {
+  if (temporizadorActivo) return;
+
+  const cliente = resolverClienteDesdeTexto(clienteBusqueda.value);
+  const clienteAnterior = idClienteSeleccionado.value;
+
+  idClienteSeleccionado.value = cliente ? cliente.id_cliente : "";
+
+  if (String(clienteAnterior) !== String(idClienteSeleccionado.value)) {
+    tareaBusqueda.value = "";
+    idTareaSeleccionada.value = "";
+  }
+
+  renderizarTareas(idClienteSeleccionado.value);
+  actualizarVistaSeleccion();
+}
+
+function manejarCambioTarea() {
+  if (temporizadorActivo) return;
+
+  const tarea = resolverTareaDesdeTexto(tareaBusqueda.value);
+  idTareaSeleccionada.value = tarea ? tarea.id_tarea : "";
+
+  if (tarea) {
+    seleccionarClienteDesdeTarea(tarea);
+  }
+
+  actualizarVistaSeleccion();
+}
+
+function resolverClienteDesdeTexto(texto) {
+  const valor = normalizarTexto(texto);
+
+  if (!valor) return null;
+
+  const exacto = clientesDisponibles.find(
+    cliente =>
+      normalizarTexto(obtenerTextoCliente(cliente)) === valor ||
+      normalizarTexto(cliente.razon_social) === valor ||
+      normalizarTexto(cliente.rut) === valor
+  );
+
+  if (exacto) return exacto;
+
+  const coincidencias = clientesDisponibles.filter(cliente =>
+    normalizarTexto(obtenerTextoCliente(cliente)).includes(valor) ||
+    normalizarTexto(cliente.razon_social).includes(valor) ||
+    normalizarTexto(cliente.rut).includes(valor)
+  );
+
+  return coincidencias.length === 1 ? coincidencias[0] : null;
+}
+
+function resolverTareaDesdeTexto(texto) {
+  const clienteId = idClienteSeleccionado.value;
+  const valor = normalizarTexto(texto);
+
+  if (!valor) return null;
+
+  const tareas = obtenerTareasParaBusqueda(clienteId);
+  const exactas = tareas.filter(
+    tarea =>
+      normalizarTexto(obtenerTextoTarea(tarea, !clienteId)) === valor ||
+      normalizarTexto(obtenerTextoTarea(tarea, true)) === valor ||
+      normalizarTexto(tarea.titulo) === valor
+  );
+
+  if (exactas.length === 1) return exactas[0];
+
+  const coincidencias = tareas.filter(tarea =>
+    normalizarTexto(obtenerTextoTarea(tarea, !clienteId)).includes(valor) ||
+    normalizarTexto(obtenerTextoTarea(tarea, true)).includes(valor) ||
+    normalizarTexto(tarea.titulo).includes(valor) ||
+    normalizarTexto(tarea.cliente).includes(valor) ||
+    normalizarTexto(tarea.cliente_rut).includes(valor)
+  );
+
+  return coincidencias.length === 1 ? coincidencias[0] : null;
+}
+
+function seleccionarClienteDesdeTarea(tarea) {
+  const cliente = clientesDisponibles.find(
+    clienteDisponible => Number(clienteDisponible.id_cliente) === Number(tarea.id_cliente)
+  );
+
+  if (!cliente) return;
+
+  idClienteSeleccionado.value = cliente.id_cliente;
+  clienteBusqueda.value = obtenerTextoCliente(cliente);
+  renderizarTareas(cliente.id_cliente);
+}
+
+function actualizarVistaSeleccion() {
+  const tarea = obtenerTareaSeleccionada();
+
+  if (tarea) {
+    clienteActivo.textContent = tarea.cliente || "Cliente no disponible";
+    tareaActiva.textContent = tarea.titulo || "Tarea sin título";
+    descripcionActiva.textContent = tarea.descripcion || "Sin descripción disponible.";
+    inicioTemporizador.textContent = "Listo para iniciar.";
+  } else {
+    clienteActivo.textContent = "Sin cliente seleccionado";
+    tareaActiva.textContent = "Sin tarea seleccionada";
+    descripcionActiva.textContent = "Sin descripción disponible.";
+    inicioTemporizador.textContent = "Seleccione una tarea para comenzar.";
+  }
+
+  actualizarEstadoBotones();
+}
+
+function actualizarAyudaTareas(clienteId, totalTareas) {
+  if (!clienteId) {
+    ayudaTareas.textContent = totalTareas
+      ? `${totalTareas} tareas disponibles. Puede buscar por tarea o cliente.`
+      : "No hay tareas disponibles.";
+    return;
+  }
+
+  ayudaTareas.textContent = totalTareas
+    ? `${totalTareas} tarea${totalTareas === 1 ? "" : "s"} disponible${totalTareas === 1 ? "" : "s"} para este cliente.`
+    : "Este cliente no tiene tareas disponibles.";
+}
+
+function actualizarEstadoBotones() {
+  btnIniciar.disabled = Boolean(temporizadorActivo) || !idTareaSeleccionada.value;
+  btnDetener.disabled = !temporizadorActivo;
 }
 
 async function iniciarTemporizador() {
   const tarea = obtenerTareaSeleccionada();
 
   if (!tarea) {
-    mostrarMensaje("Debe seleccionar una tarea.", "error");
+    mostrarMensaje("Debe seleccionar una tarea válida.", "error");
+    actualizarEstadoBotones();
     return;
   }
 
-  btnIniciar.disabled = true;
+  setBotonCargando(btnIniciar, true, "Iniciando...");
   mostrarMensaje("");
 
   try {
     const response = await fetch(`${API_URL}/control-horas/iniciar`, {
       method: "POST",
+      credentials: window.API_CONFIG.credentials,
       headers: {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        id_usuario: usuarioActual.id_usuario,
         id_tarea: tarea.id_tarea
       })
     });
@@ -104,7 +331,6 @@ async function iniciarTemporizador() {
 
     if (!response.ok) {
       mostrarMensaje(data.error || "No se pudo iniciar el temporizador.", "error");
-      btnIniciar.disabled = false;
 
       if (response.status === 409) {
         await cargarContexto();
@@ -113,84 +339,116 @@ async function iniciarTemporizador() {
     }
 
     activarTemporizador(data.temporizador_activo);
-    mostrarMensaje(data.message, "success");
+    mostrarMensaje(data.message || "Temporizador iniciado.", "success");
   } catch (error) {
     console.error(error);
-    btnIniciar.disabled = false;
     mostrarMensaje("No se pudo conectar con el servidor.", "error");
+  } finally {
+    setBotonCargando(btnIniciar, false, "Iniciar");
+    actualizarEstadoBotones();
   }
 }
 
 async function detenerTemporizador() {
-  if (!temporizadorActivo) return;
+  if (!temporizadorActivo) {
+    mostrarMensaje("No existe un temporizador activo.", "error");
+    return;
+  }
 
-  btnDetener.disabled = true;
+  setBotonCargando(btnDetener, true, "Deteniendo...");
   mostrarMensaje("");
 
   try {
     const response = await fetch(`${API_URL}/control-horas/detener`, {
       method: "POST",
+      credentials: window.API_CONFIG.credentials,
       headers: {
         "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        id_usuario: usuarioActual.id_usuario
-      })
+      }
     });
     const data = await leerRespuestaJson(response);
 
     if (!response.ok) {
       mostrarMensaje(data.error || "No se pudo detener el temporizador.", "error");
-      btnDetener.disabled = false;
       return;
     }
 
-    desactivarTemporizador();
-    mostrarMensaje(data.message, "success");
+    desactivarTemporizador({ limpiarMensaje: false });
+    mostrarMensaje(data.message || "Horas registradas correctamente.", "success");
+
+    if (data.resumen) {
+      renderizarResumen(data.resumen);
+    }
+
     await cargarRegistros();
+    await cargarContexto();
   } catch (error) {
     console.error(error);
-    btnDetener.disabled = false;
     mostrarMensaje("No se pudo conectar con el servidor.", "error");
+  } finally {
+    setBotonCargando(btnDetener, false, "Detener y registrar");
+    actualizarEstadoBotones();
   }
 }
 
 function activarTemporizador(datosTemporizador) {
   temporizadorActivo = datosTemporizador;
+  timerPanel.classList.add("is-active");
+  estadoTemporizador.textContent = "En curso";
+  estadoTemporizador.className = "badge timer-status is-running";
 
-  const opcionActivaExiste = Array.from(selectTarea.options).some(
-    opcion => Number(opcion.value) === Number(datosTemporizador.id_tarea)
-  );
+  clienteActivo.textContent = datosTemporizador.cliente || "Cliente no disponible";
+  tareaActiva.textContent = datosTemporizador.tarea || "Tarea no disponible";
+  descripcionActiva.textContent = datosTemporizador.descripcion || "Sin descripción disponible.";
+  inicioTemporizador.textContent = `Inicio registrado por servidor: ${formatearFechaHora(datosTemporizador.inicio)}`;
 
-  if (!opcionActivaExiste) {
-    const opcionActiva = document.createElement("option");
-    opcionActiva.value = datosTemporizador.id_tarea;
-    opcionActiva.textContent =
-      `${datosTemporizador.tarea} - ${datosTemporizador.cliente}`;
-    selectTarea.appendChild(opcionActiva);
-  }
+  clienteBusqueda.value = obtenerTextoCliente({
+    razon_social: datosTemporizador.cliente,
+    rut: datosTemporizador.cliente_rut
+  });
+  idClienteSeleccionado.value = datosTemporizador.id_cliente;
+  renderizarTareas(datosTemporizador.id_cliente);
 
-  selectTarea.value = String(datosTemporizador.id_tarea);
-  nombreCliente.textContent = datosTemporizador.cliente;
-  selectTarea.disabled = true;
-  btnIniciar.disabled = true;
-  btnDetener.disabled = false;
+  tareaBusqueda.value = obtenerTextoTarea({
+    titulo: datosTemporizador.tarea,
+    id_tarea: datosTemporizador.id_tarea,
+    cliente: datosTemporizador.cliente
+  });
+  idTareaSeleccionada.value = datosTemporizador.id_tarea;
+
+  clienteBusqueda.disabled = true;
+  tareaBusqueda.disabled = true;
+  ayudaTareas.textContent = "Hay un temporizador activo. Deténgalo antes de iniciar otro.";
 
   actualizarTemporizador();
   clearInterval(intervaloTemporizador);
   intervaloTemporizador = setInterval(actualizarTemporizador, 1000);
+  actualizarEstadoBotones();
 }
 
-function desactivarTemporizador() {
+function desactivarTemporizador({ limpiarMensaje = true } = {}) {
   temporizadorActivo = null;
   clearInterval(intervaloTemporizador);
   intervaloTemporizador = null;
-  temporizador.textContent = "00h 00m 00s";
-  selectTarea.disabled = false;
-  selectTarea.value = "";
-  nombreCliente.textContent = "Seleccione una tarea";
-  btnIniciar.disabled = tareasDisponibles.length === 0;
-  btnDetener.disabled = true;
+
+  timerPanel.classList.remove("is-active");
+  estadoTemporizador.textContent = "Sin temporizador activo";
+  estadoTemporizador.className = "badge timer-status";
+  temporizador.textContent = "00:00:00";
+  inicioTemporizador.textContent = "Seleccione una tarea para comenzar.";
+
+  clienteBusqueda.disabled = false;
+  clienteBusqueda.value = "";
+  idClienteSeleccionado.value = "";
+  tareaBusqueda.disabled = false;
+  tareaBusqueda.value = "";
+  idTareaSeleccionada.value = "";
+  renderizarTareas("");
+  actualizarVistaSeleccion();
+
+  if (limpiarMensaje) {
+    mostrarMensaje("");
+  }
 }
 
 function actualizarTemporizador() {
@@ -203,9 +461,11 @@ function actualizarTemporizador() {
 
 async function cargarRegistros() {
   try {
-    const response = await fetch(
-      `${API_URL}/control-horas/registros?id_usuario=${usuarioActual.id_usuario}`
-    );
+    mostrarFilaTabla("Cargando registros...");
+
+    const response = await fetch(`${API_URL}/control-horas/registros`, {
+      credentials: window.API_CONFIG.credentials
+    });
     const data = await leerRespuestaJson(response);
 
     if (!response.ok) {
@@ -217,50 +477,56 @@ async function cargarRegistros() {
     renderizarResumen(data.resumen || {});
   } catch (error) {
     console.error(error);
-    tablaRegistros.innerHTML = "";
-    const fila = tablaRegistros.insertRow();
-    const celda = fila.insertCell();
-    celda.colSpan = 8;
-    celda.className = "text-loading";
-    celda.textContent = "Error al conectar con el servidor.";
+    mostrarFilaTabla("Error al conectar con el servidor.");
   }
 }
 
 function renderizarRegistros(registros) {
-  tablaRegistros.innerHTML = "";
+  tablaRegistros.textContent = "";
 
   if (registros.length === 0) {
-    const fila = tablaRegistros.insertRow();
-    const celda = fila.insertCell();
-    celda.colSpan = 8;
-    celda.className = "text-loading";
-    celda.textContent = "No hay horas registradas.";
+    mostrarFilaTabla("No hay horas registradas.");
     return;
   }
 
   registros.forEach(registro => {
-    const fila = tablaRegistros.insertRow();
-    agregarCelda(fila, registro.tarea);
+    const fila = document.createElement("tr");
+
+    agregarCelda(fila, registro.fecha || extraerFecha(registro.inicio));
     agregarCelda(fila, registro.cliente);
-    agregarCelda(fila, registro.inicio);
+    agregarCelda(fila, registro.tarea);
+    agregarCelda(fila, registro.inicio_hora || registro.inicio);
     agregarCelda(fila, registro.fin);
     agregarCelda(fila, formatearMinutos(registro.duracion_minutos));
     agregarCelda(fila, formatearMoneda(registro.tarifa_hora));
     agregarCelda(fila, formatearMoneda(registro.monto));
-    agregarCelda(fila, registro.usuario_responsable);
+
+    tablaRegistros.appendChild(fila);
   });
 }
 
+function mostrarFilaTabla(mensaje) {
+  tablaRegistros.textContent = "";
+  const fila = document.createElement("tr");
+  const celda = document.createElement("td");
+  celda.colSpan = 8;
+  celda.className = "text-loading";
+  celda.textContent = mensaje;
+  fila.appendChild(celda);
+  tablaRegistros.appendChild(fila);
+}
+
 function agregarCelda(fila, valor) {
-  const celda = fila.insertCell();
-  celda.textContent = valor;
+  const celda = document.createElement("td");
+  celda.textContent = valor || "-";
+  fila.appendChild(celda);
 }
 
 function renderizarResumen(resumen) {
-  document.getElementById("horasAcumuladas").textContent =
-    formatearMinutos(resumen.minutos_acumulados || 0);
-  document.getElementById("montoAcumulado").textContent =
-    formatearMoneda(resumen.monto_acumulado || 0);
+  horasHoy.textContent = formatearMinutos(resumen.minutos_hoy || 0);
+  horasAcumuladas.textContent = formatearMinutos(resumen.minutos_acumulados || 0);
+  montoAcumulado.textContent = formatearMoneda(resumen.monto_acumulado || 0);
+  totalRegistros.textContent = String(resumen.total_registros || 0);
 
   renderizarTotales("totalesCliente", resumen.totales_cliente || []);
   renderizarTotales("totalesTarea", resumen.totales_tarea || []);
@@ -268,7 +534,7 @@ function renderizarResumen(resumen) {
 
 function renderizarTotales(idContenedor, totales) {
   const contenedor = document.getElementById(idContenedor);
-  contenedor.innerHTML = "";
+  contenedor.textContent = "";
 
   if (totales.length === 0) {
     const vacio = document.createElement("p");
@@ -293,12 +559,42 @@ function renderizarTotales(idContenedor, totales) {
   });
 }
 
+function obtenerTextoCliente(cliente) {
+  if (!cliente) return "";
+
+  return cliente.rut
+    ? `${cliente.razon_social} - ${cliente.rut}`
+    : cliente.razon_social;
+}
+
+function obtenerTextoTarea(tarea, incluirCliente = false) {
+  if (!tarea) return "";
+
+  const partes = [tarea.titulo];
+
+  if (incluirCliente) {
+    partes.push(tarea.cliente);
+  }
+
+  partes.push(`ID ${tarea.id_tarea}`);
+
+  return partes.join(" - ");
+}
+
+function normalizarTexto(texto) {
+  return String(texto || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
 function formatearDuracionSegundos(totalSegundos) {
   const horas = Math.floor(totalSegundos / 3600);
   const minutos = Math.floor((totalSegundos % 3600) / 60);
   const segundos = totalSegundos % 60;
 
-  return `${rellenar(horas)}h ${rellenar(minutos)}m ${rellenar(segundos)}s`;
+  return `${rellenar(horas)}:${rellenar(minutos)}:${rellenar(segundos)}`;
 }
 
 function formatearMinutos(totalMinutos) {
@@ -320,6 +616,35 @@ function formatearMoneda(valor) {
   }).format(Number(valor) || 0);
 }
 
+function formatearFechaHora(valor) {
+  if (!valor) return "No disponible";
+
+  const fecha = new Date(valor);
+
+  if (Number.isNaN(fecha.getTime())) {
+    return valor;
+  }
+
+  return fecha.toLocaleString("es-CL", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function extraerFecha(valor) {
+  if (!valor) return "-";
+  return String(valor).split(" ")[0] || valor;
+}
+
+function setBotonCargando(boton, cargando, texto) {
+  boton.disabled = cargando;
+  boton.classList.toggle("is-loading", cargando);
+  boton.textContent = texto;
+}
+
 function mostrarMensaje(texto, tipo = "") {
   mensajeControl.textContent = texto;
   mensajeControl.className = tipo ? `mensaje ${tipo}` : "mensaje";
@@ -339,8 +664,7 @@ async function leerRespuestaJson(response) {
 }
 
 function manejarAccesoDenegado(estado, mensaje) {
-  if (estado === 403) {
-    localStorage.removeItem("usuario");
+  if (estado === 401 || estado === 403) {
     alert(mensaje || "La sesión ya no está activa.");
     window.location.href = "../auth/login.html";
     return;

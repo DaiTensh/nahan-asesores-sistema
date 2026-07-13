@@ -1,11 +1,62 @@
+import logging
+
 from flask import Blueprint, request, jsonify
 from backend.config.db import get_connection
+from backend.utils.auth import ROL_ADMINISTRADOR, login_required, roles_required
 from backend.utils.security import hash_password
 
 usuarios_bp = Blueprint("usuarios", __name__)
+logger = logging.getLogger(__name__)
+
+ROL_ID_ADMINISTRADOR = 1
+ROL_USUARIO_AREA_JURIDICA = 2
+ROL_USUARIO_AREA_CONTABLE = 3
+
+AREA_JURIDICA = 1
+AREA_CONTABLE = 2
+AREA_ADMINISTRACION = 3
+
+AREA_POR_ROL = {
+    ROL_ID_ADMINISTRADOR: AREA_ADMINISTRACION,
+    ROL_USUARIO_AREA_JURIDICA: AREA_JURIDICA,
+    ROL_USUARIO_AREA_CONTABLE: AREA_CONTABLE,
+}
+
+NOMBRE_AREA_POR_ROL = {
+    ROL_ID_ADMINISTRADOR: "Ambas áreas",
+    ROL_USUARIO_AREA_JURIDICA: "Área jurídica",
+    ROL_USUARIO_AREA_CONTABLE: "Área contable",
+}
+
+
+def resolver_area_para_rol(id_rol, id_area=None, validar_area=True):
+    try:
+        id_rol = int(id_rol)
+        id_area = int(id_area) if id_area not in (None, "") else None
+    except (TypeError, ValueError):
+        return None, None, "El rol o área seleccionada no es válida"
+
+    area_esperada = AREA_POR_ROL.get(id_rol)
+
+    if not area_esperada:
+        return None, None, "El rol seleccionado no es válido"
+
+    if id_rol == ROL_ID_ADMINISTRADOR:
+        return id_rol, area_esperada, None
+
+    if validar_area and id_area != area_esperada:
+        nombre_area = NOMBRE_AREA_POR_ROL[id_rol]
+        return None, None, f"El rol seleccionado solo permite {nombre_area}"
+
+    return id_rol, area_esperada, None
+
+
 #Usuarios
 @usuarios_bp.route("/usuarios", methods=['POST'])
+@roles_required(ROL_ADMINISTRADOR)
 def create_usuario():
+    connection = None
+    cursor = None
     data = request.get_json()
 
     id_rol = data.get("id_rol")
@@ -16,6 +67,11 @@ def create_usuario():
 
     if not id_rol or not id_area or not nombres or not email or not password:
         return jsonify({"error": "Todos los campos son obligatorios"}), 400
+
+    id_rol, id_area, error = resolver_area_para_rol(id_rol, id_area)
+
+    if error:
+        return jsonify({"error": error}), 422
     
     password_hash = hash_password(password)
 
@@ -33,8 +89,9 @@ def create_usuario():
 
         return jsonify({"message": "Usuario registrado correctamente"}), 201
     
-    except Exception as e:
-        return jsonify({"error": str(e)}), 600
+    except Exception:
+        logger.exception("Error al registrar usuario")
+        return jsonify({"error": "Error interno al registrar usuario"}), 500
     
     finally:
         if cursor:
@@ -45,6 +102,7 @@ def create_usuario():
 
 #Lista de usuarios
 @usuarios_bp.route("/usuarios", methods=["GET"])
+@login_required
 def listar_usuarios():
     try:
         connection = get_connection()
@@ -53,6 +111,8 @@ def listar_usuarios():
         sql = """
             SELECT 
                 u.id_usuario,
+                u.id_rol,
+                u.id_area,
                 u.nombres,
                 u.email,
                 u.estado,
@@ -70,8 +130,9 @@ def listar_usuarios():
 
         return jsonify(usuarios), 200
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        logger.exception("Error al listar usuarios")
+        return jsonify({"error": "Error interno al listar usuarios"}), 500
 
     finally:
         if cursor:
@@ -81,6 +142,7 @@ def listar_usuarios():
 
 #Obtener usuario
 @usuarios_bp.route("/usuarios/<int:id_usuario>", methods=["GET"])
+@roles_required(ROL_ADMINISTRADOR)
 def obtener_usuario(id_usuario):
     try:
         connection = get_connection()
@@ -111,8 +173,9 @@ def obtener_usuario(id_usuario):
 
         return jsonify(usuario), 200
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        logger.exception("Error al obtener usuario")
+        return jsonify({"error": "Error interno al obtener usuario"}), 500
 
     finally:
         if cursor:
@@ -122,7 +185,10 @@ def obtener_usuario(id_usuario):
 
 #Actualizar usuario
 @usuarios_bp.route("/usuarios/<int:id_usuario>", methods=["PUT"])
+@roles_required(ROL_ADMINISTRADOR)
 def actualizar_usuario(id_usuario):
+    connection = None
+    cursor = None
     data = request.get_json()
 
     id_rol = data.get("id_rol")
@@ -135,6 +201,11 @@ def actualizar_usuario(id_usuario):
         return jsonify({
             "error": "Todos los campos son obligatorios"
         }), 400
+
+    id_rol, id_area, error = resolver_area_para_rol(id_rol, id_area)
+
+    if error:
+        return jsonify({"error": error}), 422
 
     try:
         connection = get_connection()
@@ -172,9 +243,10 @@ def actualizar_usuario(id_usuario):
             "message": "Usuario actualizado correctamente"
         }), 200
 
-    except Exception as e:
+    except Exception:
+        logger.exception("Error al actualizar usuario")
         return jsonify({
-            "error": str(e)
+            "error": "Error interno al actualizar usuario"
         }), 500
 
     finally:
@@ -187,6 +259,7 @@ def actualizar_usuario(id_usuario):
 
 #Desactivar usuario
 @usuarios_bp.route("/usuarios/<int:id_usuario>/desactivar", methods=["PUT"])
+@roles_required(ROL_ADMINISTRADOR)
 def desactivar_usuario(id_usuario):
     try:
         connection = get_connection()
@@ -208,8 +281,9 @@ def desactivar_usuario(id_usuario):
             "message": "Usuario deshabilitado correctamente"
         }), 200
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        logger.exception("Error al desactivar usuario")
+        return jsonify({"error": "Error interno al desactivar usuario"}), 500
 
     finally:
         if cursor:
@@ -221,7 +295,10 @@ def desactivar_usuario(id_usuario):
 
 #Asignar rol a usuario
 @usuarios_bp.route("/usuarios/<int:id_usuario>/rol", methods=["PUT"])
+@roles_required(ROL_ADMINISTRADOR)
 def asignar_rol_usuario(id_usuario):
+    connection = None
+    cursor = None
     data = request.get_json()
 
     id_rol = data.get("id_rol")
@@ -229,17 +306,26 @@ def asignar_rol_usuario(id_usuario):
     if not id_rol:
         return jsonify({"error": "Debe seleccionar un rol"}), 400
 
+    id_rol, id_area, error = resolver_area_para_rol(
+        id_rol,
+        validar_area=False,
+    )
+
+    if error:
+        return jsonify({"error": error}), 422
+
     try:
         connection = get_connection()
         cursor = connection.cursor()
 
         sql = """
             UPDATE usuario
-            SET id_rol = %s
+            SET id_rol = %s,
+                id_area = %s
             WHERE id_usuario = %s
         """
 
-        cursor.execute(sql, (id_rol, id_usuario))
+        cursor.execute(sql, (id_rol, id_area, id_usuario))
         connection.commit()
 
         if cursor.rowcount == 0:
@@ -249,8 +335,9 @@ def asignar_rol_usuario(id_usuario):
             "message": "Rol asignado correctamente"
         }), 200
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        logger.exception("Error al asignar rol")
+        return jsonify({"error": "Error interno al asignar rol"}), 500
 
     finally:
         if cursor:

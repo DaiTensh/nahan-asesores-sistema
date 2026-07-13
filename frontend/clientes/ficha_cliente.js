@@ -1,4 +1,4 @@
-const API_URL = "http://127.0.0.1:5000/api";
+const API_URL = window.API_CONFIG.API_URL;
 
 document.addEventListener("DOMContentLoaded", () => {
   const tbodyTareas = document.getElementById("tablaTareasCuerpo");
@@ -15,7 +15,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     try {
-      const response = await fetch(`${API_URL}/clientes/${idCliente}/ficha`);
+      const response = await fetch(`${API_URL}/clientes/${idCliente}/ficha`, {
+        credentials: window.API_CONFIG.credentials
+      });
       const data = await response.json();
 
       if (!response.ok) {

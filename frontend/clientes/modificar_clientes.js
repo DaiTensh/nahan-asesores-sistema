@@ -1,4 +1,4 @@
-const API_URL = "http://127.0.0.1:5000/api";
+const API_URL = window.API_CONFIG.API_URL;
 
 document.addEventListener("DOMContentLoaded", () => {
   const btnPrepararGuardado = document.getElementById("btnPrepararGuardado");
@@ -28,7 +28,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     try {
-      const response = await fetch(`${API_URL}/clientes/${idCliente}`);
+      const response = await fetch(`${API_URL}/clientes/${idCliente}`, {
+        credentials: window.API_CONFIG.credentials
+      });
       const cliente = await response.json();
 
       if (!response.ok) {
@@ -104,6 +106,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const response = await fetch(`${API_URL}/clientes/${idCliente}`, {
         method: "PUT",
+        credentials: window.API_CONFIG.credentials,
         headers: {
           "Content-Type": "application/json"
         },

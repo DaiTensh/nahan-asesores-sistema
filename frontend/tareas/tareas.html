@@ -9,6 +9,8 @@
   <link rel="stylesheet" href="../assets/css/buttons.css">
   <link rel="stylesheet" href="../assets/css/forms.css">
   <link rel="stylesheet" href="../assets/css/cards.css">
+  <link rel="stylesheet" href="../assets/css/tables.css">
+  <link rel="stylesheet" href="../assets/css/badges.css">
   <link rel="stylesheet" href="../assets/css/navigation.css">
   <link rel="stylesheet" href="../assets/css/topbar.css">
   <link rel="stylesheet" href="./tareas.css">
@@ -62,8 +64,10 @@
           <div class="form-grid">
 
             <div class="form-group">
-              <label class="form-label">ID Cliente</label>
-              <input type="number" id="id_cliente" class="form-input" placeholder="Ej: 1" required>
+              <label class="form-label">Cliente</label>
+              <input type="text" id="cliente_busqueda" class="form-input" list="clientes_datalist" placeholder="Escriba razón social o RUT" required>
+              <input type="hidden" id="id_cliente">
+              <datalist id="clientes_datalist"></datalist>
             </div>
 
             <div class="form-group">
@@ -72,13 +76,15 @@
                 <option value="">Seleccione un área</option>
                 <option value="1">Jurídica</option>
                 <option value="2">Contable</option>
-                <option value="3">Administración</option>
+                <option value="AMBAS">Ambas</option>
               </select>
             </div>
 
             <div class="form-group">
-              <label class="form-label">ID Responsable</label>
-              <input type="number" id="id_responsable" class="form-input" placeholder="Ej: 1" required>
+              <label class="form-label">Responsable</label>
+              <input type="text" id="responsable_busqueda" class="form-input" list="usuarios_responsables" placeholder="Escriba nombre o correo" required>
+              <input type="hidden" id="id_responsable">
+              <datalist id="usuarios_responsables"></datalist>
             </div>
 
             <div class="form-group">
@@ -144,10 +150,13 @@
 
 </div>
 
+<script src="../assets/js/api_config.js"></script>
 <script src="../auth/logout.js"></script>
 <script src="../assets/js/navigation.js"></script>
 <script src="../assets/js/topbar.js"></script>
 <script src="../assets/js/permissions.js"></script>
+<script src="../assets/js/clientes_autocomplete.js"></script>
+<script src="../assets/js/usuarios_autocomplete.js"></script>
 <script src="./tareas.js"></script>
 
 <script>

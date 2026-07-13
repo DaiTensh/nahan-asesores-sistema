@@ -1,49 +1,64 @@
 :root {
-
-  /* PALETA NAHAN ASESORES */
-
-
+  /* Paleta institucional Nahan Asesores */
   --color-primary: #123A6F;
+  --color-primary-hover: #0F315F;
   --color-primary-dark: #0F315F;
+  --color-primary-soft: #E8F0FA;
   --color-secondary: #2FC3C7;
 
   --color-background: #F5F7FB;
   --color-surface: #FFFFFF;
+  --color-surface-secondary: #F9FAFB;
 
-  --color-text: #1F2937;
-  --color-text-light: #6B7280;
-
-  --color-success: #22C55E;
-  --color-warning: #F59E0B;
-  --color-danger: #EF4444;
-  --color-info: #3B82F6;
+  --color-text-primary: #1F2937;
+  --color-text-secondary: #6B7280;
+  --color-text-muted: #9CA3AF;
+  --color-text: var(--color-text-primary);
+  --color-text-light: var(--color-text-secondary);
 
   --color-border: #E5E7EB;
+  --color-border-strong: #D1D5DB;
 
-  /* ESPACIADOS */
+  --color-success: #22C55E;
+  --color-success-soft: #DCFCE7;
+  --color-success-strong: #166534;
+  --color-warning: #F59E0B;
+  --color-warning-soft: #FEF3C7;
+  --color-warning-strong: #92400E;
+  --color-danger: #EF4444;
+  --color-danger-soft: #FEE2E2;
+  --color-danger-strong: #991B1B;
+  --color-info: #3B82F6;
+  --color-info-soft: #DBEAFE;
+  --color-info-strong: #1E40AF;
+  --color-neutral-soft: #F3F4F6;
+  --color-neutral-strong: #374151;
 
-  --spacing-xs: 4px;
-  --spacing-sm: 8px;
-  --spacing-md: 16px;
-  --spacing-lg: 24px;
-  --spacing-xl: 32px;
+  /* Espaciados */
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-5: 24px;
+  --spacing-6: 32px;
+  --spacing-xs: var(--spacing-1);
+  --spacing-sm: var(--spacing-2);
+  --spacing-md: var(--spacing-4);
+  --spacing-lg: var(--spacing-5);
+  --spacing-xl: var(--spacing-6);
 
-  /* BORDES */
-
+  /* Bordes */
   --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
 
-  /* SOMBRAS */
+  /* Sombras */
+  --shadow-sm: 0 1px 3px rgba(15, 49, 95, 0.08);
+  --shadow-md: 0 6px 18px rgba(15, 49, 95, 0.10);
+  --shadow-lg: 0 16px 40px rgba(15, 49, 95, 0.14);
 
-  --shadow-sm: 0 1px 3px rgba(0,0,0,.08);
-  --shadow-md: 0 3px 6px rgba(0,0,0,.12);
-  --shadow-lg: 0 8px 20px rgba(0,0,0,.15);
-
-  /* TIPOGRAFÍA */
-
+  /* Tipografia */
   --font-family: Arial, Helvetica, sans-serif;
-
   --font-xs: 12px;
   --font-sm: 14px;
   --font-md: 16px;
