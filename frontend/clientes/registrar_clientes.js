@@ -48,7 +48,7 @@ document.addEventListener("DOMContentLoaded", () => {
       form.reset();
     } catch (error) {
       console.error(error);
-      mostrarMensaje("No se pudo contactar la API. Verifica que Flask esté corriendo en http://127.0.0.1:5000.", "error");
+      mostrarMensaje("No se pudo contactar la API. Verifique que el servidor esté disponible.", "error");
     }
   });
 

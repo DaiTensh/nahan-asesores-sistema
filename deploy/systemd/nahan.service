@@ -1,0 +1,15 @@
+[Unit]
+Description=Nahan Asesores Flask App
+After=network.target mysql.service
+
+[Service]
+User=ubuntu
+Group=www-data
+WorkingDirectory=/var/www/nahan-asesores
+EnvironmentFile=/var/www/nahan-asesores/.env
+ExecStart=/var/www/nahan-asesores/venv/bin/gunicorn --workers 2 --bind 127.0.0.1:8000 backend.app:app
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

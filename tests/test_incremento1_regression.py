@@ -1,6 +1,9 @@
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
+
+from backend.app import create_app
 from backend.routes import auth_routes
 from backend.routes import clientes_routes
 from backend.routes import control_horas_routes
@@ -54,6 +57,42 @@ def test_login_con_credenciales_validas(client, fake_connection_factory, monkeyp
         assert session["area_id"] == 3
         assert session["nombre"] == "Usuario Prueba"
     assert connection.closed is True
+
+
+def test_app_importable_para_gunicorn():
+    from backend.app import app
+
+    assert app.name == "backend.app"
+    assert app.config["SESSION_COOKIE_HTTPONLY"] is True
+
+
+def test_app_produccion_sin_secret_key_falla(monkeypatch):
+    monkeypatch.setenv("FLASK_ENV", "production")
+    monkeypatch.delenv("SECRET_KEY", raising=False)
+
+    with pytest.raises(RuntimeError, match="SECRET_KEY"):
+        create_app()
+
+
+def test_app_configura_cookies_y_cors_desde_entorno(monkeypatch):
+    monkeypatch.setenv("FLASK_ENV", "production")
+    monkeypatch.setenv("SECRET_KEY", "clave-test-produccion")
+    monkeypatch.setenv("SESSION_COOKIE_SECURE", "true")
+    monkeypatch.setenv("SESSION_COOKIE_HTTPONLY", "true")
+    monkeypatch.setenv("SESSION_COOKIE_SAMESITE", "Lax")
+    monkeypatch.setenv("PERMANENT_SESSION_LIFETIME", "120")
+    monkeypatch.setenv("ALLOWED_ORIGINS", "http://127.0.0.1:5500")
+    monkeypatch.setenv("APP_TIMEZONE", "America/Santiago")
+
+    app = create_app()
+
+    assert app.config["DEBUG"] is False
+    assert app.config["SECRET_KEY"] == "clave-test-produccion"
+    assert app.config["SESSION_COOKIE_SECURE"] is True
+    assert app.config["SESSION_COOKIE_HTTPONLY"] is True
+    assert app.config["SESSION_COOKIE_SAMESITE"] == "Lax"
+    assert app.config["PERMANENT_SESSION_LIFETIME"].total_seconds() == 7200
+    assert app.config["APP_TIMEZONE"] == "America/Santiago"
 
 
 def test_login_con_credenciales_invalidas(client, fake_connection_factory, monkeypatch):
