@@ -1,9 +1,30 @@
-function obtenerUsuarioActual() {
-  return JSON.parse(localStorage.getItem("usuario"));
+let usuarioActualPromesa = null;
+
+async function obtenerUsuarioActual() {
+  if (!usuarioActualPromesa) {
+    usuarioActualPromesa = fetch(`${window.API_CONFIG.API_URL}/auth/me`, {
+      credentials: window.API_CONFIG.credentials
+    })
+      .then(async response => {
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          return null;
+        }
+
+        return data.usuario;
+      })
+      .catch(error => {
+        console.error(error);
+        return null;
+      });
+  }
+
+  return usuarioActualPromesa;
 }
 
-function protegerPagina(rolesPermitidos) {
-  const usuario = obtenerUsuarioActual();
+async function protegerPagina(rolesPermitidos) {
+  const usuario = await obtenerUsuarioActual();
 
   if (!usuario) {
     window.location.href = "../auth/login.html";

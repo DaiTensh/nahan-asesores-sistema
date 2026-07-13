@@ -1,9 +1,18 @@
-const API_URL = "http://127.0.0.1:5000/api";
+const API_URL = window.API_CONFIG.API_URL;
 
 const datosUsuario = document.getElementById("datosUsuario");
 const mensaje = document.getElementById("mensaje");
 
 let usuarioActual = null;
+
+document.addEventListener("DOMContentLoaded", () => {
+  UsuariosAutocomplete.configurarSelectorUsuario({
+    inputId: "usuario_busqueda",
+    hiddenId: "id_usuario",
+    datalistId: "usuarios_datalist",
+    onSelect: (usuario) => cargarUsuarioPorId(usuario.id_usuario)
+  });
+});
 
 function mostrarMensaje(texto, tipo) {
   mensaje.textContent = texto;
@@ -11,19 +20,25 @@ function mostrarMensaje(texto, tipo) {
 }
 
 async function buscarUsuario() {
-  const idUsuario = document.getElementById("id_usuario").value;
+  const usuario = await UsuariosAutocomplete.obtenerUsuarioSeleccionado("usuario_busqueda");
 
   mensaje.textContent = "";
   mensaje.className = "mensaje";
 
-  if (!idUsuario) {
+  if (!usuario) {
     datosUsuario.classList.add("hidden");
-    mostrarMensaje("Debe ingresar un ID de usuario", "error");
+    mostrarMensaje("Seleccione un usuario de la lista", "error");
     return;
   }
 
+  await cargarUsuarioPorId(usuario.id_usuario);
+}
+
+async function cargarUsuarioPorId(idUsuario) {
   try {
-    const response = await fetch(`${API_URL}/usuarios/${idUsuario}`);
+    const response = await fetch(`${API_URL}/usuarios/${idUsuario}`, {
+      credentials: window.API_CONFIG.credentials
+    });
     const data = await response.json();
 
     if (!response.ok) {
@@ -34,6 +49,7 @@ async function buscarUsuario() {
     }
 
     usuarioActual = data;
+    UsuariosAutocomplete.mostrarUsuarioEnInput("usuario_busqueda", "id_usuario", data);
 
     document.getElementById("nombres").textContent = data.nombres;
     document.getElementById("email").textContent = data.email;
@@ -65,7 +81,10 @@ async function desactivarUsuario() {
   try {
     const response = await fetch(
       `${API_URL}/usuarios/${usuarioActual.id_usuario}/desactivar`,
-      { method: "PUT" }
+      {
+        method: "PUT",
+        credentials: window.API_CONFIG.credentials
+      }
     );
 
     const data = await response.json();

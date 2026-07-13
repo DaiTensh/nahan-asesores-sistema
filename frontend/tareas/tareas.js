@@ -1,20 +1,73 @@
-const API_URL = "http://127.0.0.1:5000/api";
+const API_URL = window.API_CONFIG.API_URL;
 
 const formTarea = document.getElementById("formTarea");
 const mensajeTarea = document.getElementById("mensajeTarea");
 const tablaTareas = document.getElementById("tablaTareas");
+const ESTADOS_OPERATIVOS = [
+  ["PENDIENTE", "Pendiente"],
+  ["EN_PROCESO", "En proceso"],
+  ["EN_REVISION", "En revisión"]
+];
+const ESTADOS_FINALES = [
+  ["COMPLETADA", "Completada"],
+  ["CANCELADA", "Cancelada"]
+];
 
 document.addEventListener("DOMContentLoaded", () => {
+  ClientesAutocomplete.configurarSelectorCliente({
+    inputId: "cliente_busqueda",
+    hiddenId: "id_cliente",
+    datalistId: "clientes_datalist",
+    soloActivos: true
+  });
+
+  UsuariosAutocomplete.configurarSelectorUsuario({
+    inputId: "responsable_busqueda",
+    hiddenId: "id_responsable",
+    datalistId: "usuarios_responsables",
+    soloActivos: true
+  });
+
   cargarTareasPendientes();
 });
 
 formTarea.addEventListener("submit", async (event) => {
   event.preventDefault();
 
-  const usuario = JSON.parse(localStorage.getItem("usuario"));
+  const usuario = await obtenerUsuarioActual();
 
   if (!usuario) {
     window.location.href = "../auth/login.html";
+    return;
+  }
+
+  const cliente = await ClientesAutocomplete.obtenerClienteSeleccionado(
+    "cliente_busqueda",
+    { soloActivos: true }
+  );
+
+  if (!cliente) {
+    mostrarMensaje("Seleccione un cliente de la lista", "error");
+    return;
+  }
+
+  const responsable = await UsuariosAutocomplete.obtenerUsuarioSeleccionado(
+    "responsable_busqueda",
+    { soloActivos: true }
+  );
+
+  if (!responsable) {
+    mostrarMensaje("Seleccione un responsable de la lista", "error");
+    return;
+  }
+
+  const areaSeleccionada = document.getElementById("id_area").value;
+  const areas = areaSeleccionada === "AMBAS"
+    ? [1, 2]
+    : [Number(areaSeleccionada)];
+
+  if (areas.some(idArea => !idArea)) {
+    mostrarMensaje("Seleccione un área", "error");
     return;
   }
 
@@ -23,10 +76,9 @@ formTarea.addEventListener("submit", async (event) => {
   if (!confirmar) return;
 
   const nuevaTarea = {
-    id_cliente: Number(document.getElementById("id_cliente").value),
-    id_area: Number(document.getElementById("id_area").value),
-    id_responsable: Number(document.getElementById("id_responsable").value),
-    id_creador: usuario.id_usuario,
+    id_cliente: Number(cliente.id_cliente),
+    areas,
+    id_responsable: Number(responsable.id_usuario),
     titulo: document.getElementById("titulo").value.trim(),
     descripcion: document.getElementById("descripcion").value.trim(),
     prioridad: document.getElementById("prioridad").value,
@@ -36,6 +88,7 @@ formTarea.addEventListener("submit", async (event) => {
   try {
     const response = await fetch(`${API_URL}/tareas`, {
       method: "POST",
+      credentials: window.API_CONFIG.credentials,
       headers: {
         "Content-Type": "application/json"
       },
@@ -65,7 +118,7 @@ function mostrarMensaje(texto, tipo) {
 }
 
 async function cargarTareasPendientes() {
-  const usuario = JSON.parse(localStorage.getItem("usuario"));
+  const usuario = await obtenerUsuarioActual();
 
   if (!usuario) {
     window.location.href = "../auth/login.html";
@@ -73,7 +126,9 @@ async function cargarTareasPendientes() {
   }
 
   try {
-    const response = await fetch(`${API_URL}/tareas/pendientes`);
+    const response = await fetch(`${API_URL}/tareas/pendientes`, {
+      credentials: window.API_CONFIG.credentials
+    });
     let tareas = await response.json();
 
     if (!response.ok) {
@@ -108,93 +163,130 @@ function actualizarResumen(tareas) {
 }
 
 function renderizarTabla(tareas, usuario) {
-  tablaTareas.innerHTML = "";
+  tablaTareas.textContent = "";
 
   if (tareas.length === 0) {
-    tablaTareas.innerHTML = `
-      <tr>
-        <td colspan="9">No hay tareas pendientes para mostrar.</td>
-      </tr>
-    `;
+    const filaVacia = document.createElement("tr");
+    const celdaVacia = document.createElement("td");
+    celdaVacia.colSpan = 9;
+    celdaVacia.textContent = "No hay tareas pendientes para mostrar.";
+    filaVacia.appendChild(celdaVacia);
+    tablaTareas.appendChild(filaVacia);
     return;
   }
 
   tareas.forEach(tarea => {
     const fila = document.createElement("tr");
 
-    fila.innerHTML = `
-      <td>${tarea.id_tarea}</td>
-      <td>${tarea.titulo}</td>
-      <td>${tarea.cliente}</td>
-      <td>${tarea.area}</td>
-      <td>${tarea.responsable}</td>
-      <td>
-        <span class="badge estado-${tarea.estado.toLowerCase()}">
-          ${formatearEstado(tarea.estado)}
-        </span>
-      </td>
-      <td>
-        <span class="badge prioridad-${tarea.prioridad.toLowerCase()}">
-          ${formatearPrioridad(tarea.prioridad)}
-        </span>
-      </td>
-      <td>${formatearFecha(tarea.fecha_vencimiento)}</td>
-      <td>
-        ${accionesTarea(tarea, usuario)}
-      </td>
-    `;
+    fila.appendChild(crearCeldaTexto(tarea.id_tarea));
+    fila.appendChild(crearCeldaTexto(tarea.titulo));
+    fila.appendChild(crearCeldaTexto(tarea.cliente));
+    fila.appendChild(crearCeldaTexto(tarea.area));
+    fila.appendChild(crearCeldaTexto(tarea.responsable));
+    fila.appendChild(crearCeldaBadge(`estado-${tarea.estado.toLowerCase()}`, formatearEstado(tarea.estado)));
+    fila.appendChild(crearCeldaBadge(`prioridad-${tarea.prioridad.toLowerCase()}`, formatearPrioridad(tarea.prioridad)));
+    fila.appendChild(crearCeldaTexto(formatearFecha(tarea.fecha_vencimiento)));
+
+    const celdaAcciones = document.createElement("td");
+    celdaAcciones.appendChild(accionesTarea(tarea, usuario));
+    fila.appendChild(celdaAcciones);
 
     tablaTareas.appendChild(fila);
   });
 }
 
+function crearCeldaTexto(valor) {
+  const celda = document.createElement("td");
+  celda.textContent = valor ?? "";
+  return celda;
+}
+
+function crearCeldaBadge(clase, texto) {
+  const celda = document.createElement("td");
+  const badge = document.createElement("span");
+  badge.className = `badge ${clase}`;
+  badge.textContent = texto;
+  celda.appendChild(badge);
+  return celda;
+}
+
 function accionesTarea(tarea, usuario) {
   const puedeAdministrar = usuario.nombre_rol === "ADMINISTRADOR";
+  const contenedor = document.createElement("div");
+  contenedor.className = "tareas-actions";
 
-  return `
-    <div class="tareas-actions">
-      ${
-        puedeAdministrar
-          ? `
-            <input type="number" id="responsable-${tarea.id_tarea}" placeholder="ID Usuario">
-            <button class="btn btn-primary btn-small" onclick="asignarTarea(${tarea.id_tarea})">
-              Asignar
-            </button>
-          `
-          : ""
-      }
+  if (puedeAdministrar) {
+    const responsable = document.createElement("input");
+    responsable.type = "text";
+    responsable.id = `responsable-${tarea.id_tarea}`;
+    responsable.setAttribute("list", "usuarios_responsables");
+    responsable.placeholder = "Responsable";
+    contenedor.appendChild(responsable);
 
-      <select id="estado-${tarea.id_tarea}">
-        <option value="PENDIENTE">Pendiente</option>
-        <option value="EN_PROCESO">En proceso</option>
-        <option value="EN_REVISION">En revisión</option>
-        <option value="COMPLETADA">Completada</option>
-        <option value="CANCELADA">Cancelada</option>
-      </select>
+    const botonAsignar = document.createElement("button");
+    botonAsignar.className = "btn btn-primary btn-small";
+    botonAsignar.textContent = "Asignar";
+    botonAsignar.addEventListener("click", () => asignarTarea(tarea.id_tarea));
+    contenedor.appendChild(botonAsignar);
+  }
 
-      <button class="btn btn-primary btn-small" onclick="actualizarEstado(${tarea.id_tarea})">
-        Estado
-      </button>
+  const selectorEstado = document.createElement("select");
+  selectorEstado.id = `estado-${tarea.id_tarea}`;
+  agregarOpciones(selectorEstado, ESTADOS_OPERATIVOS);
 
-      <select id="prioridad-${tarea.id_tarea}">
-        <option value="BAJA">Baja</option>
-        <option value="MEDIA">Media</option>
-        <option value="ALTA">Alta</option>
-        <option value="URGENTE">Urgente</option>
-      </select>
+  if (puedeAdministrar) {
+    const grupoFinales = document.createElement("optgroup");
+    grupoFinales.label = "Revisión administrativa";
+    agregarOpciones(grupoFinales, ESTADOS_FINALES);
+    selectorEstado.appendChild(grupoFinales);
+  }
 
-      <button class="btn btn-primary btn-small" onclick="actualizarPrioridad(${tarea.id_tarea})">
-        Prioridad
-      </button>
-    </div>
-  `;
+  selectorEstado.value = tarea.estado;
+  contenedor.appendChild(selectorEstado);
+
+  const botonEstado = document.createElement("button");
+  botonEstado.className = "btn btn-primary btn-small";
+  botonEstado.textContent = "Estado";
+  botonEstado.addEventListener("click", () => actualizarEstado(tarea.id_tarea));
+  contenedor.appendChild(botonEstado);
+
+  const selectorPrioridad = document.createElement("select");
+  selectorPrioridad.id = `prioridad-${tarea.id_tarea}`;
+  agregarOpciones(selectorPrioridad, [
+    ["BAJA", "Baja"],
+    ["MEDIA", "Media"],
+    ["ALTA", "Alta"],
+    ["URGENTE", "Urgente"]
+  ]);
+  selectorPrioridad.value = tarea.prioridad;
+  contenedor.appendChild(selectorPrioridad);
+
+  const botonPrioridad = document.createElement("button");
+  botonPrioridad.className = "btn btn-primary btn-small";
+  botonPrioridad.textContent = "Prioridad";
+  botonPrioridad.addEventListener("click", () => actualizarPrioridad(tarea.id_tarea));
+  contenedor.appendChild(botonPrioridad);
+
+  return contenedor;
+}
+
+function agregarOpciones(selector, opciones) {
+  opciones.forEach(([valor, etiqueta]) => {
+    const option = document.createElement("option");
+    option.value = valor;
+    option.textContent = etiqueta;
+    selector.appendChild(option);
+  });
 }
 
 async function asignarTarea(idTarea) {
-  const idResponsable = document.getElementById(`responsable-${idTarea}`).value;
+  const responsable = await UsuariosAutocomplete.obtenerUsuarioSeleccionado(
+    `responsable-${idTarea}`,
+    { soloActivos: true }
+  );
 
-  if (!idResponsable) {
-    alert("Debe ingresar el ID del responsable");
+  if (!responsable) {
+    alert("Seleccione un responsable de la lista");
     return;
   }
 
@@ -205,11 +297,12 @@ async function asignarTarea(idTarea) {
   try {
     const response = await fetch(`${API_URL}/tareas/${idTarea}/asignar`, {
       method: "PUT",
+      credentials: window.API_CONFIG.credentials,
       headers: {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        id_responsable: Number(idResponsable)
+        id_responsable: Number(responsable.id_usuario)
       })
     });
 
@@ -231,6 +324,20 @@ async function asignarTarea(idTarea) {
 
 async function actualizarEstado(idTarea) {
   const estado = document.getElementById(`estado-${idTarea}`).value;
+  const usuario = await obtenerUsuarioActual();
+
+  if (!usuario) {
+    window.location.href = "../auth/login.html";
+    return;
+  }
+
+  if (
+    ESTADOS_FINALES.some(([valor]) => valor === estado)
+    && usuario.nombre_rol !== "ADMINISTRADOR"
+  ) {
+    alert("Solo un administrador puede marcar una tarea como final o cancelada");
+    return;
+  }
 
   const confirmar = confirm("Desea actualizar el estado de esta tarea?");
 
@@ -239,6 +346,7 @@ async function actualizarEstado(idTarea) {
   try {
     const response = await fetch(`${API_URL}/tareas/${idTarea}/estado`, {
       method: "PUT",
+      credentials: window.API_CONFIG.credentials,
       headers: {
         "Content-Type": "application/json"
       },
@@ -271,6 +379,7 @@ async function actualizarPrioridad(idTarea) {
   try {
     const response = await fetch(`${API_URL}/tareas/${idTarea}/prioridad`, {
       method: "PUT",
+      credentials: window.API_CONFIG.credentials,
       headers: {
         "Content-Type": "application/json"
       },

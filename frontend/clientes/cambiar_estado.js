@@ -1,4 +1,4 @@
-const API_URL = "http://127.0.0.1:5000/api";
+const API_URL = window.API_CONFIG.API_URL;
 
 document.addEventListener("DOMContentLoaded", () => {
   const txtRazonSocial = document.getElementById("txtRazonSocial");
@@ -8,8 +8,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const mensaje = document.getElementById("mensajeFeedback");
   const parametrosUrl = new URLSearchParams(window.location.search);
   const idCliente = parametrosUrl.get("id");
-  const usuario = JSON.parse(localStorage.getItem("usuario")) || {};
-
   let estadoActual = "";
 
   cargarEstadoCliente();
@@ -24,7 +22,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     try {
-      const response = await fetch(`${API_URL}/clientes/${idCliente}`);
+      const response = await fetch(`${API_URL}/clientes/${idCliente}`, {
+        credentials: window.API_CONFIG.credentials
+      });
       const cliente = await response.json();
 
       if (!response.ok) {
@@ -57,12 +57,12 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const response = await fetch(`${API_URL}/clientes/${idCliente}/cambiar-estado`, {
         method: "POST",
+        credentials: window.API_CONFIG.credentials,
         headers: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          nuevo_estado: nuevoEstado,
-          id_usuario_auditoria: usuario.id_usuario || 1
+          nuevo_estado: nuevoEstado
         })
       });
 

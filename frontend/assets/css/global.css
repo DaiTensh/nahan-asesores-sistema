@@ -4,10 +4,16 @@
   box-sizing:border-box;
 }
 
+html{
+  min-width:320px;
+}
+
 body{
   background:var(--color-background);
-  color:var(--color-text);
+  color:var(--color-text-primary);
   font-family:var(--font-family);
+  font-size:var(--font-md);
+  line-height:1.5;
 }
 
 a{
@@ -21,12 +27,90 @@ ul{
 
 button{
   cursor:pointer;
+  font-family:inherit;
 }
 
 input,
 select,
 textarea{
   font-family:inherit;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible{
+  outline:3px solid rgba(47, 195, 199, 0.45);
+  outline-offset:2px;
+}
+
+h1,
+.page-title{
+  color:var(--color-text-primary);
+  font-size:28px;
+  line-height:1.2;
+  font-weight:700;
+}
+
+h2,
+.section-title{
+  color:var(--color-text-primary);
+  font-size:20px;
+  line-height:1.3;
+  font-weight:700;
+}
+
+h3,
+.card-title{
+  color:var(--color-text-primary);
+  font-size:16px;
+  line-height:1.35;
+  font-weight:700;
+}
+
+.subtitle,
+.page-subtitle,
+.text-secondary{
+  color:var(--color-text-secondary);
+  font-size:14px;
+}
+
+.text-muted,
+.help-text{
+  color:var(--color-text-muted);
+  font-size:13px;
+}
+
+.text-loading,
+.empty-state{
+  color:var(--color-text-secondary);
+  padding:var(--spacing-5);
+  text-align:center;
+}
+
+.mensaje{
+  min-height:20px;
+  margin-top:var(--spacing-3);
+  font-size:14px;
+  font-weight:600;
+}
+
+.mensaje.success{
+  color:var(--color-success-strong);
+}
+
+.mensaje.error{
+  color:var(--color-danger-strong);
+}
+
+.mensaje.warning{
+  color:var(--color-warning-strong);
+}
+
+.mensaje.info{
+  color:var(--color-info-strong);
 }
 
 .container{

@@ -1,18 +1,25 @@
-const API_URL = "http://127.0.0.1:5000/api";
+const API_URL = window.API_CONFIG.API_URL;
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   const selectAreaFiltro = document.getElementById("selectAreaFiltro");
   const inputBuscarTexto = document.getElementById("inputBuscarTexto");
   const tbody = document.getElementById("tablaClientesGeneralCuerpo");
   const btnAnterior = document.getElementById("btnPaginaAnterior");
   const btnSiguiente = document.getElementById("btnPaginaSiguiente");
   const txtIndicador = document.getElementById("txtIndicadorPagina");
+  const usuarioActual = await obtenerUsuarioActual();
 
   let paginaActual = 1;
   const limiteRegistros = 7;
+  const esAdmin = usuarioActual && usuarioActual.nombre_rol === "ADMINISTRADOR";
+
+  if (!usuarioActual) {
+    window.location.href = "../auth/login.html";
+    return;
+  }
 
   async function cargarListadoGeneral() {
-    tbody.innerHTML = `<tr><td colspan="5" class="text-loading">Cargando clientes...</td></tr>`;
+    mostrarFilaMensaje("Cargando clientes...");
 
     const idArea = selectAreaFiltro.value;
     const textoBuscar = inputBuscarTexto.value.trim();
@@ -22,7 +29,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (textoBuscar) queryParams.push(`buscar=${encodeURIComponent(textoBuscar)}`);
 
     try {
-      const response = await fetch(`${API_URL}/clientes/listado?${queryParams.join("&")}`);
+      const response = await fetch(`${API_URL}/clientes/listado?${queryParams.join("&")}`, {
+        credentials: window.API_CONFIG.credentials
+      });
       const data = await leerRespuestaJson(response);
 
       if (!response.ok) {
@@ -47,12 +56,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const queryString = parametros.length > 0 ? `?${parametros.join("&")}` : "";
 
     try {
-      const response = await fetch(`${API_URL}/clientes/filtrar${queryString}`);
+      const response = await fetch(`${API_URL}/clientes/filtrar${queryString}`, {
+        credentials: window.API_CONFIG.credentials
+      });
       const clientes = await leerRespuestaJson(response);
 
       if (!response.ok) {
         const mensaje = clientes.error || errorOriginal || "No se pudo cargar el listado de clientes.";
-        tbody.innerHTML = `<tr><td colspan="5" class="text-loading">${mensaje}</td></tr>`;
+        mostrarFilaMensaje(mensaje);
         return;
       }
 
@@ -62,7 +73,7 @@ document.addEventListener("DOMContentLoaded", () => {
       txtIndicador.textContent = "Listado";
     } catch (error) {
       console.error(error);
-      tbody.innerHTML = `<tr><td colspan="5" class="text-loading">Error al conectar con el servidor.</td></tr>`;
+      mostrarFilaMensaje("Error al conectar con el servidor.");
     }
   }
 
@@ -80,10 +91,10 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function renderizarClientes(clientes) {
-    tbody.innerHTML = "";
+    tbody.textContent = "";
 
     if (clientes.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="5" class="text-loading">No hay clientes para mostrar.</td></tr>`;
+      mostrarFilaMensaje("No hay clientes para mostrar.");
       btnAnterior.disabled = paginaActual === 1;
       btnSiguiente.disabled = true;
       txtIndicador.textContent = `Página ${paginaActual}`;
@@ -97,24 +108,16 @@ document.addEventListener("DOMContentLoaded", () => {
         fila.classList.add("inactivo");
       }
 
-      fila.innerHTML = `
-        <td><strong>${cliente.rut}</strong></td>
-        <td>${cliente.razon_social}</td>
-        <td>${cliente.areas_nombres || "Sin área"}</td>
-        <td>
-          <span class="badge estado-${normalizarEstado(cliente.estado).toLowerCase()}">
-            ${normalizarEstado(cliente.estado)}
-          </span>
-        </td>
-        <td>
-          <div class="clientes-actions">
-            <a href="ficha_cliente.html?id=${cliente.id_cliente}" class="btn btn-secondary btn-small">Ficha</a>
-            <a href="modificar_clientes.html?id=${cliente.id_cliente}" class="btn btn-primary btn-small">Editar</a>
-            <a href="cambiar_estado.html?id=${cliente.id_cliente}" class="btn btn-warning btn-small">Estado</a>
-            <a href="eliminar_cliente.html?id=${cliente.id_cliente}" class="btn btn-danger btn-small">Quitar</a>
-          </div>
-        </td>
-      `;
+      const celdaRut = document.createElement("td");
+      const rut = document.createElement("strong");
+      rut.textContent = cliente.rut;
+      celdaRut.appendChild(rut);
+
+      fila.appendChild(celdaRut);
+      fila.appendChild(crearCeldaTexto(cliente.razon_social));
+      fila.appendChild(crearCeldaTexto(cliente.areas_nombres || "Sin área"));
+      fila.appendChild(crearCeldaEstado(cliente.estado));
+      fila.appendChild(crearCeldaAcciones(cliente));
 
       tbody.appendChild(fila);
     });
@@ -126,6 +129,59 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function normalizarEstado(estado) {
     return estado || "ACTIVO";
+  }
+
+  function mostrarFilaMensaje(mensaje) {
+    tbody.textContent = "";
+
+    const fila = document.createElement("tr");
+    const celda = document.createElement("td");
+    celda.colSpan = 5;
+    celda.className = "text-loading";
+    celda.textContent = mensaje;
+    fila.appendChild(celda);
+    tbody.appendChild(fila);
+  }
+
+  function crearCeldaTexto(texto) {
+    const celda = document.createElement("td");
+    celda.textContent = texto || "";
+    return celda;
+  }
+
+  function crearCeldaEstado(estadoCliente) {
+    const estado = normalizarEstado(estadoCliente);
+    const celda = document.createElement("td");
+    const badge = document.createElement("span");
+    badge.className = `badge estado-${estado.toLowerCase()}`;
+    badge.textContent = estado;
+    celda.appendChild(badge);
+    return celda;
+  }
+
+  function crearCeldaAcciones(cliente) {
+    const celda = document.createElement("td");
+    const contenedor = document.createElement("div");
+    contenedor.className = "clientes-actions";
+
+    contenedor.appendChild(crearEnlaceAccion("Ficha", `ficha_cliente.html?id=${cliente.id_cliente}`, "btn btn-secondary btn-small"));
+    contenedor.appendChild(crearEnlaceAccion("Editar", `modificar_clientes.html?id=${cliente.id_cliente}`, "btn btn-primary btn-small"));
+
+    if (esAdmin) {
+      contenedor.appendChild(crearEnlaceAccion("Estado", `cambiar_estado.html?id=${cliente.id_cliente}`, "btn btn-warning btn-small"));
+      contenedor.appendChild(crearEnlaceAccion("Quitar", `eliminar_cliente.html?id=${cliente.id_cliente}`, "btn btn-danger btn-small"));
+    }
+
+    celda.appendChild(contenedor);
+    return celda;
+  }
+
+  function crearEnlaceAccion(texto, href, clase) {
+    const enlace = document.createElement("a");
+    enlace.href = href;
+    enlace.className = clase;
+    enlace.textContent = texto;
+    return enlace;
   }
 
   selectAreaFiltro.addEventListener("change", () => {

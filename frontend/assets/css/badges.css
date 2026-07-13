@@ -1,31 +1,63 @@
 .badge{
-  padding:6px 10px;
-  border-radius:20px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:24px;
+  padding:4px 10px;
+  border-radius:999px;
   font-size:12px;
-  font-weight:bold;
+  font-weight:700;
+  line-height:1;
 }
 
-.badge-success{
-  background:#DCFCE7;
-  color:#166534;
+.badge-success,
+.badge.activo,
+.badge.ACTIVO,
+.badge.estado-activo,
+.badge.estado-completada,
+.badge.completada{
+  background:var(--color-success-soft);
+  color:var(--color-success-strong);
 }
 
-.badge-warning{
-  background:#FEF3C7;
-  color:#92400E;
+.badge-warning,
+.badge.estado-pendiente,
+.badge.pendiente,
+.badge.estado-en_proceso,
+.badge.en_proceso,
+.badge.prioridad-media,
+.badge.media{
+  background:var(--color-warning-soft);
+  color:var(--color-warning-strong);
 }
 
-.badge-danger{
-  background:#FEE2E2;
-  color:#991B1B;
+.badge-danger,
+.badge.inactivo,
+.badge.INACTIVO,
+.badge.estado-inactivo,
+.badge.estado-cancelada,
+.badge.cancelada,
+.badge.prioridad-alta,
+.badge.alta,
+.badge.prioridad-urgente,
+.badge.urgente{
+  background:var(--color-danger-soft);
+  color:var(--color-danger-strong);
 }
 
-.badge-info{
-  background:#DBEAFE;
-  color:#1E40AF;
+.badge-info,
+.badge.estado-en_revision,
+.badge.en_revision,
+.badge.area-juridica,
+.badge.area-contable{
+  background:var(--color-info-soft);
+  color:var(--color-info-strong);
 }
 
-.badge-pending{
-  background:#F3F4F6;
-  color:#374151;
+.badge-pending,
+.badge.prioridad-baja,
+.badge.baja,
+.badge.area-ambas{
+  background:var(--color-neutral-soft);
+  color:var(--color-neutral-strong);
 }

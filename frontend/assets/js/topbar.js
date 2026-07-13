@@ -1,5 +1,60 @@
-function cargarTopbar() {
-  const usuario = JSON.parse(localStorage.getItem("usuario"));
+function formatearRolTopbar(nombreRol) {
+  const roles = {
+    ADMINISTRADOR: "Administrador",
+    USUARIO_AREA_JURIDICA: "Área jurídica",
+    USUARIO_AREA_CONTABLE: "Área contable"
+  };
+
+  return roles[nombreRol] || nombreRol;
+}
+
+function obtenerInicialesTopbar(nombre = "") {
+  return nombre
+    .trim()
+    .split(/\s+/)
+    .map(parte => parte[0])
+    .join("")
+    .substring(0, 2)
+    .toUpperCase() || "NA";
+}
+
+function obtenerTituloPagina() {
+  const titulo = document.querySelector("main h1");
+  return titulo ? titulo.textContent.trim() : document.title;
+}
+
+function obtenerSubtituloPagina() {
+  const encabezados = [
+    ".dashboard-header p",
+    ".clientes-header p",
+    ".tareas-header p",
+    ".control-header p",
+    ".usuarios-card .subtitle",
+    ".modificar-card .subtitle"
+  ];
+
+  for (const selector of encabezados) {
+    const subtitulo = document.querySelector(selector);
+
+    if (subtitulo && subtitulo.textContent.trim()) {
+      return subtitulo.textContent.trim();
+    }
+  }
+
+  return "";
+}
+
+function fechaActualEnEspanol() {
+  return new Date().toLocaleDateString("es-CL", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric"
+  });
+}
+
+async function cargarTopbar() {
+  const usuario = await obtenerUsuarioActual();
 
   if (!usuario) {
     window.location.href = "../auth/login.html";
@@ -10,25 +65,83 @@ function cargarTopbar() {
 
   if (!topbar) return;
 
-  const iniciales = usuario.nombres
-    .split(" ")
-    .map(nombre => nombre[0])
-    .join("")
-    .substring(0, 2)
-    .toUpperCase();
+  topbar.textContent = "";
 
-  topbar.innerHTML = `
-    <div class="topbar-search">
-      <input type="text" placeholder="Buscar clientes, tareas, documentos...">
-    </div>
+  const contexto = document.createElement("div");
+  contexto.className = "topbar-context";
 
-    <div class="topbar-user">
-      <div class="user-avatar">${iniciales}</div>
+  const titulo = document.createElement("h1");
+  titulo.textContent = obtenerTituloPagina();
 
-      <div class="user-info">
-        <span class="user-name">${usuario.nombres}</span>
-        <span class="user-role">${usuario.nombre_rol}</span>
-      </div>
-    </div>
-  `;
+  const subtituloTexto = obtenerSubtituloPagina();
+  const subtitulo = document.createElement("p");
+  subtitulo.textContent = subtituloTexto || "Sistema de gestión interna";
+
+  contexto.appendChild(titulo);
+  contexto.appendChild(subtitulo);
+
+  const acciones = document.createElement("div");
+  acciones.className = "topbar-actions";
+
+  const fecha = document.createElement("span");
+  fecha.className = "topbar-date";
+  fecha.textContent = fechaActualEnEspanol();
+
+  const notificaciones = document.createElement("button");
+  notificaciones.type = "button";
+  notificaciones.className = "topbar-icon-button";
+  notificaciones.title = "Sin notificaciones";
+  notificaciones.setAttribute("aria-label", "Sin notificaciones");
+  notificaciones.textContent = "SN";
+
+  const menuSesion = document.createElement("details");
+  menuSesion.className = "topbar-user";
+
+  const resumen = document.createElement("summary");
+  resumen.className = "topbar-user-summary";
+  resumen.title = "Información de sesión";
+
+  const avatar = document.createElement("span");
+  avatar.className = "user-avatar";
+  avatar.textContent = obtenerInicialesTopbar(usuario.nombres);
+
+  const info = document.createElement("span");
+  info.className = "user-info";
+
+  const nombre = document.createElement("span");
+  nombre.className = "user-name";
+  nombre.textContent = usuario.nombres;
+
+  const rol = document.createElement("span");
+  rol.className = "user-role";
+  rol.textContent = formatearRolTopbar(usuario.nombre_rol);
+
+  info.appendChild(nombre);
+  info.appendChild(rol);
+  resumen.appendChild(avatar);
+  resumen.appendChild(info);
+  menuSesion.appendChild(resumen);
+
+  const panel = document.createElement("div");
+  panel.className = "topbar-user-panel";
+
+  const estado = document.createElement("p");
+  estado.textContent = "Sesión activa";
+
+  const cerrar = document.createElement("button");
+  cerrar.type = "button";
+  cerrar.className = "btn btn-danger btn-sm";
+  cerrar.textContent = "Cerrar sesión";
+  cerrar.addEventListener("click", cerrarSesion);
+
+  panel.appendChild(estado);
+  panel.appendChild(cerrar);
+  menuSesion.appendChild(panel);
+
+  acciones.appendChild(fecha);
+  acciones.appendChild(notificaciones);
+  acciones.appendChild(menuSesion);
+
+  topbar.appendChild(contexto);
+  topbar.appendChild(acciones);
 }
