@@ -1,36 +1,63 @@
 .modificar-card {
     width: 100%;
-    max-width: 760px;
+    max-width: 860px;
     background: var(--color-surface);
     border: 1px solid var(--color-border);
-    border-radius: 10px;
-    padding: 28px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-6);
+    box-shadow: var(--shadow-sm);
 }
 
-.modificar-card h1 {
-    font-size: 32px;
-    margin-bottom: 6px;
-    color: var(--color-text);
+.modificar-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--spacing-4);
+    margin-bottom: var(--spacing-5);
+}
+
+.modificar-header h1 {
+    margin-bottom: var(--spacing-1);
 }
 
 .modificar-card .subtitle {
-    color: var(--color-text-light);
-    margin-bottom: 24px;
+    color: var(--color-text-secondary);
 }
 
 .buscar-usuario {
-    margin-bottom: 24px;
-}
-
-.buscar-usuario .btn {
-    margin-top: 8px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--spacing-3);
+    align-items: end;
+    margin-bottom: var(--spacing-5);
+    padding-bottom: var(--spacing-5);
+    border-bottom: 1px solid var(--color-border);
 }
 
 .form-edit {
-    margin-top: 20px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--spacing-4);
+    margin-top: var(--spacing-5);
 }
 
-.form-edit .btn {
-    margin-top: 8px;
+.form-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: var(--spacing-3);
+    flex-wrap: wrap;
+    margin-top: var(--spacing-2);
+}
+
+@media (max-width: 900px) {
+    .modificar-header,
+    .buscar-usuario {
+        grid-template-columns: 1fr;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .form-edit {
+        grid-template-columns: 1fr;
+    }
 }

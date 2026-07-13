@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="../assets/css/forms.css">
   <link rel="stylesheet" href="../assets/css/cards.css">
   <link rel="stylesheet" href="../assets/css/navigation.css">
+  <link rel="stylesheet" href="../assets/css/topbar.css">
   <link rel="stylesheet" href="./asignar_rol.css">
 </head>
 <body>
@@ -18,54 +19,64 @@
 
   <aside class="sidebar" id="sidebar"></aside>
 
-  <main class="main-content">
-    <section class="usuarios-card">
-      <h1>Asignar Rol a Usuario</h1>
-      <p class="subtitle">Asignación de roles específicos.</p>
+  <div class="content-wrapper">
+    <header class="topbar" id="topbar"></header>
 
-      <div class="form-group">
-        <label class="form-label">ID Usuario</label>
-        <input type="number" id="id_usuario" class="form-input" placeholder="Ej: 1">
-      </div>
-
-      <button class="btn btn-primary" onclick="buscarUsuario()">Buscar Usuario</button>
-
-      <div id="datosUsuario" class="datos hidden">
-        <h3>Datos del usuario</h3>
-        <p><strong>Nombre:</strong> <span id="nombres"></span></p>
-        <p><strong>Correo:</strong> <span id="email"></span></p>
-        <p><strong>Rol actual:</strong> <span id="rol_actual"></span></p>
-        <p><strong>Área:</strong> <span id="area"></span></p>
+    <main class="main-content">
+      <section class="usuarios-card">
+        <h1>Asignar Rol a Usuario</h1>
+        <p class="subtitle">Asignación de roles específicos.</p>
 
         <div class="form-group">
-          <label class="form-label">Nuevo rol</label>
-          <select id="id_rol" class="form-input">
-            <option value="">Seleccione un rol</option>
-            <option value="1">Administrador</option>
-            <option value="2">Usuario Área Jurídica</option>
-            <option value="3">Usuario Área Contable</option>
-          </select>
+          <label class="form-label">Usuario</label>
+          <input type="text" id="usuario_busqueda" class="form-input" list="usuarios_datalist" placeholder="Escriba nombre o correo">
+          <input type="hidden" id="id_usuario">
+          <datalist id="usuarios_datalist"></datalist>
         </div>
 
-        <button class="btn btn-primary" onclick="asignarRol()">
-          Asignar Rol
-        </button>
-      </div>
+        <button class="btn btn-primary" onclick="buscarUsuario()">Buscar Usuario</button>
 
-      <p id="mensaje" class="mensaje"></p>
-    </section>
-  </main>
+        <div id="datosUsuario" class="datos hidden">
+          <h3>Datos del usuario</h3>
+          <p><strong>Nombre:</strong> <span id="nombres"></span></p>
+          <p><strong>Correo:</strong> <span id="email"></span></p>
+          <p><strong>Rol actual:</strong> <span id="rol_actual"></span></p>
+          <p><strong>Área:</strong> <span id="area"></span></p>
+
+          <div class="form-group">
+            <label class="form-label">Nuevo rol</label>
+            <select id="id_rol" class="form-input">
+              <option value="">Seleccione un rol</option>
+              <option value="1">Administrador</option>
+              <option value="2">Usuario del área jurídica</option>
+              <option value="3">Usuario del área contable</option>
+            </select>
+          </div>
+
+          <button id="btnAsignarRol" class="btn btn-primary" onclick="asignarRol()">
+            Asignar Rol
+          </button>
+        </div>
+
+        <p id="mensaje" class="mensaje"></p>
+      </section>
+    </main>
+  </div>
 
 </div>
 
+<script src="../assets/js/api_config.js"></script>
 <script src="../auth/logout.js"></script>
 <script src="../assets/js/navigation.js"></script>
+<script src="../assets/js/topbar.js"></script>
+<script src="../assets/js/usuarios_autocomplete.js"></script>
 <script src="./asignar_rol.js"></script>
 <script src="../assets/js/permissions.js"></script>
 
 <script>
   protegerPagina(["ADMINISTRADOR"]);
   cargarNavegacion("rol");
+  cargarTopbar();
 </script>
 
 </body>

@@ -1,4 +1,4 @@
-const API_URL = "http://127.0.0.1:5000/api";
+const API_URL = window.API_CONFIG.API_URL;
 
 document.addEventListener("DOMContentLoaded", () => {
   const selectArea = document.getElementById("selectArea");
@@ -18,7 +18,9 @@ document.addEventListener("DOMContentLoaded", () => {
     tbodyClientes.innerHTML = `<tr><td colspan="5" class="text-loading">Consultando registros...</td></tr>`;
 
     try {
-      const response = await fetch(`${API_URL}/clientes/filtrar${queryString}`);
+      const response = await fetch(`${API_URL}/clientes/filtrar${queryString}`, {
+        credentials: window.API_CONFIG.credentials
+      });
       const clientes = await response.json();
 
       if (!response.ok) {

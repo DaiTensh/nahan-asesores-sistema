@@ -1,20 +1,43 @@
 .card{
-  background:white;
+  background:var(--color-surface);
   border:1px solid var(--color-border);
-  border-radius:var(--radius-sm);
-  padding:20px;
+  border-radius:var(--radius-md);
+  padding:var(--spacing-5);
   box-shadow:var(--shadow-sm);
 }
 
 .card-title{
   font-size:18px;
   font-weight:600;
-  margin-bottom:12px;
+  margin-bottom:var(--spacing-3);
 }
 
 .usuarios-card{
-  background:white;
+  background:var(--color-surface);
   border:1px solid var(--color-border);
-  border-radius:var(--radius-sm);
+  border-radius:var(--radius-md);
   box-shadow:var(--shadow-sm);
+  padding:var(--spacing-5);
+}
+
+.metric-card{
+  background:var(--color-surface);
+  border:1px solid var(--color-border);
+  border-radius:var(--radius-md);
+  padding:var(--spacing-5);
+  box-shadow:var(--shadow-sm);
+}
+
+.metric-card p{
+  color:var(--color-text-secondary);
+  font-size:13px;
+  font-weight:600;
+  margin-bottom:var(--spacing-2);
+}
+
+.metric-card h2,
+.metric-card h3{
+  color:var(--color-primary);
+  font-size:28px;
+  line-height:1.1;
 }

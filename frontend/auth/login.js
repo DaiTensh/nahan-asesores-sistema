@@ -1,4 +1,4 @@
-const API_URL = "http://127.0.0.1:5000/api";
+const API_URL = window.API_CONFIG.API_URL;
 
 const loginForm = document.getElementById("loginForm");
 const mensaje = document.getElementById("mensaje");
@@ -15,6 +15,7 @@ loginForm.addEventListener("submit", async (event) => {
   try {
     const response = await fetch(`${API_URL}/login`, {
       method: "POST",
+      credentials: window.API_CONFIG.credentials,
       headers: {
         "Content-Type": "application/json"
       },
@@ -28,8 +29,6 @@ loginForm.addEventListener("submit", async (event) => {
       mensaje.className = "mensaje error";
       return;
     }
-
-    localStorage.setItem("usuario", JSON.stringify(data.usuario));
 
     mensaje.textContent = "Inicio de sesión correcto";
     mensaje.className = "mensaje success";

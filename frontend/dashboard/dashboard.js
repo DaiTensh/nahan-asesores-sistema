@@ -1,4 +1,4 @@
-const API_URL = "http://127.0.0.1:5000/api";
+const API_URL = window.API_CONFIG.API_URL;
 
 document.addEventListener("DOMContentLoaded", () => {
   cargarDatosUsuario();
@@ -20,14 +20,17 @@ function formatearArea(area) {
   const areas = {
     ADMINISTRACION: "Administración",
     JURIDICA: "Jurídica",
-    CONTABLE: "Contable"
+    CONTABLE: "Contable",
+    1: "Jurídica",
+    2: "Contable",
+    3: "Ambas áreas"
   };
 
   return areas[area] || area;
 }
 
-function cargarDatosUsuario() {
-  const usuario = JSON.parse(localStorage.getItem("usuario"));
+async function cargarDatosUsuario() {
+  const usuario = await obtenerUsuarioActual();
 
   if (!usuario) {
     window.location.href = "../auth/login.html";
@@ -36,12 +39,14 @@ function cargarDatosUsuario() {
 
   document.getElementById("nombreUsuario").textContent = usuario.nombres;
   document.getElementById("rolUsuario").textContent = formatearRol(usuario.nombre_rol);
-  document.getElementById("areaUsuario").textContent = formatearArea(usuario.nombre_area);
+  document.getElementById("areaUsuario").textContent = formatearArea(usuario.nombre_area || usuario.id_area);
 }
 
 async function cargarResumenUsuarios() {
   try {
-    const response = await fetch(`${API_URL}/usuarios`);
+    const response = await fetch(`${API_URL}/usuarios`, {
+      credentials: window.API_CONFIG.credentials
+    });
     const usuarios = await response.json();
 
     if (!response.ok) {
@@ -90,7 +95,9 @@ function cargarTablaUsuarios(usuarios) {
 
 async function cargarResumenClientes() {
   try {
-    const response = await fetch(`${API_URL}/clientes/resumen`);
+    const response = await fetch(`${API_URL}/clientes/resumen`, {
+      credentials: window.API_CONFIG.credentials
+    });
     const data = await leerRespuestaJson(response);
 
     if (!response.ok) {
@@ -111,7 +118,9 @@ async function cargarResumenClientes() {
 
 async function cargarClientesDesdeListado() {
   try {
-    const response = await fetch(`${API_URL}/clientes/listado?pagina=1&limite=5`);
+    const response = await fetch(`${API_URL}/clientes/listado?pagina=1&limite=5`, {
+      credentials: window.API_CONFIG.credentials
+    });
     const data = await leerRespuestaJson(response);
 
     if (!response.ok) {

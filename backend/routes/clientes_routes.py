@@ -1,10 +1,15 @@
+import logging
+
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 from backend.config.db import get_connection
+from backend.utils.auth import ROL_ADMINISTRADOR, ROLES_OPERATIVOS, obtener_usuario_actual, roles_required
 
 clientes_blueprint = Blueprint('clientes_blueprint', __name__)
+logger = logging.getLogger(__name__)
 
 @clientes_blueprint.route('/clientes', methods=['POST'])
+@roles_required(*ROLES_OPERATIVOS)
 def registrar_cliente():
     try:
         datos = request.json
@@ -56,11 +61,12 @@ def registrar_cliente():
 
         return jsonify({"message": "Cliente incorporado exitosamente junto a sus áreas asociadas."}), 201
 
-    except Exception as e:
-        print(f"Excepción controlada en RF01: {str(e)}")
+    except Exception:
+        logger.exception("Error al registrar cliente")
         return jsonify({"error": "Ocurrió una anomalía interna en el servidor al guardar el expediente."}), 500
 
 @clientes_blueprint.route('/clientes/<int:id_cliente>', methods=['GET'])
+@roles_required(*ROLES_OPERATIVOS)
 def obtener_cliente(id_cliente):
     try:
         conexion = get_connection()
@@ -88,14 +94,15 @@ def obtener_cliente(id_cliente):
 
         return jsonify(cliente), 200
 
-    except Exception as e:
-        print(f"Error en GET individual: {str(e)}")
+    except Exception:
+        logger.exception("Error al obtener cliente")
         return jsonify({"error": "Error interno del servidor."}), 500
 
 
 
 
 @clientes_blueprint.route('/clientes/<int:id_cliente>', methods=['PUT'])
+@roles_required(*ROLES_OPERATIVOS)
 def modificar_cliente(id_cliente):
     try:
         datos = request.json
@@ -143,8 +150,8 @@ def modificar_cliente(id_cliente):
 
         return jsonify({"message": "Expediente modificado con éxito."}), 200
 
-    except Exception as e:
-        print(f"Error en PUT individual: {str(e)}")
+    except Exception:
+        logger.exception("Error al modificar cliente")
         return jsonify({"error": "Error inesperado al almacenar cambios."}), 500
 
 
@@ -152,6 +159,7 @@ def modificar_cliente(id_cliente):
 # RF03: ENPOINT DE VERIFICACIÓN DE VÍNCULOS COMERCIALES
 # ==========================================================================
 @clientes_blueprint.route('/clientes/<int:id_cliente>/verificar-vinculos', methods=['GET'])
+@roles_required(ROL_ADMINISTRADOR)
 def verificar_vinculos_cliente(id_cliente):
     try:
         conexion = get_connection()
@@ -188,8 +196,8 @@ def verificar_vinculos_cliente(id_cliente):
             "documentos_activos": total_docs
         }), 200
 
-    except Exception as e:
-        print(f"Error en verificación RF03: {str(e)}")
+    except Exception:
+        logger.exception("Error en verificación de vínculos de cliente")
         return jsonify({"error": "Error al calcular dependencias."}), 500
 
 
@@ -197,10 +205,11 @@ def verificar_vinculos_cliente(id_cliente):
 # RF03: ACCIÓN A - DESHABILITACIÓN LÓGICA (CON VÍNCULOS) + AUDITORÍA
 # ==========================================================================
 @clientes_blueprint.route('/clientes/<int:id_cliente>/deshabilitar', methods=['PATCH'])
+@roles_required(ROL_ADMINISTRADOR)
 def deshabilitar_cliente_rf3(id_cliente):
     try:
-        datos = request.get_json(silent=True) or {}
-        id_usuario = datos.get('id_usuario_auditoria', 1) # Respaldo usuario auditor
+        usuario_actual = obtener_usuario_actual()
+        id_usuario = usuario_actual["id_usuario"]
         conexion = get_connection()
         
         with conexion.cursor() as cursor:
@@ -216,8 +225,8 @@ def deshabilitar_cliente_rf3(id_cliente):
             conexion.commit()
 
         return jsonify({"message": "Cliente deshabilitado y registrado en auditoría."}), 200
-    except Exception as e:
-        print(str(e))
+    except Exception:
+        logger.exception("Error procesando deshabilitación de cliente")
         return jsonify({"error": "Error procesando deshabilitación."}), 500
 
 
@@ -225,10 +234,11 @@ def deshabilitar_cliente_rf3(id_cliente):
 # RF03: ACCIÓN B - ELIMINACIÓN DEFINITIVA FÍSICA (SIN VÍNCULOS) + AUDITORÍA
 # ==========================================================================
 @clientes_blueprint.route('/clientes/<int:id_cliente>/eliminar-definitivo', methods=['DELETE'])
+@roles_required(ROL_ADMINISTRADOR)
 def eliminar_definitivo_cliente(id_cliente):
     try:
-        datos = request.get_json(silent=True) or {}
-        id_usuario = datos.get('id_usuario_auditoria', 1)
+        usuario_actual = obtener_usuario_actual()
+        id_usuario = usuario_actual["id_usuario"]
         conexion = get_connection()
 
         with conexion.cursor() as cursor:
@@ -256,14 +266,15 @@ def eliminar_definitivo_cliente(id_cliente):
             conexion.commit()
 
         return jsonify({"message": "Cliente eliminado físicamente y registrado en auditoría."}), 200
-    except Exception as e:
-        print(f"Error en DELETE RF03: {str(e)}")
+    except Exception:
+        logger.exception("Error en eliminación definitiva de cliente")
         return jsonify({"error": "No se pudo realizar la eliminación por dependencias."}), 500
 
 # ==========================================================================
 # RF04: VISUALIZANDO LA FICHA COMPLETA Y CONSOLIDADA DEL CLIENTE
 # ==========================================================================
 @clientes_blueprint.route('/clientes/<int:id_cliente>/ficha', methods=['GET'])
+@roles_required(*ROLES_OPERATIVOS)
 def obtener_ficha_consolidada(id_cliente):
     try:
         conexion = get_connection()
@@ -312,14 +323,15 @@ def obtener_ficha_consolidada(id_cliente):
 
         return jsonify(cliente), 200
 
-    except Exception as e:
-        print(f"Error crítico en consolidación RF04: {str(e)}")
+    except Exception:
+        logger.exception("Error al obtener ficha consolidada de cliente")
         return jsonify({"error": "Ocurrió una anomalía interna al consolidar los antecedentes del cliente."}), 500
 
 # ==========================================================================
 # RF06: FILTRANDO CLIENTES POR ÁREA DE SERVICIO Y CRITERIO DE TEXTO (LIKE)
 # ==========================================================================
 @clientes_blueprint.route('/clientes/filtrar', methods=['GET'])
+@roles_required(*ROLES_OPERATIVOS)
 def filtrar_clientes_combinado():
     try:
         # Captura de parámetros opcionales (?id_area=1&buscar=alfa)
@@ -363,8 +375,8 @@ def filtrar_clientes_combinado():
 
         return jsonify(resultados), 200
 
-    except Exception as e:
-        print(f"Error combinado en RF06: {str(e)}")
+    except Exception:
+        logger.exception("Error al filtrar clientes")
         return jsonify({"error": "Ocurrió una anomalía al procesar el filtrado multi-criterio."}), 500
 
 
@@ -372,11 +384,12 @@ def filtrar_clientes_combinado():
 # RF10: CAMBIANDO EL ESTADO DE CLIENTES (ACTIVO <=> INACTIVO) + TRAZABILIDAD
 # ==========================================================================
 @clientes_blueprint.route('/clientes/<int:id_cliente>/cambiar-estado', methods=['POST'])
+@roles_required(ROL_ADMINISTRADOR)
 def cambiar_estado_cliente_rf10(id_cliente):
     try:
         datos = request.json
         nuevo_estado = datos.get('nuevo_estado', '').strip().upper()
-        id_usuario = datos.get('id_usuario_auditoria', 1)
+        id_usuario = obtener_usuario_actual()["id_usuario"]
 
         if nuevo_estado not in ['ACTIVO', 'INACTIVO']:
             return jsonify({"error": "El estado solicitado no corresponde a un parámetro válido."}), 400
@@ -415,8 +428,8 @@ def cambiar_estado_cliente_rf10(id_cliente):
 
         return jsonify({"message": f"Estado actualizado exitosamente a {nuevo_estado}."}), 200
 
-    except Exception as e:
-        print(f"Error en conmutación de estados RF10: {str(e)}")
+    except Exception:
+        logger.exception("Error al cambiar estado de cliente")
         return jsonify({"error": "Error interno al procesar el cambio de estado."}), 500
 
 
@@ -424,6 +437,7 @@ def cambiar_estado_cliente_rf10(id_cliente):
 # RF11: LISTANDO GENERALMENTE LOS CLIENTES (CON PAGINACIÓN Y FILTROS CRUZADOS)
 # ==========================================================================
 @clientes_blueprint.route('/clientes/listado', methods=['GET'])
+@roles_required(*ROLES_OPERATIVOS)
 def listado_general_paginado_clientes():
     try:
         # Captura de parámetros de orden y paginación (?pagina=1&limite=7)
@@ -484,12 +498,13 @@ def listado_general_paginado_clientes():
 
         return jsonify({"clientes": clientes}), 200
 
-    except Exception as e:
-        print(f"Error crítico en listado paginado RF11: {str(e)}")
+    except Exception:
+        logger.exception("Error en listado paginado de clientes")
         return jsonify({"error": "Imposible recuperar la matriz general de clientes."}), 500
 
 
 @clientes_blueprint.route('/clientes/resumen', methods=['GET'])
+@roles_required(*ROLES_OPERATIVOS)
 def resumen_clientes_dashboard():
     try:
         conexion = get_connection()
@@ -523,6 +538,6 @@ def resumen_clientes_dashboard():
             "ultimos_clientes": ultimos_clientes
         }), 200
 
-    except Exception as e:
-        print(f"Error en resumen de clientes para dashboard: {str(e)}")
+    except Exception:
+        logger.exception("Error en resumen de clientes para dashboard")
         return jsonify({"error": "No se pudo cargar el resumen de clientes."}), 500
