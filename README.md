@@ -1,170 +1,111 @@
-# Nahan Asesores Sistema
-Sistema web para la gestion interna de Nahan Asesores. Incluye una API en Flask, una base de datos MySQL y un frontend estatico en HTML, CSS y JavaScript.
+# Sistema Web de Gestión Interna — Nahan Asesores
 
-## Como iniciar el sistema en local
+Proyecto de Ingeniería de Software I y II · Grupo 22 · Universidad Andrés Bello
 
-### 1. Entrar al proyecto
+Sistema web para la gestión interna de una empresa de servicios jurídicos y
+contables: clientes, tareas, usuarios y roles, control de horas, reportes y
+notificaciones.
 
-```bash
-cd /Users/rena/Desktop/nahan-asesores-sistema
-```
+## Puesta en marcha en un equipo nuevo
 
-### 2. Crear y activar el entorno virtual
-
-En macOS o Linux:
-```bash
-python3 -m venv venv
-source venv/bin/activate
-```
-
-En Windows:
-```bash
-python -m venv venv
-venv\Scripts\activate
-```
-
-### 3. Instalar dependencias de Python:
-```bash
-pip install -r requirements.txt
-```
-
-### 4. Crear la base de datos:
-
-El archivo `database/nahan_asesores.sql` crea la base `nahan_asesores`, sus tablas y datos base como roles, areas y parametros del sistema.
+Necesitas **Python 3.10 o superior**, **MySQL 8** y **git**. Nada más.
 
 ```bash
-mysql -u root -p < database/nahan_asesores.sql
+git clone https://github.com/DaiTensh/nahan-asesores-sistema.git
+cd nahan-asesores-sistema
 ```
 
-Importante: este script usa `DROP DATABASE IF EXISTS nahan_asesores`, por lo que elimina y vuelve a crear la base si ya existe.
-
-### 5. Configurar variables de entorno
-Crear un archivo `.env` en la raiz del proyecto con los datos de conexion a MySQL:
-
-```env
-DB_HOST=localhost
-DB_USER=root
-DB_PASSWORD=tu_password
-DB_NAME=nahan_asesores
-```
-
-### 6. Levantar el backend
-Desde la raiz del proyecto, con el entorno virtual activado:
+Luego, según tu sistema:
 
 ```bash
-python -m backend.app
+bash scripts/setup.sh              # macOS y Linux
+powershell -ExecutionPolicy Bypass -File scripts\setup.ps1    # Windows
+python scripts/setup.py            # cualquiera de los tres
 ```
 
-Si en tu equipo el comando `python` no existe, usar:
+El instalador crea el entorno virtual, instala las dependencias, te pregunta los
+datos de tu MySQL local, genera el `.env` con claves propias de tu máquina,
+importa el esquema, carga datos de prueba y comprueba que la aplicación arranca.
+Se puede volver a ejecutar las veces que haga falta.
+
+Para levantar el sistema:
 
 ```bash
-python3 -m backend.app
+python scripts/dev.py
 ```
 
-La API queda disponible en:
+Y se abre en `http://127.0.0.1:5500/frontend/auth/login.html`.
 
-```text
-http://127.0.0.1:5000
-```
+| | |
+|---|---|
+| Administrador | `renato.villalobos@nahan.local` |
+| Área jurídica | `elias.alarcon@nahan.local` |
+| Área contable | `carlos.castro@nahan.local` |
+| Contraseña | `Nahan.2026` |
 
-Para comprobar que esta funcionando, abrir:
+Son datos de desarrollo local, generados por `database/seed_dev.py`. No existen
+en el servidor de producción.
 
-```text
-http://127.0.0.1:5000/
-```
-
-### 7. Crear el primer usuario
-La base de datos inicial no trae usuarios creados. Con el backend funcionando, se puede crear un primer administrador desde la terminal:
+### Si algo falla
 
 ```bash
-curl -X POST http://127.0.0.1:5000/api/usuarios \
-  -H "Content-Type: application/json" \
-  -d '{
-    "id_rol": 1,
-    "id_area": 3,
-    "nombres": "Administrador",
-    "email": "admin@nahan.cl",
-    "password": "CambiarEstaClave123"
-  }'
+python scripts/doctor.py
 ```
 
-Despues de entrar al sistema, cambiar estos datos por credenciales reales.
+Revisa una por una las condiciones que el sistema necesita y, por cada cosa que
+falta, dice el comando exacto que la resuelve.
 
-### 8. Levantar el frontend
+## Cómo se trabaja en el Incremento 2
 
-En otra terminal, desde la raiz del proyecto:
+Instala [Claude Code](https://claude.com/claude-code), ábrelo en esta carpeta y
+di tu nombre:
+
+```
+hola, soy Renato
+```
+
+Claude te identifica, revisa el entorno, instala lo que falte, crea tu rama, lee
+los requerimientos que te tocan y empieza a programarlos contigo. El reparto
+completo está en [`docs/incremento2/README.md`](docs/incremento2/README.md).
+
+## Estructura
+
+```
+backend/            API en Flask, un blueprint por módulo en routes/
+  config/db.py      conexión a MySQL
+  utils/            autenticación y hash de contraseñas
+frontend/           HTML, CSS y JavaScript sin frameworks, una carpeta por módulo
+database/           esquema (nahan_asesores.sql) y datos de prueba (seed_dev.py)
+scripts/            instalador, diagnóstico y arranque
+deploy/             unidades de systemd y configuración de Nginx para el EC2
+docs/               arquitectura, convenciones, decisiones y reparto del incremento
+tests/              pruebas de regresión con pytest
+```
+
+## Arquitectura
+
+- **Backend**: Python + Flask, organizado en blueprints registrados en
+  `backend/app.py` con prefijo `/api`.
+- **Acceso a datos**: `mysql-connector-python` a través de `get_connection()`.
+  SQL siempre parametrizado.
+- **Autenticación**: sesión por cookie de Flask. Decoradores `login_required` y
+  `roles_required(*roles)` en `backend/utils/auth.py`. Roles: `ADMINISTRADOR`,
+  `USUARIO_AREA_JURIDICA`, `USUARIO_AREA_CONTABLE`.
+- **Frontend**: HTML, CSS y JavaScript puro. `frontend/assets/js/api_config.js`
+  decide la URL de la API según el origen: servido desde el puerto 5500 apunta a
+  `http://127.0.0.1:5000/api`; en producción, a `/api` detrás de Nginx.
+- **Producción**: Gunicorn + Nginx + systemd sobre una instancia EC2.
+
+Las convenciones de código están en [`docs/development.md`](docs/development.md)
+y las reglas de trabajo con Claude en [`CLAUDE.md`](CLAUDE.md).
+
+## Pruebas
 
 ```bash
-python3 -m http.server 5500 --directory frontend
+python -m pytest
 ```
 
-Luego abrir el login en el navegador:
+## Advertencia
 
-```text
-http://127.0.0.1:5500/auth/login.html
-```
-
-El frontend esta configurado para consumir la API en:
-
-```text
-http://127.0.0.1:5000/api
-```
-
-## Requisitos previos
-
-Antes de iniciar la aplicacion, se necesita tener instalado:
-
-- Python 3.
-- `pip`, el gestor de paquetes de Python.
-- MySQL Server.
-- Cliente de MySQL para importar el archivo `.sql`; puede ser la terminal de MySQL, MySQL Workbench u otra herramienta equivalente.
-- Un navegador web moderno.
-- Git, solo si se va a clonar o versionar el proyecto.
-
-## Dependencias principales
-
-Las dependencias del backend estan declaradas en `requirements.txt`. Las principales son:
-
-- Flask: servidor web de la API.
-- Flask-CORS: permite que el frontend local consuma la API.
-- mysql-connector-python: conexion entre Flask y MySQL.
-- python-dotenv: carga variables desde el archivo `.env`.
-- bcrypt: hash y validacion de contrasenas.
-- PyJWT: soporte para tokens JWT.
-
-## Estructura general del proyecto
-
-```text
-backend/
-  app.py                 Punto de entrada de la API Flask.
-  config/db.py           Conexion a MySQL usando variables de entorno.
-  routes/                Rutas de usuarios, auth, tareas, clientes y control de horas.
-  utils/security.py      Funciones para hash y validacion de contrasenas.
-
-database/
-  nahan_asesores.sql     Script para crear la base de datos y datos base.
-
-frontend/
-  auth/                  Login y cierre de sesion.
-  dashboard/             Panel principal.
-  usuarios/              Gestion de usuarios.
-  clientes/              Gestion de clientes.
-  tareas/                Gestion de tareas.
-  control_horas/         Registro y control de horas.
-  assets/                CSS y JavaScript compartido.
-
-requirements.txt         Dependencias Python del backend.
-```
-
-## Notas de desarrollo
-
-- El backend corre por defecto en el puerto `5000`.
-- El frontend puede servirse en cualquier puerto, pero los archivos JavaScript apuntan actualmente a `http://127.0.0.1:5000/api`.
-- Si cambias el puerto del backend, tambien debes actualizar las constantes `API_URL` del frontend.
-- No subir credenciales reales al repositorio. El archivo `.env` debe mantenerse local.
-
-## Problemas comunes
-
-- Si aparece un error de conexion a MySQL, revisar que MySQL este iniciado y que `DB_HOST`, `DB_USER`, `DB_PASSWORD` y `DB_NAME` sean correctos.
-- Si el frontend muestra que no puede conectar con el servidor, confirmar que Flask este corriendo en `http://127.0.0.1:5000`.
-- Si el login falla despues de importar la base, crear primero un usuario porque el script SQL inicial no incluye cuentas.
+`.env` no se versiona y no debe versionarse: contiene las credenciales de tu
+base de datos y las claves de sesión. Está en `.gitignore`.
