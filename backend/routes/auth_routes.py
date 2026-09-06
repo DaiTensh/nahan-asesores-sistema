@@ -1,9 +1,12 @@
+import logging
+
 from flask import Blueprint, request, jsonify, session
 from backend.config.db import get_connection
 from backend.utils.auth import login_required, obtener_usuario_actual
 from backend.utils.security import check_password
 
 auth_bp = Blueprint("auth", __name__)
+logger = logging.getLogger(__name__)
 
 @auth_bp.route("/login", methods=["POST"])
 def login():
@@ -74,9 +77,10 @@ def login():
             "usuario": usuario
         }), 200
 
-    except Exception as e:
+    except Exception:
+        logger.exception("Error al iniciar sesión")
         return jsonify({
-            "error": str(e)
+            "error": "Error interno al iniciar sesión"
         }), 500
 
     finally:

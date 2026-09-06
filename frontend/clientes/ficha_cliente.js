@@ -1,5 +1,23 @@
 const API_URL = window.API_CONFIG.API_URL;
 
+function escapeHtml(valor) {
+  return String(valor ?? "").replace(/[&<>"']/g, (caracter) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+    "'": "&#39;"
+  }[caracter]));
+}
+
+function sanitizarUrl(url) {
+  const valor = String(url || "").trim();
+  if (/^https?:\/\//i.test(valor) || valor.startsWith("/")) {
+    return escapeHtml(valor);
+  }
+  return "#";
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   const tbodyTareas = document.getElementById("tablaTareasCuerpo");
   const tbodyDocs = document.getElementById("tablaDocumentoCuerpo");
@@ -52,10 +70,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const fila = document.createElement("tr");
 
       fila.innerHTML = `
-        <td><strong>${tarea.titulo}</strong></td>
-        <td>${tarea.nombre_area}</td>
-        <td>${tarea.fecha_vencimiento || "Sin fecha"}</td>
-        <td>${tarea.estado}</td>
+        <td><strong>${escapeHtml(tarea.titulo)}</strong></td>
+        <td>${escapeHtml(tarea.nombre_area)}</td>
+        <td>${escapeHtml(tarea.fecha_vencimiento || "Sin fecha")}</td>
+        <td>${escapeHtml(tarea.estado)}</td>
       `;
 
       tbodyTareas.appendChild(fila);
@@ -74,10 +92,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const fila = document.createElement("tr");
 
       fila.innerHTML = `
-        <td>${documento.nombre_documento}</td>
-        <td>${documento.fecha_subida}</td>
+        <td>${escapeHtml(documento.nombre_documento)}</td>
+        <td>${escapeHtml(documento.fecha_subida)}</td>
         <td>
-          <a href="${documento.url_archivo}" target="_blank" class="btn btn-secondary btn-small">Ver Archivo</a>
+          <a href="${sanitizarUrl(documento.url_archivo)}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-small">Ver Archivo</a>
         </td>
       `;
 
@@ -86,7 +104,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function mostrarError(texto) {
-    tbodyTareas.innerHTML = `<tr><td colspan="4" class="text-loading">${texto}</td></tr>`;
-    tbodyDocs.innerHTML = `<tr><td colspan="3" class="text-loading">${texto}</td></tr>`;
+    tbodyTareas.innerHTML = `<tr><td colspan="4" class="text-loading">${escapeHtml(texto)}</td></tr>`;
+    tbodyDocs.innerHTML = `<tr><td colspan="3" class="text-loading">${escapeHtml(texto)}</td></tr>`;
   }
 });

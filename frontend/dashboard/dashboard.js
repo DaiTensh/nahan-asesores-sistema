@@ -1,5 +1,15 @@
 const API_URL = window.API_CONFIG.API_URL;
 
+function escapeHtml(valor) {
+  return String(valor ?? "").replace(/[&<>"']/g, (caracter) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+    "'": "&#39;"
+  }[caracter]));
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   cargarDatosUsuario();
   cargarResumenUsuarios();
@@ -77,14 +87,14 @@ function cargarTablaUsuarios(usuarios) {
     const fila = document.createElement("tr");
 
     fila.innerHTML = `
-      <td>${usuario.id_usuario}</td>
-      <td>${usuario.nombres}</td>
-      <td>${usuario.email}</td>
-      <td>${formatearRol(usuario.nombre_rol)}</td>
-      <td>${formatearArea(usuario.nombre_area)}</td>
+      <td>${escapeHtml(usuario.id_usuario)}</td>
+      <td>${escapeHtml(usuario.nombres)}</td>
+      <td>${escapeHtml(usuario.email)}</td>
+      <td>${escapeHtml(formatearRol(usuario.nombre_rol))}</td>
+      <td>${escapeHtml(formatearArea(usuario.nombre_area))}</td>
       <td>
-        <span class="badge ${usuario.estado.toLowerCase()}">
-          ${usuario.estado}
+        <span class="badge ${escapeHtml(usuario.estado.toLowerCase())}">
+          ${escapeHtml(usuario.estado)}
         </span>
       </td>
     `;
@@ -159,19 +169,19 @@ function cargarTablaClientes(clientes) {
     const fila = document.createElement("tr");
 
     fila.innerHTML = `
-      <td>${cliente.rut}</td>
-      <td>${cliente.razon_social}</td>
-      <td>${cliente.email || "Sin correo"}</td>
-      <td>${cliente.telefono || "Sin teléfono"}</td>
+      <td>${escapeHtml(cliente.rut)}</td>
+      <td>${escapeHtml(cliente.razon_social)}</td>
+      <td>${escapeHtml(cliente.email || "Sin correo")}</td>
+      <td>${escapeHtml(cliente.telefono || "Sin teléfono")}</td>
       <td>
-        <span class="badge ${normalizarEstado(cliente.estado).toLowerCase()}">
-          ${normalizarEstado(cliente.estado)}
+        <span class="badge ${escapeHtml(normalizarEstado(cliente.estado).toLowerCase())}">
+          ${escapeHtml(normalizarEstado(cliente.estado))}
         </span>
       </td>
       <td>
         <div class="dashboard-row-actions">
-          <a href="../clientes/ficha_cliente.html?id=${cliente.id_cliente}">Ficha</a>
-          <a href="../clientes/modificar_clientes.html?id=${cliente.id_cliente}">Editar</a>
+          <a href="../clientes/ficha_cliente.html?id=${encodeURIComponent(cliente.id_cliente)}">Ficha</a>
+          <a href="../clientes/modificar_clientes.html?id=${encodeURIComponent(cliente.id_cliente)}">Editar</a>
         </div>
       </td>
     `;

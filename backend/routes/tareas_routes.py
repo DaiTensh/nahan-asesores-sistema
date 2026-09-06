@@ -110,6 +110,9 @@ def crear_tarea():
 @tareas_bp.route("/tareas/pendientes", methods=["GET"])
 @login_required
 def listar_tareas_pendientes():
+    connection = None
+    cursor = None
+
     try:
         connection = get_connection()
         cursor = connection.cursor(dictionary=True)
@@ -153,6 +156,8 @@ def listar_tareas_pendientes():
 @tareas_bp.route("/tareas/<int:id_tarea>/asignar", methods=["PUT"])
 @login_required
 def asignar_tarea(id_tarea):
+    connection = None
+    cursor = None
     data = request.get_json()
 
     id_responsable = data.get("id_responsable")
@@ -205,6 +210,8 @@ def asignar_tarea(id_tarea):
 @tareas_bp.route("/tareas/<int:id_tarea>/estado", methods=["PUT"])
 @login_required
 def actualizar_estado_tarea(id_tarea):
+    connection = None
+    cursor = None
     data = request.get_json()
     usuario = obtener_usuario_actual()
 
@@ -258,6 +265,8 @@ def actualizar_estado_tarea(id_tarea):
 @tareas_bp.route("/tareas/<int:id_tarea>/prioridad", methods=["PUT"])
 @login_required
 def actualizar_prioridad_tarea(id_tarea):
+    connection = None
+    cursor = None
     data = request.get_json()
 
     prioridad = data.get("prioridad")
