@@ -1,0 +1,88 @@
+{
+  "incremento": 2,
+  "entrega": "2026-09-13",
+  "desarrollo": { "inicio": "2026-09-01", "termino": "2026-09-11" },
+  "total_rf": 28,
+  "total_hh": 176,
+  "avance_acumulado": "75,00 %",
+  "fuente_alcance": "Backlog.xlsx, hoja «Sprint Backlog-Incremento 2»",
+  "integrantes": [
+    {
+      "slug": "matias-rodriguez",
+      "nombre": "Matías Rodríguez",
+      "alias": ["matias", "matías", "mati", "rodriguez", "rodríguez", "matias rodriguez"],
+      "rama": "feature/inc2-tareas-ciclo-vida",
+      "modulo": "Ciclo de vida de la tarea",
+      "hh": 30,
+      "rf": ["RF63", "RF64", "RF65", "RF69", "RF68", "RF16"],
+      "usuario_demo": "matias.rodriguez@nahan.local"
+    },
+    {
+      "slug": "benjamin-contreras",
+      "nombre": "Benjamín Contreras",
+      "alias": ["benjamin", "benjamín", "benja", "contreras", "benjamin contreras"],
+      "rama": "feature/inc2-clientes-reportes",
+      "modulo": "Clientes y generación de reportes",
+      "hh": 28,
+      "rf": ["RF05", "RF61", "RF31", "RF32"],
+      "usuario_demo": "benjamin.contreras@nahan.local"
+    },
+    {
+      "slug": "renato-villalobos",
+      "nombre": "Renato Villalobos",
+      "alias": ["renato", "villalobos", "renato villalobos"],
+      "rama": "feature/inc2-seguridad-export",
+      "modulo": "Seguridad y exportación a PDF",
+      "hh": 26,
+      "rf": ["RF26", "RF38", "RF34"],
+      "usuario_demo": "renato.villalobos@nahan.local"
+    },
+    {
+      "slug": "elias-alarcon",
+      "nombre": "Elías Alarcón",
+      "alias": ["elias", "elías", "alarcon", "alarcón", "elias alarcon"],
+      "rama": "feature/inc2-dashboard-export",
+      "modulo": "Dashboard y exportación a Excel",
+      "hh": 26,
+      "rf": ["RF42", "RF43", "RF48", "RF50", "RF35"],
+      "usuario_demo": "elias.alarcon@nahan.local"
+    },
+    {
+      "slug": "vicente-barahona",
+      "nombre": "Vicente Barahona",
+      "alias": ["vicente", "barahona", "vicente barahona"],
+      "rama": "feature/inc2-notificaciones",
+      "modulo": "Notificaciones y productividad",
+      "hh": 26,
+      "rf": ["RF52", "RF51", "RF53", "RF39"],
+      "usuario_demo": "vicente.barahona@nahan.local"
+    },
+    {
+      "slug": "carlos-castro",
+      "nombre": "Carlos Castro",
+      "alias": ["carlos", "castro", "carlos castro"],
+      "rama": "feature/inc2-documental-cliente",
+      "modulo": "Documentos y observaciones de cliente",
+      "hh": 20,
+      "rf": ["RF07", "RF08", "RF09"],
+      "usuario_demo": "carlos.castro@nahan.local"
+    },
+    {
+      "slug": "ivan-gomez",
+      "nombre": "Iván Gómez",
+      "alias": ["ivan", "iván", "gomez", "gómez", "ivan gomez"],
+      "rama": "feature/inc2-adjuntos-tarea",
+      "modulo": "Adjuntos de tarea y redistribución",
+      "hh": 20,
+      "rf": ["RF54", "RF55", "RF19"],
+      "usuario_demo": "ivan.gomez@nahan.local"
+    }
+  ],
+  "coordinacion": [
+    { "interfaz": "Función que genera una notificación", "define": "vicente-barahona", "consumen": ["matias-rodriguez", "renato-villalobos"] },
+    { "interfaz": "Formato de respuesta del módulo de reportes", "define": "benjamin-contreras", "consumen": ["renato-villalobos", "elias-alarcon"] },
+    { "interfaz": "Capa de consulta compartida para exportar", "define": "renato-villalobos y elias-alarcon en conjunto", "consumen": [] },
+    { "interfaz": "Endpoints sobre la tabla DOCUMENTO", "define": "carlos-castro e ivan-gomez en conjunto", "consumen": [] },
+    { "interfaz": "Estructura de la vista frontend/reportes/", "define": "quien llegue primero", "consumen": ["benjamin-contreras", "renato-villalobos", "elias-alarcon", "vicente-barahona"] }
+  ]
+}

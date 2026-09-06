@@ -17,3 +17,7 @@ __pycache__/
 
 # Node
 node_modules/
+
+# Claude Code — configuración local por usuario
+.claude/settings.local.json
+.claude/_prueba.txt
