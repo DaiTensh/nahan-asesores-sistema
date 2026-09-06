@@ -1,5 +1,15 @@
 const API_URL = window.API_CONFIG.API_URL;
 
+function escapeHtml(valor) {
+  return String(valor ?? "").replace(/[&<>"']/g, (caracter) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+    "'": "&#39;"
+  }[caracter]));
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   const selectArea = document.getElementById("selectArea");
   const inputBuscar = document.getElementById("inputBuscar");
@@ -24,7 +34,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const clientes = await response.json();
 
       if (!response.ok) {
-        tbodyClientes.innerHTML = `<tr><td colspan="5" class="text-loading">${clientes.error || "No se pudo procesar el filtro."}</td></tr>`;
+        tbodyClientes.innerHTML = `<tr><td colspan="5" class="text-loading">${escapeHtml(clientes.error || "No se pudo procesar el filtro.")}</td></tr>`;
         return;
       }
 
@@ -47,16 +57,16 @@ document.addEventListener("DOMContentLoaded", () => {
       const fila = document.createElement("tr");
 
       fila.innerHTML = `
-        <td><strong>${cliente.rut}</strong></td>
-        <td>${cliente.razon_social}</td>
-        <td>${cliente.telefono || "Sin teléfono"}</td>
+        <td><strong>${escapeHtml(cliente.rut)}</strong></td>
+        <td>${escapeHtml(cliente.razon_social)}</td>
+        <td>${escapeHtml(cliente.telefono || "Sin teléfono")}</td>
         <td>
-          <span class="badge estado-${cliente.estado.toLowerCase()}">
-            ${cliente.estado}
+          <span class="badge estado-${escapeHtml(cliente.estado.toLowerCase())}">
+            ${escapeHtml(cliente.estado)}
           </span>
         </td>
         <td>
-          <a href="ficha_cliente.html?id=${cliente.id_cliente}" class="btn btn-primary btn-small">Ver Ficha</a>
+          <a href="ficha_cliente.html?id=${encodeURIComponent(cliente.id_cliente)}" class="btn btn-primary btn-small">Ver Ficha</a>
         </td>
       `;
 

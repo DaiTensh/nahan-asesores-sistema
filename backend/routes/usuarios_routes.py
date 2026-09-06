@@ -104,6 +104,9 @@ def create_usuario():
 @usuarios_bp.route("/usuarios", methods=["GET"])
 @login_required
 def listar_usuarios():
+    connection = None
+    cursor = None
+
     try:
         connection = get_connection()
         cursor = connection.cursor(dictionary=True)
@@ -144,6 +147,9 @@ def listar_usuarios():
 @usuarios_bp.route("/usuarios/<int:id_usuario>", methods=["GET"])
 @roles_required(ROL_ADMINISTRADOR)
 def obtener_usuario(id_usuario):
+    connection = None
+    cursor = None
+
     try:
         connection = get_connection()
         cursor = connection.cursor(dictionary=True)
@@ -261,6 +267,9 @@ def actualizar_usuario(id_usuario):
 @usuarios_bp.route("/usuarios/<int:id_usuario>/desactivar", methods=["PUT"])
 @roles_required(ROL_ADMINISTRADOR)
 def desactivar_usuario(id_usuario):
+    connection = None
+    cursor = None
+
     try:
         connection = get_connection()
         cursor = connection.cursor()

@@ -1,7 +1,12 @@
+import logging
 from functools import wraps
 
 from flask import jsonify, session
 
+from backend.config.db import get_connection
+
+
+logger = logging.getLogger(__name__)
 
 ROLES = {
     1: "ADMINISTRADOR",
@@ -16,23 +21,64 @@ ROLES_OPERATIVOS = (ROL_ADMINISTRADOR, ROL_JURIDICA, ROL_CONTABLE)
 
 
 def obtener_usuario_actual():
+    """Resuelve el usuario autenticado consultando su estado y rol
+    directamente en la base de datos en cada solicitud.
+
+    Solo se confía en `session["usuario_id"]` como clave de búsqueda; el
+    resto de los datos (estado, rol, área) se leen frescos desde la BD para
+    que un cambio de rol o una desactivación de cuenta surtan efecto de
+    inmediato, sin esperar a que la sesión antigua expire.
+    """
     usuario_id = session.get("usuario_id")
-    rol_id = session.get("rol_id")
-    area_id = session.get("area_id")
-    nombre = session.get("nombre")
 
-    nombre_rol = ROLES.get(rol_id)
-
-    if not usuario_id or not rol_id or not nombre_rol:
+    if not usuario_id:
         return None
 
-    return {
-        "id_usuario": usuario_id,
-        "nombres": nombre,
-        "id_rol": rol_id,
-        "nombre_rol": nombre_rol,
-        "id_area": area_id,
-    }
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_connection()
+
+        if connection is None:
+            return None
+
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            """
+            SELECT
+                u.id_usuario,
+                u.nombres,
+                u.estado,
+                u.id_rol,
+                r.nombre_rol,
+                u.id_area
+            FROM usuario u
+            INNER JOIN rol r ON u.id_rol = r.id_rol
+            WHERE u.id_usuario = %s
+            """,
+            (usuario_id,)
+        )
+        usuario = cursor.fetchone()
+
+        if not usuario or usuario["estado"] != "ACTIVO":
+            return None
+
+        return {
+            "id_usuario": usuario["id_usuario"],
+            "nombres": usuario["nombres"],
+            "id_rol": usuario["id_rol"],
+            "nombre_rol": usuario["nombre_rol"],
+            "id_area": usuario["id_area"],
+        }
+    except Exception:
+        logger.exception("Error al resolver el usuario actual")
+        return None
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
 
 def usuario_tiene_rol(usuario, roles_permitidos):
