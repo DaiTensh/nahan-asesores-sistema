@@ -149,12 +149,24 @@ def revisar_puertos():
 
 def revisar_git():
     try:
-        rama = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=RAIZ,
-                              capture_output=True, text=True, timeout=8).stdout.strip()
+        r = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=RAIZ,
+                           capture_output=True, text=True, timeout=8)
+        rama = r.stdout.strip()
         sucio = subprocess.run(["git", "status", "--porcelain"], cwd=RAIZ,
                                capture_output=True, text=True, timeout=8).stdout.strip()
+    except FileNotFoundError:
+        chequeo("Repositorio git", False, "git no está instalado",
+                "Instálalo desde https://git-scm.com/downloads: lo necesitas para commitear tu trabajo.")
+        return
     except Exception:
         chequeo("Repositorio git", False, "no se pudo consultar", None, critico=False)
+        return
+    if r.returncode or not rama:
+        # Caso típico de quien descomprimió el ZIP en vez de clonar.
+        chequeo("Repositorio git", False, "esta carpeta no es un repositorio git",
+                "Clona el proyecto para poder commitear tu trabajo:\n"
+                "           git clone https://github.com/DaiTensh/nahan-asesores-sistema.git\n"
+                "           Sin commits propios, tu participación no queda acreditada.")
         return
     n = len(sucio.split("\n")) if sucio else 0
     chequeo("Repositorio git", True,
