@@ -17,6 +17,8 @@ import os
 import socket
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ENV = os.path.join(RAIZ, ".env")
@@ -40,6 +42,22 @@ def puerto_ocupado(puerto):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.settimeout(0.4)
         return s.connect_ex(("127.0.0.1", puerto)) == 0
+
+
+def puerto_responde_api_propia(puerto):
+    """True solo si lo que responde en el puerto es esta API.
+
+    Un puerto ocupado no prueba que la API esté corriendo ahí: en macOS, el
+    puerto 5000 lo toma por defecto el Receptor AirPlay (Ajustes del Sistema
+    → General → AirDrop y Handoff), y `puerto_ocupado()` daría igual "ocupado"
+    en ese caso que si la API estuviera realmente corriendo.
+    """
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{puerto}/", timeout=1) as resp:
+            cuerpo = json.loads(resp.read().decode("utf-8"))
+    except (urllib.error.URLError, TimeoutError, ValueError, OSError):
+        return False
+    return cuerpo.get("message") == "API Nahan Asesores funcionando correctamente"
 
 
 # ------------------------------------------------------------------ chequeos
@@ -140,11 +158,20 @@ def revisar_base(cn):
 
 
 def revisar_puertos():
-    for puerto, quien in ((5000, "la API"), (5500, "el frontend")):
-        ocupado = puerto_ocupado(puerto)
-        chequeo(f"Puerto {puerto}", True,
-                f"ocupado — {quien} ya está corriendo" if ocupado else f"libre para {quien}",
-                None, critico=False)
+    ocupado_api = puerto_ocupado(5000)
+    if not ocupado_api:
+        detalle_api = "libre para la API"
+    elif puerto_responde_api_propia(5000):
+        detalle_api = "ocupado — la API ya está corriendo"
+    else:
+        detalle_api = ("ocupado, pero no por esta API — en macOS suele ser el Receptor "
+                        "AirPlay (Ajustes del Sistema → General → AirDrop y Handoff)")
+    chequeo("Puerto 5000", True, detalle_api, None, critico=False)
+
+    ocupado_frontend = puerto_ocupado(5500)
+    chequeo("Puerto 5500", True,
+            "ocupado — el frontend ya está corriendo" if ocupado_frontend else "libre para el frontend",
+            None, critico=False)
 
 
 def revisar_git():

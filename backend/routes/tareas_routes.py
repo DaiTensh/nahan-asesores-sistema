@@ -112,12 +112,25 @@ def crear_tarea():
 def listar_tareas_pendientes():
     connection = None
     cursor = None
+    usuario = obtener_usuario_actual()
 
     try:
         connection = get_connection()
         cursor = connection.cursor(dictionary=True)
 
-        sql = """
+        condiciones = ["t.estado IN ('PENDIENTE', 'EN_PROCESO', 'EN_REVISION')"]
+        parametros = []
+
+        # Un usuario no administrador solo debe ver sus propias tareas: el
+        # frontend (tareas.js) ya filtraba esto en el navegador, pero eso no
+        # impedía que cualquier autenticado pidiera este endpoint directo y
+        # recibiera las tareas de todas las áreas. Se aplica la misma regla
+        # en el servidor.
+        if usuario["nombre_rol"] != ROL_ADMINISTRADOR:
+            condiciones.append("t.id_responsable = %s")
+            parametros.append(usuario["id_usuario"])
+
+        sql = f"""
             SELECT
                 t.id_tarea,
                 t.id_responsable,
@@ -133,11 +146,11 @@ def listar_tareas_pendientes():
             INNER JOIN cliente c ON t.id_cliente = c.id_cliente
             INNER JOIN usuario u ON t.id_responsable = u.id_usuario
             INNER JOIN area a ON t.id_area = a.id_area
-            WHERE t.estado IN ('PENDIENTE', 'EN_PROCESO', 'EN_REVISION')
+            WHERE {" AND ".join(condiciones)}
             ORDER BY t.fecha_vencimiento ASC
         """
 
-        cursor.execute(sql)
+        cursor.execute(sql, tuple(parametros))
         tareas = cursor.fetchall()
 
         return jsonify(tareas), 200
@@ -170,6 +183,13 @@ def asignar_tarea(id_tarea):
         cursor = connection.cursor()
 
         cursor.execute(
+            "SELECT id_tarea FROM tarea WHERE id_tarea = %s",
+            (id_tarea,)
+        )
+        if not cursor.fetchone():
+            return jsonify({"error": "Tarea no encontrada"}), 404
+
+        cursor.execute(
             """
             SELECT id_usuario, estado
             FROM usuario
@@ -191,8 +211,10 @@ def asignar_tarea(id_tarea):
         cursor.execute(sql, (id_responsable, id_tarea))
         connection.commit()
 
-        if cursor.rowcount == 0:
-            return jsonify({"error": "Tarea no encontrada"}), 404
+        # La existencia de la tarea ya se confirmó arriba: si rowcount es 0
+        # aquí es porque el responsable nuevo es igual al que ya tenía
+        # (MySQL solo cuenta filas realmente modificadas), no porque no
+        # exista. Es un no-op válido, no un 404.
 
         return jsonify({"message": "Tarea asignada correctamente"}), 200
 

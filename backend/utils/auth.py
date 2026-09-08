@@ -1,7 +1,7 @@
 import logging
 from functools import wraps
 
-from flask import jsonify, session
+from flask import g, jsonify, session
 
 from backend.config.db import get_connection
 
@@ -28,10 +28,20 @@ def obtener_usuario_actual():
     resto de los datos (estado, rol, área) se leen frescos desde la BD para
     que un cambio de rol o una desactivación de cuenta surtan efecto de
     inmediato, sin esperar a que la sesión antigua expire.
+
+    El resultado se memoriza en `flask.g` durante la solicitud: la mayoría
+    de las rutas la invocan dos veces (una vez a través de los decoradores
+    `login_required`/`roles_required` y otra vez dentro del propio handler
+    para obtener el usuario actual), y sin este cacheo cada solicitud
+    hacía dos consultas idénticas a MySQL en vez de una.
     """
+    if hasattr(g, "_usuario_actual"):
+        return g._usuario_actual
+
     usuario_id = session.get("usuario_id")
 
     if not usuario_id:
+        g._usuario_actual = None
         return None
 
     connection = None
@@ -41,6 +51,7 @@ def obtener_usuario_actual():
         connection = get_connection()
 
         if connection is None:
+            g._usuario_actual = None
             return None
 
         cursor = connection.cursor(dictionary=True)
@@ -62,17 +73,20 @@ def obtener_usuario_actual():
         usuario = cursor.fetchone()
 
         if not usuario or usuario["estado"] != "ACTIVO":
+            g._usuario_actual = None
             return None
 
-        return {
+        g._usuario_actual = {
             "id_usuario": usuario["id_usuario"],
             "nombres": usuario["nombres"],
             "id_rol": usuario["id_rol"],
             "nombre_rol": usuario["nombre_rol"],
             "id_area": usuario["id_area"],
         }
+        return g._usuario_actual
     except Exception:
         logger.exception("Error al resolver el usuario actual")
+        g._usuario_actual = None
         return None
     finally:
         if cursor:

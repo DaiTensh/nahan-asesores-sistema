@@ -64,14 +64,14 @@
           <div class="form-grid">
 
             <div class="form-group">
-              <label class="form-label">Cliente</label>
+              <label class="form-label" for="cliente_busqueda">Cliente</label>
               <input type="text" id="cliente_busqueda" class="form-input" list="clientes_datalist" placeholder="Escriba razón social o RUT" required>
               <input type="hidden" id="id_cliente">
               <datalist id="clientes_datalist"></datalist>
             </div>
 
             <div class="form-group">
-              <label class="form-label">Área</label>
+              <label class="form-label" for="id_area">Área</label>
               <select id="id_area" class="form-input" required>
                 <option value="">Seleccione un área</option>
                 <option value="1">Jurídica</option>
@@ -81,14 +81,14 @@
             </div>
 
             <div class="form-group">
-              <label class="form-label">Responsable</label>
+              <label class="form-label" for="responsable_busqueda">Responsable</label>
               <input type="text" id="responsable_busqueda" class="form-input" list="usuarios_responsables" placeholder="Escriba nombre o correo" required>
               <input type="hidden" id="id_responsable">
               <datalist id="usuarios_responsables"></datalist>
             </div>
 
             <div class="form-group">
-              <label class="form-label">Prioridad</label>
+              <label class="form-label" for="prioridad">Prioridad</label>
               <select id="prioridad" class="form-input" required>
                 <option value="BAJA">Baja</option>
                 <option value="MEDIA" selected>Media</option>
@@ -98,17 +98,17 @@
             </div>
 
             <div class="form-group">
-              <label class="form-label">Fecha vencimiento</label>
+              <label class="form-label" for="fecha_vencimiento">Fecha vencimiento</label>
               <input type="date" id="fecha_vencimiento" class="form-input">
             </div>
 
             <div class="form-group form-full">
-              <label class="form-label">Título</label>
+              <label class="form-label" for="titulo">Título</label>
               <input type="text" id="titulo" class="form-input" required>
             </div>
 
             <div class="form-group form-full">
-              <label class="form-label">Descripción</label>
+              <label class="form-label" for="descripcion">Descripción</label>
               <textarea id="descripcion" class="form-input" rows="4"></textarea>
             </div>
 

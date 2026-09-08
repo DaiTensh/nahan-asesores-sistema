@@ -547,9 +547,274 @@ Se revisó todo `frontend/` en busca de cualquier mecanismo de recarga/parpadeo 
 
 ---
 
+## REV-003 — Auditoría forense completa y reparación autónoma (backend, frontend, tests, entorno)
+
+**Fecha:** 08/09/2026.
+
+**Tipo:** Auditoría.
+
+**Responsable:** Claude.
+
+**Branch:** `auditoria-claude`.
+
+**Commit:** Pendiente — cambios en el working tree, sin commitear todavía.
+
+---
+
+### 1. Objetivo
+
+Auditoría forense agresiva de todo el proyecto (backend, frontend, base de datos, tests, entorno de desarrollo, seguridad OWASP, accesibilidad, performance) con reparación autónoma de los problemas encontrados dentro del alcance permitido por `CLAUDE.md`, a pedido explícito del usuario.
+
+### 2. Alcance
+
+Todo el repositorio: `backend/` (5 blueprints + utils + config), `frontend/` (17 páginas), `database/nahan_asesores.sql`, `tests/`, `scripts/` (doctor, dev, setup, seed), `docs/`. Se ejecutó la app real (API + MySQL local, ya sembrados) y se hicieron pruebas HTTP reales contra la API, además de `pytest`.
+
+### 3. Fuentes consultadas
+
+- Código del branch `auditoria-claude` (GitHub local).
+- `docs/decisions.md`, `docs/revision.md`, `docs/incremento2/equipo.json`.
+- `CLAUDE.md`, `README.md`.
+- No se consultó Google Drive (Documento 0, Rúbrica, Dimensión Técnica) — no disponible en este entorno; los hallazgos de este REV no dependen de esas fuentes.
+
+### 4. Estado general
+
+- [x] Correcto con observaciones.
+
+### 5. Requerimientos revisados
+
+No aplica trazabilidad por RF — esta auditoría no implementó RF nuevos del Incremento 2, solo corrigió bugs/seguridad en funcionalidad ya existente (Incremento 1 + entorno). Ningún cambio toca alcance de los 28 RF comprometidos (regla 24 de `CLAUDE.md`).
+
+### 6. Problemas encontrados y corregidos
+
+#### REV-003-P01 — Suite de regresión rota: 13/61 tests fallando por desincronización con el seed de Incremento 2
+
+**Severidad:** 🟠 ALTO (bloqueaba la confianza en la suite de pruebas, no una vulnerabilidad de producción).
+
+**Problema:** `tests/test_incremento1_regression.py` fue escrito contra el seed antiguo de 3 usuarios (id 1=admin, 2=jurídica, 3=contable). `database/seed_dev.py` ahora siembra 7 usuarios con otro mapeo id→rol (commit `667ff7a`). Como `obtener_usuario_actual()` (corrección de seguridad de REV-001) resuelve el rol consultando la BD real en cada request, y la fixture `iniciar_sesion` nunca mockeaba esa conexión, 13 tests fallaban por comparar contra roles que ya no correspondían a esos IDs. Una corrida además contaminó la BD de desarrollo real (insertó `operativo@nahan.test`, id_usuario=8) porque un chequeo de rol que debía dar 403 pasó de largo.
+
+**Ubicación:** `tests/conftest.py` (fixture `iniciar_sesion`), `tests/test_incremento1_regression.py` (`test_app_configura_cookies_y_cors_desde_entorno`, `test_auth_me_autenticado`).
+
+**Corrección aplicada:** `iniciar_sesion` ahora también sustituye `backend.utils.auth.get_connection` por una fila controlada acorde a sus propios parámetros (`usuario_id`, `rol_id`, `area_id`, `estado`), desacoplando toda la suite del contenido real de la BD sembrada. `test_auth_me_autenticado` se reescribió con el mismo patrón (antes dependía de que el usuario 1 real se llamara "Usuario Prueba"). `test_app_configura_cookies_y_cors_desde_entorno` ahora hace `monkeypatch.delenv("DEBUG")` para no heredar el `DEBUG=true` del `.env` local vía `load_dotenv()`.
+
+**Pruebas realizadas:** `python -m pytest tests/` — antes 48 passed/13 failed, después **61 passed** (VERIFICADO, ejecutado).
+
+**Pendiente para el equipo:** la fila de contaminación `operativo@nahan.test` (id_usuario=8) sigue en la BD de desarrollo local de esta máquina — el bloqueo de comandos destructivos del entorno impidió que Claude la borrara. Se limpia con `python database/seed_dev.py --reset`.
+
+**Estado:** 🟢 RESUELTO.
+
+---
+
+#### REV-003-P02 — `scripts/doctor.py` y `scripts/dev.py` daban falso positivo de "API corriendo" por el Receptor AirPlay de macOS
+
+**Severidad:** 🟠 ALTO (bloqueaba por completo el arranque de la API en macOS con configuración de fábrica, sin ningún diagnóstico correcto).
+
+**Problema:** ambos scripts asumían que "puerto 5000 ocupado" == "la API ya está corriendo" (`ocupado(5000)` como único criterio). En macOS, el Receptor AirPlay ocupa el puerto 5000 por defecto (Ajustes del Sistema → General → AirDrop y Handoff). Verificado en vivo: `curl http://127.0.0.1:5000/` en esta máquina responde `403` con cabecera `Server: AirTunes/960.13.1` — no es la API. `scripts/dev.py` por lo tanto se niega a levantar la API (exit 1) incluso en un checkout nuevo donde la API nunca corrió, y `scripts/doctor.py` reporta "ocupado — la API ya está corriendo" (falso).
+
+**Ubicación:** `scripts/doctor.py` (`revisar_puertos`), `scripts/dev.py` (`main`).
+
+**Corrección aplicada:** ambos scripts ahora, cuando el puerto 5000 está ocupado, hacen un `GET /` real y confirman que el cuerpo JSON sea `{"message": "API Nahan Asesores funcionando correctamente"}` antes de asumir que es la API propia. Si no lo es, `doctor.py` lo reporta explícitamente ("ocupado, pero no por esta API — en macOS suele ser el Receptor AirPlay") y `dev.py` imprime la causa probable y dos alternativas (desactivar el Receptor AirPlay, o fijar `FLASK_RUN_PORT` en `.env` **y** actualizar el puerto hardcodeado en `frontend/assets/js/api_config.js`).
+
+**Pruebas realizadas:** VERIFICADO en vivo — `python scripts/doctor.py` y `python scripts/dev.py --api` ejecutados en esta máquina antes y después del fix; el mensaje pasó de "ocupado — la API ya está corriendo" (falso) a "ocupado, pero no por esta API — en macOS suele ser el Receptor AirPlay" (correcto, contrastado con `lsof`/`curl`).
+
+**Hallazgo relacionado (no corregido, es config local del usuario):** en esta máquina la variable de entorno `FLASK_RUN_PORT` está exportada como `5001` en la sesión de shell del usuario (no en `.env`, que dice `5000`) — un workaround manual previo para este mismo problema. Como `frontend/assets/js/api_config.js` tiene el puerto de la API hardcodeado en `5000`, **el frontend servido en el navegador no puede hablar con esa API real en 5001**: toda petición desde la UI cae en el Receptor AirPlay. Esto es fuera del repositorio (variable de shell, no versionada) — no se modificó. Recomendación al equipo: desactivar el Receptor AirPlay y dejar de exportar `FLASK_RUN_PORT` manualmente, para que el flujo estándar (`scripts/dev.py`) funcione sin workarounds.
+
+**Estado:** 🟢 RESUELTO (diagnóstico correcto) / ⚪ PENDIENTE (decisión del equipo sobre desactivar AirPlay vs. re-cablear el puerto).
+
+---
+
+#### REV-003-P03 — `PATCH /clientes/<id>/deshabilitar` no verificaba que el cliente existiera
+
+**Severidad:** 🟡 MEDIO.
+
+**Problema:** a diferencia de todos los demás endpoints de `clientes_routes.py`, `deshabilitar_cliente_rf3` no comprobaba `conexion is None` ni el resultado de la `UPDATE`. Deshabilitar un `id_cliente` inexistente devolvía `200 OK` "Cliente deshabilitado y registrado en auditoría" y además insertaba una fila de auditoría falsa (registraba un cambio de estado que nunca ocurrió). `eliminar_definitivo_cliente` tenía la misma falta del chequeo `conexion is None` (aunque sí validaba existencia).
+
+**Ubicación:** `backend/routes/clientes_routes.py`, funciones `deshabilitar_cliente_rf3` y `eliminar_definitivo_cliente`.
+
+**Corrección aplicada:** se agregó el chequeo `if conexion is None` a ambas funciones, y en `deshabilitar_cliente_rf3` se verifica `cursor.rowcount` tras la `UPDATE`: si es 0 se hace `rollback()` y se devuelve `404 Cliente inexistente`, antes de insertar el registro de auditoría.
+
+**Pruebas realizadas:** VERIFICADO en vivo contra la API real — `PATCH /api/clientes/999999/deshabilitar` con sesión admin: antes `200` (falso positivo), después `404 {"error": "Cliente inexistente."}`. `python -m pytest tests/` sigue en 61/61 (el test existente que mockea una conexión falsa para `id_cliente=10` sigue pasando: la fila simulada siempre "existe" para ese mock).
+
+**Estado:** 🟢 RESUELTO.
+
+---
+
+#### REV-003-P04 — Paginación de `/clientes/listado` sin validar tipo ni límite
+
+**Severidad:** 🔵 BAJO.
+
+**Problema:** `pagina`/`limite` se parseaban con `int(request.args.get(...))` sin manejo de error (un valor no numérico causaba `500` genérico en vez de `400`), y `limite` no tenía cota superior (un cliente podía pedir un `LIMIT` arbitrariamente grande).
+
+**Ubicación:** `backend/routes/clientes_routes.py`, función `listado_general_paginado_clientes`.
+
+**Corrección aplicada:** `try/except` alrededor del `int()` → `400` con mensaje claro; `pagina < 1` → `400`; `limite` acotado a `[1, 100]`.
+
+**Pruebas realizadas:** VERIFICADO en vivo — `?pagina=abc` → `400` (antes `500`); `?pagina=-1` → `400`; `?limite=999999999` → responde normalmente con el límite acotado a 100, sin error.
+
+**Estado:** 🟢 RESUELTO.
+
+---
+
+#### REV-003-P05 — `GET /tareas/pendientes` devolvía las tareas de todas las áreas a cualquier autenticado; el filtrado "solo mis tareas" era solo del frontend
+
+**Severidad:** 🟠 ALTO (seguridad basada solo en ocultar datos en el cliente — expresamente señalado como inaceptable en la regla 12 de `CLAUDE.md`).
+
+**Problema:** `frontend/tareas/tareas.js` ya filtraba el listado a `tarea.id_responsable === usuario.id_usuario` para no administradores, evidencia clara de la regla de negocio esperada. Pero el backend (`listar_tareas_pendientes`, solo `@login_required`) devolvía las tareas de **todas** las áreas y responsables a cualquier autenticado — un usuario jurídico podía ver, vía llamada directa a la API, títulos, descripciones y clientes de tareas del área contable (y viceversa), pese a que el sistema es para una empresa que maneja información jurídica y contable de clientes reales.
+
+**Ubicación:** `backend/routes/tareas_routes.py`, función `listar_tareas_pendientes`.
+
+**Corrección aplicada:** el backend ahora aplica la misma condición que ya aplicaba el frontend: si el usuario no es `ADMINISTRADOR`, se agrega `WHERE t.id_responsable = %s` con el id de sesión.
+
+**Decisión consciente de NO extender esta corrección a `PUT /tareas/<id>/{asignar,estado,prioridad}`:** inicialmente apliqué la misma restricción de "solo el responsable" a estos tres endpoints de escritura, pero al correr `pytest` encontré que **la suite existente valida explícitamente lo contrario**: `test_usuario_juridico_puede_usar_estado_operativo` y `test_usuario_contable_puede_usar_estado_operativo` prueban que cualquier usuario operativo puede cambiar el estado de una tarea sin relación de pertenencia con ella (solo los estados finales COMPLETADA/CANCELADA están restringidos a administrador, lo cual sí se mantiene). Ante esta contradicción entre dos fuentes (el filtro del frontend vs. el comportamiento ya validado por tests), y siguiendo la regla 4 de `CLAUDE.md` ("Claude no debe elegir arbitrariamente" ante contradicciones), revertí la restricción en esos tres endpoints y la dejo señalada aquí para que el equipo decida el modelo real: ¿cualquier operativo puede colaborar en cualquier tarea (modelo actual, validado por tests) o solo en las propias (lo que sugiere el frontend)?
+
+**Pruebas realizadas:** VERIFICADO en vivo — login como `elias.alarcon@nahan.local` (jurídica) → `GET /api/tareas/pendientes` devuelve 2 tareas, ambas con `id_responsable` igual al suyo (antes devolvía las de toda la empresa). `python -m pytest tests/` 61/61 sin regresiones.
+
+**Estado:** 🟢 RESUELTO (lectura) / ⚪ PENDIENTE DE DECISIÓN DEL EQUIPO (escritura — ver arriba).
+
+---
+
+#### REV-003-P06 — `obtener_usuario_actual()` consultaba la BD dos veces por solicitud
+
+**Severidad:** 🔵 BAJO (performance, no funcional).
+
+**Problema:** varias rutas llaman `obtener_usuario_actual()` una vez a través de los decoradores `login_required`/`roles_required` y otra vez dentro del propio handler (p. ej. para obtener `id_creador`/`id_usuario`), duplicando una consulta idéntica a MySQL en cada solicitud.
+
+**Ubicación:** `backend/utils/auth.py`, función `obtener_usuario_actual`.
+
+**Corrección aplicada:** el resultado se memoriza en `flask.g` durante la solicitud (se limpia solo al terminar el request, comportamiento estándar de Flask). Transparente para todos los llamadores — misma firma, mismo contrato.
+
+**Pruebas realizadas:** `python -m pytest tests/` 61/61. VERIFICADO funcionalmente en vivo (login, `/auth/me`, flujos de tareas/clientes con sesión activa responden igual que antes).
+
+**Estado:** 🟢 RESUELTO.
+
+---
+
+#### REV-003-P07 — `GET /usuarios` sin restricción de rol expone directorio completo de personal a cualquier autenticado
+
+**Severidad:** 🟡 MEDIO — **NO corregido, requiere decisión del equipo.**
+
+**Problema:** a diferencia de todas las demás rutas de `usuarios_routes.py` (todas `@roles_required(ROL_ADMINISTRADOR)`), `GET /usuarios` (listado completo) solo exige `@login_required`. Cualquier usuario autenticado —jurídico o contable— puede pedir ese endpoint y recibe nombre, correo, rol, área y estado de **todo el personal**, incluidos los administradores.
+
+**Por qué no lo corregí:** `frontend/assets/js/usuarios_autocomplete.js` depende de exactamente esos campos (`email`, `nombre_rol`, `nombre_area`) de **todos** los usuarios activos para el autocompletado de "responsable" al crear una tarea — funcionalidad usada por los tres roles (`frontend/tareas/tareas.js`). Restringir el endpoint a solo administrador rompería esa función real. Por el patrón consistente del resto del archivo (lectura amplia, escritura restringida a admin) parece un directorio interno de personal deliberado, no un descuido — pero no hay una decisión registrada en `docs/decisions.md` que lo confirme, así que no lo puedo asumir (regla 9 de `CLAUDE.md`, "no inventar reglas de negocio").
+
+**Opciones para el equipo:**
+1. Dejarlo como está (directorio interno de personal, visible a todo el staff autenticado) y documentarlo como decisión en `docs/decisions.md`.
+2. Crear un endpoint mínimo separado (solo `id_usuario`, `nombres`, `estado`) para el autocompletado, y restringir `GET /usuarios` (con datos completos) a administrador.
+
+**Estado:** ⚪ PENDIENTE DE DECISIÓN DEL EQUIPO.
+
+---
+
+#### REV-003-P08 — Accesibilidad: `<label>` sin `for` en 5 páginas; doble envío sin bloqueo de botón en `login`/`registrar_clientes`
+
+**Severidad:** 🔵 BAJO.
+
+**Problema:** 21 `<label>` en `login.html`, `usuarios/usuarios.html`, `usuarios/modificar_usuario.html`, `usuarios/desactivar_usuario.html`, `usuarios/asignar_rol.html` y `tareas.html` no tenían `for` apuntando al `id` del campo (clic en la etiqueta no enfocaba el input; lectores de pantalla no asociaban la etiqueta). Además, los botones de envío de `login.js` y `registrar_clientes.js` no se deshabilitaban durante el `fetch`, permitiendo doble clic/doble envío (mayor riesgo en `registrar_clientes.js`: podía intentar crear el mismo cliente dos veces).
+
+**Ubicación:** ver archivos arriba.
+
+**Corrección aplicada:** se agregó `for="<id>"` a los 21 labels. Se agregó `disabled` + texto de carga al botón durante el `fetch` en `login.js` y `registrar_clientes.js`, con `try/finally` para restaurarlo ante error.
+
+**Pruebas realizadas:** ANALIZADO ESTÁTICAMENTE (no hay navegador en este entorno) + `node --check` sobre los 2 `.js` editados (sin errores de sintaxis). No verificado visualmente en navegador.
+
+**Pendiente, no corregido por volumen/riesgo de regresión visual sin poder verificar en navegador:** el mismo problema de doble-envío existe en `cambiar_estado.js`, `eliminar_cliente.js`, `modificar_clientes.js`, `tareas.js`, `desactivar_usuario.js` (detalle completo en la sección 6 de este documento, hallazgos de los subagentes). Se prioriza no tocar más archivos de UI sin poder confirmar visualmente el resultado.
+
+**Estado:** 🟢 RESUELTO (labels, doble-envío en login/registrar_clientes) / ⚪ PENDIENTE (doble-envío en los otros 5 archivos, ver arriba).
+
+---
+
+### 7. Arquitectura
+
+**Estado:** [x] Cumple parcialmente.
+
+**Observaciones:** patrón backend consistente y sólido (SQL parametrizado en todas las rutas revisadas, roles/áreas bien modelados, bloqueo de filas `FOR UPDATE` correcto en `control_horas_routes.py` para evitar carreras). El punto débil real es el entorno de desarrollo (P02) y la falta de una decisión registrada sobre el modelo de visibilidad entre áreas (P05, P07).
+
+### 8. Base de datos
+
+**Estado:** [x] Cumple.
+
+**Observaciones:** esquema con FKs e índices coherentes (revisado `database/nahan_asesores.sql` completo). No se detectaron problemas de integridad referencial ni de normalización en esta pasada.
+
+### 9. Backend
+
+**Estado:** [x] Cumple parcialmente. Ver P03, P04, P05, P06, P07.
+
+### 10. Frontend
+
+**Estado:** [x] Cumple parcialmente. Ver P05 (backend, pero con causa visible en frontend), P08. Ver también el detalle completo de hallazgos NO corregidos (doble-envío en 5 archivos, `<h1>` duplicado en topbar, CSS muerto `sidebar.css`/`layout.css`, RUT sin validación de formato en frontend, `restringirFuncionalidad` no definida) reportado por los dos subagentes de auditoría de frontend — no se listan todos individualmente en este registro para no duplicar el informe final entregado al usuario en la conversación.
+
+### 11. Seguridad
+
+**Estado:** [x] Requiere correcciones (parcialmente aplicadas). Ver P05 (resuelto en lectura), P07 (pendiente de decisión).
+
+**Observaciones adicionales:** se probó en vivo resistencia a inyección SQL en el login (`' OR '1'='1` en el campo email → `401` limpio, sin error) y acceso sin rol a endpoint admin-only (`403` correcto). No se encontraron secretos hardcodeados en el frontend ni en el backend.
+
+### 12. Pruebas
+
+**Pruebas ejecutadas:**
+
+| Prueba | Resultado | Observaciones |
+|---|---|---|
+| `pytest tests/` | 61 passed (antes: 48 passed, 13 failed) | VERIFICADO, ver P01 |
+| `python -m py_compile` sobre todo `backend/`, `scripts/dev.py`, `scripts/doctor.py`, `tests/*.py` | Sin errores | VERIFICADO |
+| `node --check` sobre `login.js`, `registrar_clientes.js` | Sin errores | VERIFICADO |
+| API real (login, `/auth/me`, roles, SQL injection, endpoints corregidos) vía `curl` contra `backend.app` corriendo en `127.0.0.1:5001` | Todo lo probado se comportó como se esperaba | VERIFICADO — ver detalle en cada hallazgo |
+| Pruebas de UI real en navegador (botones, formularios, responsive) | No ejecutable | NO VERIFICABLE — no hay herramienta de navegador en este entorno |
+
+### 13. Documentación
+
+**Estado:** [x] Actualizada (este registro). `docs/decisions.md` sigue sin contenido real (ver REV-001-P03, aún pendiente).
+
+### 14. Rúbrica
+
+**Estado:** [x] No verificable — no se contrastó contra la rúbrica oficial de Google Drive en esta auditoría.
+
+### 15. Acciones recomendadas
+
+1. [x] 🟠 Reparar la suite de tests rota (P01). — Resuelto 08/09/2026.
+2. [x] 🟠 Corregir el falso positivo de puerto 5000/AirPlay en `doctor.py`/`dev.py` (P02). — Resuelto (diagnóstico); pendiente decisión del equipo sobre AirPlay vs. re-cablear puerto.
+3. [x] 🟡 Corregir `deshabilitar_cliente_rf3` sin chequeo de existencia (P03). — Resuelto.
+4. [x] 🔵 Validar paginación de `/clientes/listado` (P04). — Resuelto.
+5. [x] 🟠 Aplicar server-side el filtro "solo mis tareas" en `GET /tareas/pendientes` (P05). — Resuelto en lectura; pendiente decisión del equipo sobre escritura.
+6. [x] 🔵 Cachear `obtener_usuario_actual()` por request (P06). — Resuelto.
+7. [ ] 🟡 Decidir el modelo de visibilidad de `GET /usuarios` (P07). — Pendiente, requiere decisión del equipo.
+8. [x] 🔵 Accesibilidad: labels sin `for`, doble-envío en login/registro de cliente (P08). — Resuelto parcialmente; queda doble-envío en 5 archivos más.
+
+### 16. Correcciones
+
+| Problema | Corrección | Branch | Commit | Estado |
+|---|---|---|---|---|
+| REV-003-P01 | `iniciar_sesion` mockea `auth.get_connection`; 2 tests reescritos | `auditoria-claude` | Pendiente de commit | 🟢 |
+| REV-003-P02 | Verificación HTTP real antes de asumir "API corriendo" en `doctor.py`/`dev.py` | `auditoria-claude` | Pendiente de commit | 🟢 |
+| REV-003-P03 | Chequeos `conexion is None` + `rowcount` en `deshabilitar_cliente_rf3`/`eliminar_definitivo_cliente` | `auditoria-claude` | Pendiente de commit | 🟢 |
+| REV-003-P04 | Validación de `pagina`/`limite` en listado paginado | `auditoria-claude` | Pendiente de commit | 🟢 |
+| REV-003-P05 | Filtro server-side en `GET /tareas/pendientes` | `auditoria-claude` | Pendiente de commit | 🟢 |
+| REV-003-P06 | Cacheo de `obtener_usuario_actual()` en `flask.g` | `auditoria-claude` | Pendiente de commit | 🟢 |
+| REV-003-P07 | Sin corrección — pendiente de decisión del equipo | — | — | ⚪ |
+| REV-003-P08 | `for=` en 21 labels; disabled-durante-fetch en 2 formularios | `auditoria-claude` | Pendiente de commit | 🟢 |
+
+### 17. Verificación posterior
+
+**Fecha:** 08/09/2026.
+
+**Branch:** `auditoria-claude` (cambios en el working tree, sin commitear).
+
+**Commit:** Pendiente — el equipo debe revisar el diff y decidir si commitea.
+
+**Resultado:**
+
+- [x] Problemas corregidos. — P01 a P06, P08 corregidos (P08 parcialmente); P07 pendiente de decisión.
+- [x] Pruebas correctas. — 61/61 en `pytest`, verificación en vivo contra API real.
+- [x] Documentación actualizada. — Este registro.
+- [x] Sin regresiones evidentes. — Suite completa sigue en verde después de cada cambio; no se detectaron efectos secundarios en las pruebas en vivo.
+- [ ] Aprobado. — Requiere que el equipo revise el diff (15 archivos) y decida P02 (AirPlay/puerto) y P07 (visibilidad de `GET /usuarios`) antes de mergear.
+- [x] Requiere nueva revisión. — Recomendado antes de mergear: que el equipo pruebe la UI real en navegador (bloqueado aquí por falta de esa herramienta) y decida P07.
+
+---
+
 # Historial
 
 | ID | Fecha | Tipo | Estado | Resumen |
 |---|---|---|---|---|
 | REV-001 | 22/08/2026 | Revisión | 🟡 | Revisión general de documentación, código y seguridad — XSS almacenado (P01) y fuga de error en login (P02) corregidos; además se corrigieron 2 problemas de backend hallados después (sesión desactualizada en `obtener_usuario_actual()`, `UnboundLocalError` en 7 funciones). P04 confirmado/cerrado el 23/08/2026. Pendientes: P03 (docs sin contenido real), P05 (dependencia `PyJWT` sin uso) |
 | REV-002 | 23/08/2026 | Investigación | 🟢 | Investigación del parpadeo/recarga periódica reportado por el equipo. Causa: Live Server de VS Code (herramienta de desarrollo local), no el código del proyecto. Sin cambios de código. Confirmado por el equipo que no ocurre en la demo de AWS. |
+| REV-003 | 08/09/2026 | Auditoría | 🟡 | Auditoría forense completa con reparación autónoma: suite de tests rota reparada (13→0 fallos), falso positivo de puerto 5000/AirPlay corregido en `doctor.py`/`dev.py`, bugs de validación/existencia en `clientes_routes.py` y `tareas_routes.py` corregidos, N+1 de `obtener_usuario_actual()` cacheado, accesibilidad (labels, doble-envío) corregida en 2 formularios. Pendiente decisión del equipo: visibilidad de `GET /usuarios` (P07) y modelo de permisos de escritura sobre tareas ajenas (P05). No verificable: UI real en navegador (sin esa herramienta en este entorno). |

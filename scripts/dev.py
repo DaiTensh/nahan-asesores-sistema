@@ -17,12 +17,15 @@ esa extensión, funciona igual.
 import argparse
 import functools
 import http.server
+import json
 import os
 import socket
 import subprocess
 import sys
 import threading
 import time
+import urllib.error
+import urllib.request
 import webbrowser
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -36,6 +39,22 @@ def ocupado(puerto):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.settimeout(0.4)
         return s.connect_ex(("127.0.0.1", puerto)) == 0
+
+
+def es_esta_api(puerto):
+    """True solo si lo que responde en el puerto es esta API.
+
+    Un puerto ocupado no implica que la API ya esté corriendo: en macOS, el
+    puerto 5000 lo toma por defecto el Receptor AirPlay (Ajustes del Sistema
+    → General → AirDrop y Handoff), así que hay que confirmar la respuesta
+    antes de asumir que basta con no hacer nada.
+    """
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{puerto}/", timeout=1) as resp:
+            cuerpo = json.loads(resp.read().decode("utf-8"))
+    except (urllib.error.URLError, TimeoutError, ValueError, OSError):
+        return False
+    return cuerpo.get("message") == "API Nahan Asesores funcionando correctamente"
 
 
 def servir_frontend():
@@ -57,7 +76,16 @@ def main():
         print("       Si algo falla, ejecuta primero: python scripts/setup.py\n")
 
     if ocupado(5000):
-        print("El puerto 5000 ya está ocupado: la API parece estar corriendo.")
+        if es_esta_api(5000):
+            print("El puerto 5000 ya está ocupado: la API parece estar corriendo.")
+            return 1
+        print("El puerto 5000 está ocupado, pero no por esta API.")
+        if not ES_WINDOWS:
+            print("En macOS casi siempre es el Receptor AirPlay: Ajustes del Sistema →")
+            print("General → AirDrop y Handoff → Receptor AirPlay, desactívalo y reintenta.")
+        print("(Alternativa sin tocar el sistema: define FLASK_RUN_PORT en tu .env con otro")
+        print(" puerto, pero también hay que cambiar el puerto 5000 hardcodeado en")
+        print(" frontend/assets/js/api_config.js para que el frontend lo encuentre.)")
         return 1
 
     if not args.api:
