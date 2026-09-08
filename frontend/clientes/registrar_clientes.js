@@ -3,9 +3,14 @@ const API_URL = window.API_CONFIG.API_URL;
 document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("formRegistroCliente");
   const mensaje = document.getElementById("mensajeFeedback");
+  const botonCrear = form.querySelector('button[type="submit"]');
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+
+    if (botonCrear.disabled) {
+      return;
+    }
 
     const areasSeleccionadas = obtenerAreasSeleccionadas();
 
@@ -26,6 +31,10 @@ document.addEventListener("DOMContentLoaded", () => {
       email: document.getElementById("email").value.trim(),
       areas: areasSeleccionadas
     };
+
+    botonCrear.disabled = true;
+    const textoOriginal = botonCrear.textContent;
+    botonCrear.textContent = "Creando...";
 
     try {
       const response = await fetch(`${API_URL}/clientes`, {
@@ -49,6 +58,9 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (error) {
       console.error(error);
       mostrarMensaje("No se pudo contactar la API. Verifique que el servidor esté disponible.", "error");
+    } finally {
+      botonCrear.disabled = false;
+      botonCrear.textContent = textoOriginal;
     }
   });
 
