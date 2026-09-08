@@ -23,6 +23,7 @@ archivo del repositorio no se toca.
 import argparse
 
 import http.server
+import json
 import os
 import socket
 import subprocess
@@ -54,12 +55,19 @@ def elegir_puerto(candidatos):
     return None
 
 
+IDENTIFICACION_API = "API Nahan Asesores funcionando correctamente"
+
+
 def es_nuestra_api(puerto):
     """La API responde en / con su mensaje de identificación. Sirve para no
-    confundirla con cualquier otro programa que tenga el puerto tomado."""
+    confundirla con cualquier otro programa que tenga el puerto tomado: en
+    macOS el 5000 es del receptor de AirPlay, que responde 403 a todo.
+
+    Se compara el mensaje completo y no una subcadena: un 403 con la palabra
+    «Nahan» en el cuerpo bastaría para dar un falso positivo."""
     try:
         with urllib.request.urlopen(f"http://127.0.0.1:{puerto}/", timeout=2) as r:
-            return "Nahan" in r.read(200).decode("utf-8", "replace")
+            return json.loads(r.read(400).decode("utf-8")).get("message") == IDENTIFICACION_API
     except Exception:
         return False
 

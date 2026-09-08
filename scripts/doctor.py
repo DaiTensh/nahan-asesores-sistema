@@ -19,6 +19,7 @@ import os
 import socket
 import subprocess
 import sys
+import urllib.request
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ENV = os.path.join(RAIZ, ".env")
@@ -174,6 +175,23 @@ def revisar_base(cn):
     cn.close()
 
 
+IDENTIFICACION_API = "API Nahan Asesores funcionando correctamente"
+
+
+def responde_nuestra_api(puerto):
+    """True solo si lo que contesta en el puerto es esta API.
+
+    Que un puerto esté ocupado no prueba que la API esté ahí: en macOS el 5000
+    lo toma el receptor de AirPlay. Se compara el mensaje completo, no una
+    subcadena, para no dar por buena cualquier respuesta que lo contenga.
+    """
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{puerto}/", timeout=1.5) as r:
+            return json.loads(r.read(400).decode("utf-8")).get("message") == IDENTIFICACION_API
+    except Exception:
+        return False
+
+
 PUERTOS_API = (5000, 5001, 5002, 5003, 5010)
 PUERTOS_FRONT = (5500, 5501, 5502, 5510)
 
@@ -203,7 +221,12 @@ def revisar_puertos():
         duenio = quien_ocupa(primero) if puerto_ocupado(primero) else None
         arreglo = None
 
-        if libres and libres[0] == primero:
+        corriendo = [p for p in candidatos
+                     if p not in libres and responde_nuestra_api(p)]
+
+        if corriendo:
+            detalle = f"{corriendo[0]} ocupado — {quien} ya está corriendo ahí"
+        elif libres and libres[0] == primero:
             detalle = f"{primero} libre para {quien}"
         elif libres:
             detalle = f"{primero} ocupado" + (f" por {duenio}" if duenio else "")

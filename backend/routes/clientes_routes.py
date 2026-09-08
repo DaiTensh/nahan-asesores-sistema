@@ -211,11 +211,17 @@ def deshabilitar_cliente_rf3(id_cliente):
         usuario_actual = obtener_usuario_actual()
         id_usuario = usuario_actual["id_usuario"]
         conexion = get_connection()
-        
+        if conexion is None:
+            return jsonify({"error": "Fallo interno de comunicación con la base de datos."}), 500
+
         with conexion.cursor() as cursor:
-            # Modificar estado a INACTIVO
+            # Modificar estado a INACTIVO (solo si el cliente existe)
             cursor.execute("UPDATE cliente SET estado = 'INACTIVO' WHERE id_cliente = %s", (id_cliente,))
-            
+
+            if cursor.rowcount == 0:
+                conexion.rollback()
+                return jsonify({"error": "Cliente inexistente."}), 404
+
             # Grabar en historial (Tabla Auditoria de tu base de datos)
             query_auditoria = """
                 INSERT INTO auditoria (id_usuario, tabla_afectada, accion, datos_anteriores, datos_nuevos)
@@ -240,6 +246,8 @@ def eliminar_definitivo_cliente(id_cliente):
         usuario_actual = obtener_usuario_actual()
         id_usuario = usuario_actual["id_usuario"]
         conexion = get_connection()
+        if conexion is None:
+            return jsonify({"error": "Fallo interno de comunicación con la base de datos."}), 500
 
         with conexion.cursor() as cursor:
             # Resguardar datos para el log histórico antes de eliminarlos físicamente
@@ -441,8 +449,19 @@ def cambiar_estado_cliente_rf10(id_cliente):
 def listado_general_paginado_clientes():
     try:
         # Captura de parámetros de orden y paginación (?pagina=1&limite=7)
-        pagina = int(request.args.get('pagina', 1))
-        limite = int(request.args.get('limite', 7))
+        try:
+            pagina = int(request.args.get('pagina', 1))
+            limite = int(request.args.get('limite', 7))
+        except (TypeError, ValueError):
+            return jsonify({"error": "Los parámetros de paginación deben ser numéricos."}), 400
+
+        if pagina < 1:
+            return jsonify({"error": "El número de página debe ser mayor o igual a 1."}), 400
+
+        # Se acota el límite para evitar consultas arbitrariamente grandes
+        # (protección básica ante un límite absurdo enviado por el cliente).
+        limite = max(1, min(limite, 100))
+
         id_area = request.args.get('id_area')
         texto_buscar = request.args.get('buscar', '').strip()
 

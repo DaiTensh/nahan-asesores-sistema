@@ -4,7 +4,7 @@ import pytest
 from flask import session as flask_session
 
 from backend.app import app as flask_app
-from backend.utils import auth as auth_utils
+from backend.utils import auth as auth_module
 
 
 class FakeCursor:
@@ -83,14 +83,15 @@ def normalize_sql(sql):
 class AuthCursor:
     """Responde la única consulta que hace `obtener_usuario_actual()`.
 
-    Desde el arreglo de seguridad (a7e285c) el rol ya no se toma de la sesión:
-    se relee de la base en cada solicitud. Sin este doble, el decorador abriría
-    una conexión real con el MySQL del desarrollador, y entonces las pruebas
-    dependerían de los datos sembrados y —peor— escribirían en esa base.
+    Es la red de seguridad de la fixture `iniciar_sesion`: esa cubre a las
+    pruebas que la piden, pero una prueba que escribe la sesión a mano —
+    `test_auth_me_autenticado`, por ejemplo— seguiría abriendo una conexión
+    real contra el MySQL del desarrollador. Esto va como autouse justamente
+    para que no dependa de que cada prueba se acuerde: la que se olvide
+    volvería a leer, y a escribir, en una base que no es de pruebas.
 
-    La fila se arma con lo que la prueba declaró en la sesión, de modo que
-    `iniciar_sesion(usuario_id=2, rol_id=2)` sigue significando exactamente lo
-    que significaba antes: «hay un usuario jurídico autenticado».
+    La fila se arma con lo que haya en la sesión, de modo que el significado
+    de la prueba no cambia.
     """
 
     def __init__(self):
@@ -107,7 +108,7 @@ class AuthCursor:
             "nombres": flask_session.get("nombre", "Usuario Prueba"),
             "estado": flask_session.get("estado", "ACTIVO"),
             "id_rol": id_rol,
-            "nombre_rol": auth_utils.ROLES.get(id_rol, auth_utils.ROL_ADMINISTRADOR),
+            "nombre_rol": auth_module.ROLES.get(id_rol, auth_module.ROL_ADMINISTRADOR),
             "id_area": flask_session.get("area_id", 3),
         }
 
@@ -130,11 +131,10 @@ class AuthConnection:
 def autenticacion_aislada(monkeypatch):
     """Ninguna prueba debe alcanzar el MySQL real a través del decorador.
 
-    Va como autouse a propósito: si dependiera de que cada prueba se acuerde de
-    pedirla, la que se olvide vuelve a escribir en la base del desarrollador sin
-    que nadie lo note.
+    `iniciar_sesion` vuelve a parchear lo mismo con una fila más precisa; como
+    ambas usan monkeypatch, la última gana y las dos se deshacen al terminar.
     """
-    monkeypatch.setattr(auth_utils, "get_connection", lambda: AuthConnection())
+    monkeypatch.setattr(auth_module, "get_connection", lambda: AuthConnection())
 
 
 @pytest.fixture
@@ -152,18 +152,47 @@ def fake_connection_factory():
 
 
 @pytest.fixture
-def iniciar_sesion(client):
+def iniciar_sesion(client, monkeypatch):
+    """Simula un usuario autenticado sin depender de los datos reales
+    sembrados en la base de datos.
+
+    `obtener_usuario_actual()` (backend/utils/auth.py) resuelve el usuario
+    consultando la BD en cada solicitud —a propósito, es la corrección de
+    seguridad de REV-001 (un cambio de rol o una desactivación deben surtir
+    efecto de inmediato)—, así que basta con escribir el `usuario_id` en la
+    sesión: el rol y el estado ya no se leen de ahí. Para que los tests sigan
+    pudiendo simular "usuario con tal rol" sin importar qué haya sembrado
+    `database/seed_dev.py` en ese momento, esta fixture además reemplaza la
+    conexión que usa `obtener_usuario_actual()` por una fila controlada que
+    coincide con los parámetros recibidos.
+    """
     def login(
         usuario_id=1,
         rol_id=1,
         area_id=3,
         nombre="Usuario Prueba",
+        estado="ACTIVO",
     ):
         with client.session_transaction() as session:
             session["usuario_id"] = usuario_id
             session["rol_id"] = rol_id
             session["area_id"] = area_id
             session["nombre"] = nombre
+
+        fila_usuario = {
+            "id_usuario": usuario_id,
+            "nombres": nombre,
+            "estado": estado,
+            "id_rol": rol_id,
+            "nombre_rol": auth_module.ROLES.get(rol_id),
+            "id_area": area_id,
+        }
+
+        def handler(sql, params, cursor):
+            return [fila_usuario.copy()]
+
+        connection = FakeConnection(handler)
+        monkeypatch.setattr(auth_module, "get_connection", lambda: connection)
 
     return login
 
