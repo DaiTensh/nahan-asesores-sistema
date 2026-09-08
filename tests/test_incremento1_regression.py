@@ -77,6 +77,10 @@ def test_app_produccion_sin_secret_key_falla(monkeypatch):
 def test_app_configura_cookies_y_cors_desde_entorno(monkeypatch):
     monkeypatch.setenv("FLASK_ENV", "production")
     monkeypatch.setenv("SECRET_KEY", "clave-test-produccion")
+    # backend/config/db.py llama a load_dotenv() al importarse, así que el .env
+    # del desarrollador ya está en el entorno. Sin quitar DEBUG, esta prueba
+    # verifica el .env de quien la corre en vez del valor por defecto.
+    monkeypatch.delenv("DEBUG", raising=False)
     monkeypatch.setenv("SESSION_COOKIE_SECURE", "true")
     monkeypatch.setenv("SESSION_COOKIE_HTTPONLY", "true")
     monkeypatch.setenv("SESSION_COOKIE_SAMESITE", "Lax")

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Definir contraseña nueva</title>
+
+  <link rel="stylesheet" href="../assets/css/variables.css">
+  <link rel="stylesheet" href="../assets/css/global.css">
+  <link rel="stylesheet" href="../assets/css/buttons.css">
+  <link rel="stylesheet" href="../assets/css/forms.css">
+  <link rel="stylesheet" href="../assets/css/cards.css">
+  <link rel="stylesheet" href="./login.css">
+</head>
+<body>
+
+  <main class="login-container">
+    <section class="login-card">
+      <h1>Nahan Asesores</h1>
+      <p class="subtitle">Definir contraseña nueva</p>
+
+      <p id="verificando" class="ayuda">Verificando el enlace...</p>
+
+      <form id="restablecerForm" hidden>
+        <div class="form-group">
+          <label class="form-label" for="password">Contraseña nueva</label>
+          <input type="password" id="password" class="form-input" minlength="8" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="confirmacion">Repetir la contraseña</label>
+          <input type="password" id="confirmacion" class="form-input" minlength="8" required>
+        </div>
+
+        <p class="ayuda">Mínimo 8 caracteres.</p>
+
+        <button type="submit" class="btn btn-primary" id="botonGuardar">
+          Guardar contraseña
+        </button>
+      </form>
+
+      <p id="mensaje" class="mensaje"></p>
+
+      <p class="enlace-secundario">
+        <a href="./login.html">Ir al inicio de sesión</a>
+      </p>
+    </section>
+  </main>
+
+  <script src="../assets/js/api_config.js"></script>
+  <script src="./restablecer.js"></script>
+</body>
+</html>

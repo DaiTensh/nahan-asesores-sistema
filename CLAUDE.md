@@ -454,20 +454,27 @@ pasos manuales:
 
 | Para | Comando |
 |---|---|
-| Ver qué falta en el entorno | `python scripts/doctor.py` |
-| Instalar o reparar todo | `python scripts/setup.py` |
-| Levantar la API y el frontend | `python scripts/dev.py` |
-| Recargar los datos de prueba | `python database/seed_dev.py --reset` |
+| Ver qué falta en el entorno | `bash scripts/doctor.sh` |
+| Instalar o reparar todo | `bash scripts/setup.sh` |
+| Solo poner al día las dependencias | `bash scripts/setup.sh --solo-deps` |
+| Levantar la API y el frontend | `bash scripts/dev.sh` |
+| Ejecutar las pruebas | `bash scripts/test.sh` |
+| Recargar los datos de prueba | `bash scripts/seed.sh --reset` |
 
 `scripts/doctor.py --json` devuelve el diagnóstico en formato legible por
 máquina: úsalo cuando necesites decidir en vez de mostrar.
 
 Dos cosas del entorno que conviene tener presentes:
 
-- El frontend **tiene que servirse desde el puerto 5500**. `api_config.js` solo
-  apunta a la API local cuando el origen es `http://127.0.0.1:5500` o
-  `http://localhost:5500`. Desde cualquier otro puerto, el frontend intenta
-  hablar con `/api` y no encuentra nada.
+- **El frontend hay que servirlo con `scripts/dev.py`, no con Live Server.** El
+  `api_config.js` del repositorio apunta a `http://127.0.0.1:5000/api` cuando el
+  origen es el puerto 5500, y ese 5000 en macOS lo ocupa el receptor de AirPlay.
+  `dev.py` elige el primer puerto libre para la API (5000, 5001, 5002, 5003,
+  5010) y para el frontend (5500, 5501, 5502, 5510), sirve una versión generada
+  de `api_config.js` con el puerto real y le pasa a la API el `ALLOWED_ORIGINS`
+  que corresponde. Live Server entrega el archivo del repositorio y no se entera
+  de nada de esto: si está abierto, el login falla con «No se pudo conectar con
+  el servidor».
 - El archivo `.env` **no se versiona** y no debe versionarse. Si necesitas un
   valor de configuración, léelo de ahí; nunca lo escribas en el código ni lo
   muestres completo en un mensaje.

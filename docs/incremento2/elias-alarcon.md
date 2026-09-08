@@ -13,12 +13,16 @@ Usuario para probar: `elias.alarcon@nahan.local` — contraseña `Nahan.2026`
 ## Antes de empezar
 
 ```bash
-python scripts/doctor.py      # ¿está listo el entorno?
-python scripts/setup.py       # si falta algo
-python scripts/dev.py         # levantar el sistema
+bash scripts/doctor.sh      # ¿está listo el entorno?
+bash scripts/setup.sh       # si falta algo
+bash scripts/dev.sh         # levantar el sistema
+bash scripts/test.sh        # ejecutar las pruebas
 ```
 
-El sistema queda en `http://127.0.0.1:5500/frontend/auth/login.html`.
+El script te imprime la dirección exacta al arrancar; normalmente
+`http://127.0.0.1:5500/frontend/auth/login.html`. Si el 5500 está ocupado
+(Live Server de VS Code) usa la dirección que te indique el script, no la de
+Live Server: solo la del script sabe en qué puerto quedó la API.
 
 Tu rama:
 

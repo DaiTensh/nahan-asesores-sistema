@@ -20,9 +20,10 @@ empieza a programar tus RF. Si prefieres ser explícito: `/soy renato`.
 Si algo del entorno falla y quieres verlo tú mismo:
 
 ```bash
-python scripts/doctor.py     # qué falta y cómo se arregla
-python scripts/setup.py      # arreglarlo todo
-python scripts/dev.py        # levantar el sistema
+bash scripts/doctor.sh     # qué falta y cómo se arregla
+bash scripts/setup.sh      # arreglarlo todo
+bash scripts/dev.sh        # levantar el sistema
+bash scripts/test.sh       # ejecutar las pruebas
 ```
 
 ## Quién hace qué

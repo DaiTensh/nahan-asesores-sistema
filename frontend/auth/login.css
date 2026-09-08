@@ -49,3 +49,19 @@ body {
 .mensaje.error {
   color: var(--color-danger);
 }
+
+.ayuda {
+  color: var(--color-text-light);
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.enlace-secundario {
+  margin-top: 20px;
+  text-align: center;
+  font-size: 14px;
+}
+
+.enlace-secundario a {
+  color: var(--color-primary);
+}

@@ -297,6 +297,22 @@ CREATE TABLE parametros_sistema (
 );
 
 CREATE INDEX idx_usuario_email ON usuario(email);
+-- RF26 — Restableciendo Contraseñas.
+-- Se almacena el hash SHA-256 del token, no el token en claro: si la base se
+-- filtrara, los enlaces vigentes seguirían siendo inservibles.
+CREATE TABLE token_recuperacion (
+    id_token INT AUTO_INCREMENT PRIMARY KEY,
+    id_usuario INT NOT NULL,
+    token_hash CHAR(64) NOT NULL UNIQUE,
+    fecha_emision DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha_expiracion DATETIME NOT NULL,
+    utilizado BOOLEAN NOT NULL DEFAULT FALSE,
+    fecha_uso DATETIME,
+
+    CONSTRAINT fk_token_recuperacion_usuario
+        FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
+);
+
 CREATE INDEX idx_cliente_rut ON cliente(rut);
 CREATE INDEX idx_tarea_estado ON tarea(estado);
 CREATE INDEX idx_tarea_responsable ON tarea(id_responsable);
@@ -306,6 +322,7 @@ CREATE INDEX idx_tiempo_tarea ON tiempo_trabajado(id_tarea);
 CREATE INDEX idx_tiempo_usuario ON tiempo_trabajado(id_usuario);
 CREATE INDEX idx_cobro_cliente ON cobro(id_cliente);
 CREATE INDEX idx_cobro_estado ON cobro(estado);
+CREATE INDEX idx_token_usuario ON token_recuperacion(id_usuario);
 
 INSERT INTO rol (nombre_rol, descripcion) VALUES
 ('ADMINISTRADOR', 'Usuario con acceso completo al sistema'),
