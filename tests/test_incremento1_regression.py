@@ -75,12 +75,16 @@ def test_app_produccion_sin_secret_key_falla(monkeypatch):
 
 
 def test_app_configura_cookies_y_cors_desde_entorno(monkeypatch):
+    # DEBUG no se fija explícitamente en este test porque el valor por
+    # defecto (ligado a FLASK_ENV) es justamente lo que se está probando.
+    # Pero si el proceso ya cargó un .env local con DEBUG=true (uso normal
+    # en desarrollo, vía load_dotenv() en backend/config/db.py), ese valor
+    # ambiental queda en os.environ y _bool_env() lo antepone al default:
+    # hay que aislarlo explícitamente para que el test no dependa del
+    # entorno de quien lo ejecute.
+    monkeypatch.delenv("DEBUG", raising=False)
     monkeypatch.setenv("FLASK_ENV", "production")
     monkeypatch.setenv("SECRET_KEY", "clave-test-produccion")
-    # backend/config/db.py llama a load_dotenv() al importarse, así que el .env
-    # del desarrollador ya está en el entorno. Sin quitar DEBUG, esta prueba
-    # verifica el .env de quien la corre en vez del valor por defecto.
-    monkeypatch.delenv("DEBUG", raising=False)
     monkeypatch.setenv("SESSION_COOKIE_SECURE", "true")
     monkeypatch.setenv("SESSION_COOKIE_HTTPONLY", "true")
     monkeypatch.setenv("SESSION_COOKIE_SAMESITE", "Lax")
@@ -125,7 +129,28 @@ def test_login_con_credenciales_invalidas(client, fake_connection_factory, monke
     assert connection.closed is True
 
 
-def test_auth_me_autenticado(client):
+def test_auth_me_autenticado(client, fake_connection_factory, monkeypatch):
+    # obtener_usuario_actual() resuelve nombre/rol/área consultando la BD
+    # (no confía en la sesión), así que hay que simular esa fila en vez de
+    # depender de que la BD real tenga sembrado un usuario_id=1 con estos
+    # datos exactos.
+    from backend.utils import auth as auth_module
+
+    usuario_db = {
+        "id_usuario": 1,
+        "nombres": "Usuario Prueba",
+        "estado": "ACTIVO",
+        "id_rol": 1,
+        "nombre_rol": "ADMINISTRADOR",
+        "id_area": 3,
+    }
+
+    def handler(sql, params, cursor):
+        return [usuario_db.copy()]
+
+    connection = fake_connection_factory(handler)
+    monkeypatch.setattr(auth_module, "get_connection", lambda: connection)
+
     with client.session_transaction() as session:
         session["usuario_id"] = 1
         session["rol_id"] = 1
