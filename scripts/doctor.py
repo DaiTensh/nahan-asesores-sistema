@@ -6,8 +6,10 @@ Diagnóstico del entorno de desarrollo de Nahan Asesores.
 Revisa, en orden, todo lo que hace falta para que el sistema levante, y por
 cada cosa que falta dice exactamente qué comando la resuelve.
 
-    python scripts/doctor.py            # informe legible
-    python scripts/doctor.py --json     # el mismo informe en JSON
+    bash scripts/doctor.sh               # macOS y Linux
+    bash scripts/doctor.sh --json        # el mismo informe en JSON
+
+    powershell -ExecutionPolicy Bypass -File scripts\doctor.ps1  # Windows
 
 Devuelve 0 si el entorno está listo y 1 si falta algo.
 """
@@ -22,6 +24,15 @@ RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ENV = os.path.join(RAIZ, ".env")
 ES_WINDOWS = os.name == "nt"
 ACTIVAR = r".venv\Scripts\Activate.ps1" if ES_WINDOWS else "source .venv/bin/activate"
+
+# El comando que se le muestra a la persona depende de su sistema: `python`
+# a secas no existe en macOS y `python3` no suele existir en Windows.
+_PS = "powershell -ExecutionPolicy Bypass -File scripts\\{}.ps1"
+CMD_SETUP  = _PS.format("setup")  if ES_WINDOWS else "bash scripts/setup.sh"
+CMD_DOCTOR = _PS.format("doctor") if ES_WINDOWS else "bash scripts/doctor.sh"
+CMD_DEV    = _PS.format("dev")    if ES_WINDOWS else "bash scripts/dev.sh"
+CMD_SEED   = _PS.format("seed")   if ES_WINDOWS else "bash scripts/seed.sh"
+CMD_TEST   = _PS.format("test")   if ES_WINDOWS else "bash scripts/test.sh"
 
 CLAVES_ENV = ["DB_HOST", "DB_PORT", "DB_USER", "DB_NAME"]
 PAQUETES = [("flask", "Flask"), ("mysql.connector", "mysql-connector-python"),
@@ -45,16 +56,26 @@ def puerto_ocupado(puerto):
 # ------------------------------------------------------------------ chequeos
 def revisar_python():
     v = sys.version_info
-    chequeo("Python 3.10 o superior", v >= (3, 10), f"{v.major}.{v.minor}.{v.micro}",
-            "Instala Python 3.10+ desde python.org y vuelve a crear el entorno virtual.")
+    chequeo("Python 3.9 o superior", v >= (3, 9), f"{v.major}.{v.minor}.{v.micro}",
+            "Instala Python 3.9+ desde python.org y vuelve a crear el entorno virtual.")
 
 
 def revisar_venv():
     en_venv = sys.prefix != getattr(sys, "base_prefix", sys.prefix)
-    existe = os.path.isdir(os.path.join(RAIZ, ".venv")) or os.path.isdir(os.path.join(RAIZ, "venv"))
-    chequeo("Entorno virtual activado", en_venv,
-            "sí" if en_venv else ("existe pero no está activado" if existe else "no existe"),
-            ACTIVAR if existe else "python scripts/setup.py   (o bash scripts/setup.sh)")
+    existe = os.path.isdir(os.path.join(RAIZ, ".venv"))
+    # «venv/» sin punto es el entorno anterior al instalador. No lo damos por
+    # bueno: puede tener dependencias viejas o binarios de otro sistema.
+    legado = os.path.isdir(os.path.join(RAIZ, "venv")) and not existe
+
+    if legado:
+        detalle = "solo existe el entorno antiguo «venv/», que el instalador ya no usa"
+    elif existe:
+        detalle = "sí" if en_venv else "existe pero no está activado"
+    else:
+        detalle = "no existe"
+
+    chequeo("Entorno virtual activado", en_venv and existe, detalle,
+            ACTIVAR if (existe and not en_venv) else CMD_SETUP)
 
 
 def revisar_paquetes():
@@ -66,7 +87,21 @@ def revisar_paquetes():
             faltan.append(paquete)
     chequeo("Dependencias de Python", not faltan,
             "todas instaladas" if not faltan else "falta " + ", ".join(faltan),
-            "pip install -r requirements.txt")
+            CMD_SETUP)
+
+
+def revisar_pruebas():
+    """pytest está en requirements-dev.txt, no en requirements.txt: en el
+    servidor no hace falta. Que falte no impide trabajar, pero sí impide
+    generar la evidencia de pruebas, así que se avisa sin marcarlo crítico."""
+    try:
+        __import__("pytest")
+    except ImportError:
+        chequeo("pytest (para las pruebas)", False, "no está instalado",
+                CMD_SETUP, critico=False)
+        return
+    chequeo("pytest (para las pruebas)", True, f"disponible — se ejecutan con {CMD_TEST}",
+            None, critico=False)
 
 
 def revisar_env():
@@ -95,7 +130,7 @@ def revisar_mysql():
         import mysql.connector
     except ImportError:
         chequeo("Conexión con MySQL", False, "no se pudo cargar el conector",
-                "pip install -r requirements.txt")
+                CMD_SETUP)
         return None
     try:
         cn = mysql.connector.connect(
@@ -118,33 +153,73 @@ def revisar_base(cn):
     cur.execute("SHOW DATABASES LIKE %s", (nombre,))
     if not cur.fetchone():
         chequeo("Base de datos", False, f"«{nombre}» no existe",
-                "python scripts/setup.py --solo-bd")
+                f"{CMD_SETUP} --solo-bd")
         cur.close()
         cn.close()
         return
     cur.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = %s", (nombre,))
     tablas = cur.fetchone()[0]
-    chequeo("Base de datos", tablas >= 19, f"«{nombre}» con {tablas} tabla(s)",
-            "Reimporta el esquema: python scripts/setup.py --solo-bd")
+    chequeo("Base de datos", tablas >= 20, f"«{nombre}» con {tablas} tabla(s)",
+            f"Reimporta el esquema: {CMD_SETUP} --solo-bd")
     if tablas:
         cur.execute(f"SELECT COUNT(*) FROM `{nombre}`.usuario")
         usuarios = cur.fetchone()[0]
         chequeo("Usuarios para iniciar sesión", usuarios > 0,
-                f"{usuarios} usuario(s)", "python database/seed_dev.py")
+                f"{usuarios} usuario(s)", CMD_SEED)
         cur.execute(f"SELECT COUNT(*) FROM `{nombre}`.tarea")
         tareas = cur.fetchone()[0]
         chequeo("Datos de ejemplo", tareas > 0, f"{tareas} tarea(s) cargadas",
-                "python database/seed_dev.py", critico=False)
+                CMD_SEED, critico=False)
     cur.close()
     cn.close()
 
 
+PUERTOS_API = (5000, 5001, 5002, 5003, 5010)
+PUERTOS_FRONT = (5500, 5501, 5502, 5510)
+
+
+def quien_ocupa(puerto):
+    """Nombre del proceso que tiene el puerto, cuando se puede averiguar."""
+    if ES_WINDOWS:
+        return None
+    try:
+        r = subprocess.run(["lsof", "-nP", f"-iTCP:{puerto}", "-sTCP:LISTEN"],
+                           capture_output=True, text=True, timeout=6)
+    except Exception:
+        return None
+    lineas = [l for l in r.stdout.splitlines()[1:] if l.strip()]
+    return lineas[0].split()[0] if lineas else None
+
+
 def revisar_puertos():
-    for puerto, quien in ((5000, "la API"), (5500, "el frontend")):
-        ocupado = puerto_ocupado(puerto)
-        chequeo(f"Puerto {puerto}", True,
-                f"ocupado — {quien} ya está corriendo" if ocupado else f"libre para {quien}",
-                None, critico=False)
+    """No basta con decir «ocupado»: en macOS el 5000 lo toma el receptor de
+    AirPlay y el 5500 Live Server, y ninguno de los dos casos es un problema
+    mientras quede algún puerto libre, porque dev.py se corre solo. Lo que hay
+    que informar es si queda alguno."""
+    for candidatos, etiqueta, quien in ((PUERTOS_API, "de la API", "la API"),
+                                       (PUERTOS_FRONT, "del frontend", "el frontend")):
+        libres = [p for p in candidatos if not puerto_ocupado(p)]
+        primero = candidatos[0]
+        duenio = quien_ocupa(primero) if puerto_ocupado(primero) else None
+        arreglo = None
+
+        if libres and libres[0] == primero:
+            detalle = f"{primero} libre para {quien}"
+        elif libres:
+            detalle = f"{primero} ocupado" + (f" por {duenio}" if duenio else "")
+            detalle += f"; dev.py levantará {quien} en el {libres[0]}"
+        else:
+            detalle = "todos ocupados: " + ", ".join(str(p) for p in candidatos)
+            arreglo = ("Cierra lo que los tenga tomados. Para ver qué son: "
+                       f"lsof -nP -iTCP:{primero} -sTCP:LISTEN")
+
+        if duenio in ("ControlCe", "ControlCenter", "AirPlayXPCHelper"):
+            detalle += " (receptor de AirPlay de macOS)"
+            arreglo = arreglo or ("Se puede dejar así. Si prefieres liberar el 5000: "
+                                  "Ajustes del Sistema → General → AirDrop y Handoff → "
+                                  "Receptor de AirPlay → desactivar")
+
+        chequeo(f"Puertos {etiqueta}", bool(libres), detalle, arreglo, critico=False)
 
 
 def revisar_git():
@@ -184,6 +259,7 @@ def main():
     revisar_python()
     revisar_venv()
     revisar_paquetes()
+    revisar_pruebas()
     env_ok = revisar_env()
     revisar_base(revisar_mysql() if env_ok else None)
     revisar_puertos()
@@ -205,10 +281,10 @@ def main():
     print()
     if listo:
         print("El entorno está listo. Levanta el sistema con:")
-        print("  python scripts/dev.py")
+        print(f"  {CMD_DEV}")
     else:
         print(f"Faltan {len(criticos)} cosa(s) por resolver. La forma corta de arreglarlo todo:")
-        print("  python scripts/setup.py")
+        print(f"  {CMD_SETUP}")
     return 0 if listo else 1
 
 

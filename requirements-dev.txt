@@ -1,0 +1,8 @@
+# Dependencias que solo se usan para desarrollar y ejecutar las pruebas.
+# No se instalan en el servidor: requirements.txt es lo que va a producción.
+#
+# La versión va como rango y no fija, a diferencia del resto del proyecto: el
+# equipo trabaja con Python 3.9 (macOS con las herramientas de Xcode) hasta
+# 3.13 (Windows), y ninguna versión exacta de pytest cubre bien ese rango.
+# Fijarla dejaría a alguien sin poder instalar las pruebas.
+pytest>=8.0,<9

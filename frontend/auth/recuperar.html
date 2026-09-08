@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Iniciar Sesión</title>
+  <title>Recuperar contraseña</title>
 
   <link rel="stylesheet" href="../assets/css/variables.css">
   <link rel="stylesheet" href="../assets/css/global.css">
@@ -16,33 +16,33 @@
   <main class="login-container">
     <section class="login-card">
       <h1>Nahan Asesores</h1>
-      <p class="subtitle">Iniciar sesión seguro</p>
+      <p class="subtitle">Recuperar contraseña</p>
 
-      <form id="loginForm">
+      <p class="ayuda">
+        Ingresa el correo con el que accedes al sistema. Si corresponde a una
+        cuenta activa, te enviaremos un enlace para definir una contraseña nueva.
+      </p>
+
+      <form id="recuperarForm">
         <div class="form-group">
-          <label class="form-label">Correo electrónico</label>
+          <label class="form-label" for="email">Correo electrónico</label>
           <input type="email" id="email" class="form-input" required>
         </div>
 
-        <div class="form-group">
-          <label class="form-label">Contraseña</label>
-          <input type="password" id="password" class="form-input" required>
-        </div>
-
-        <button type="submit" class="btn btn-primary">
-          Iniciar Sesión
+        <button type="submit" class="btn btn-primary" id="botonEnviar">
+          Enviar enlace
         </button>
 
         <p id="mensaje" class="mensaje"></p>
       </form>
 
       <p class="enlace-secundario">
-        <a href="./recuperar.html">¿Olvidaste tu contraseña?</a>
+        <a href="./login.html">Volver al inicio de sesión</a>
       </p>
     </section>
   </main>
 
   <script src="../assets/js/api_config.js"></script>
-  <script src="./login.js"></script>
+  <script src="./recuperar.js"></script>
 </body>
 </html>

@@ -1,8 +1,10 @@
 from decimal import Decimal
 
 import pytest
+from flask import session as flask_session
 
 from backend.app import app as flask_app
+from backend.utils import auth as auth_utils
 
 
 class FakeCursor:
@@ -76,6 +78,63 @@ class FakeConnection:
 
 def normalize_sql(sql):
     return " ".join(sql.split())
+
+
+class AuthCursor:
+    """Responde la única consulta que hace `obtener_usuario_actual()`.
+
+    Desde el arreglo de seguridad (a7e285c) el rol ya no se toma de la sesión:
+    se relee de la base en cada solicitud. Sin este doble, el decorador abriría
+    una conexión real con el MySQL del desarrollador, y entonces las pruebas
+    dependerían de los datos sembrados y —peor— escribirían en esa base.
+
+    La fila se arma con lo que la prueba declaró en la sesión, de modo que
+    `iniciar_sesion(usuario_id=2, rol_id=2)` sigue significando exactamente lo
+    que significaba antes: «hay un usuario jurídico autenticado».
+    """
+
+    def __init__(self):
+        self.fila = None
+
+    def execute(self, sql, params=None):
+        usuario_id = (params or (flask_session.get("usuario_id"),))[0]
+        if not usuario_id:
+            self.fila = None
+            return
+        id_rol = flask_session.get("rol_id", 1)
+        self.fila = {
+            "id_usuario": usuario_id,
+            "nombres": flask_session.get("nombre", "Usuario Prueba"),
+            "estado": flask_session.get("estado", "ACTIVO"),
+            "id_rol": id_rol,
+            "nombre_rol": auth_utils.ROLES.get(id_rol, auth_utils.ROL_ADMINISTRADOR),
+            "id_area": flask_session.get("area_id", 3),
+        }
+
+    def fetchone(self):
+        return self.fila
+
+    def close(self):
+        pass
+
+
+class AuthConnection:
+    def cursor(self, dictionary=False):
+        return AuthCursor()
+
+    def close(self):
+        pass
+
+
+@pytest.fixture(autouse=True)
+def autenticacion_aislada(monkeypatch):
+    """Ninguna prueba debe alcanzar el MySQL real a través del decorador.
+
+    Va como autouse a propósito: si dependiera de que cada prueba se acuerde de
+    pedirla, la que se olvide vuelve a escribir en la base del desarrollador sin
+    que nadie lo note.
+    """
+    monkeypatch.setattr(auth_utils, "get_connection", lambda: AuthConnection())
 
 
 @pytest.fixture
