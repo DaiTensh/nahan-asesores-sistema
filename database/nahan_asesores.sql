@@ -338,4 +338,6 @@ INSERT INTO parametros_sistema (nombre_parametro, valor_parametro, tipo_dato, de
 ('NOMBRE_EMPRESA', 'Nahan Asesores', 'VARCHAR', 'Nombre de la empresa'),
 ('MONEDA_DEFAULT', 'CLP', 'VARCHAR', 'Moneda utilizada por defecto'),
 ('HORAS_JORNADA_DIARIA', '8', 'INT', 'Cantidad de horas referenciales por jornada'),
-('TARIFA_HORA_DEFAULT', '30000', 'DECIMAL', 'Tarifa global por hora utilizada cuando no existe una tarifa vigente para el área');
+('TARIFA_HORA_DEFAULT', '30000', 'DECIMAL', 'Tarifa global por hora utilizada cuando no existe una tarifa vigente para el área'),
+('ADJUNTOS_TAMANO_MAXIMO_MB', '10', 'INT', 'Tamaño máximo, en MB, de un archivo adjunto a una tarea'),
+('ADJUNTOS_EXTENSIONES_PERMITIDAS', 'pdf,doc,docx,xls,xlsx,ppt,pptx,jpg,jpeg,png', 'VARCHAR', 'Extensiones permitidas para adjuntos de tarea, separadas por coma');

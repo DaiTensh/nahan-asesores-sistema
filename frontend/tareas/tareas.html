@@ -125,9 +125,23 @@
       <section class="tareas-section">
         <h2>Tareas pendientes</h2>
 
+        <div class="redistribuir-bar" id="redistribuirBar" hidden>
+          <span id="redistribuirContador">0 tareas seleccionadas</span>
+
+          <input type="text" id="redistribuir_destino_busqueda" class="form-input" list="usuarios_redistribuir_destino" placeholder="Reasignar a...">
+          <input type="hidden" id="redistribuir_destino_id">
+          <datalist id="usuarios_redistribuir_destino"></datalist>
+
+          <button type="button" class="btn btn-secondary btn-small" id="btnVerCarga">Ver carga actual</button>
+          <button type="button" class="btn btn-primary btn-small" id="btnRedistribuir">Redistribuir seleccionadas</button>
+
+          <span id="redistribuirCarga" class="redistribuir-carga"></span>
+        </div>
+
         <table class="tareas-table">
           <thead>
             <tr>
+              <th><input type="checkbox" id="seleccionarTodas"></th>
               <th>ID</th>
               <th>Título</th>
               <th>Cliente</th>
