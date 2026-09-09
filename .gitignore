@@ -11,6 +11,10 @@ __pycache__/
 .env.production
 !.env.example
 
+# RF54 — Adjuntando Archivos a Tareas. Los archivos subidos van al volumen
+# del servidor (o a esta carpeta en local), nunca al repositorio.
+uploads/
+
 # Mac
 .DS_Store
 
