@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Reportes</title>
+
+  <link rel="stylesheet" href="../assets/css/variables.css">
+  <link rel="stylesheet" href="../assets/css/global.css">
+  <link rel="stylesheet" href="../assets/css/buttons.css">
+  <link rel="stylesheet" href="../assets/css/forms.css">
+  <link rel="stylesheet" href="../assets/css/cards.css">
+  <link rel="stylesheet" href="../assets/css/tables.css">
+  <link rel="stylesheet" href="../assets/css/badges.css">
+  <link rel="stylesheet" href="../assets/css/navigation.css">
+  <link rel="stylesheet" href="../assets/css/topbar.css">
+  <link rel="stylesheet" href="./reportes.css">
+</head>
+<body>
+
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <div class="content-wrapper">
+    <header class="topbar" id="topbar"></header>
+
+    <main class="main-content">
+      <section class="reportes-header">
+        <div>
+          <h1>Reportes</h1>
+          <p>Genera reportes de tareas por cliente o por responsable dentro de un período.</p>
+        </div>
+      </section>
+
+      <section class="reportes-section">
+        <h2>Criterios</h2>
+
+        <form id="formReporte" class="reportes-form">
+          <div class="form-group">
+            <label class="form-label" for="selectTipoReporte">Agrupar por</label>
+            <select id="selectTipoReporte" class="form-input">
+              <option value="cliente">Cliente</option>
+              <option value="responsable">Usuario responsable</option>
+            </select>
+          </div>
+
+          <div class="form-group" id="grupoCliente">
+            <label class="form-label" for="selectCliente">Cliente</label>
+            <select id="selectCliente" class="form-input" required>
+              <option value="">Cargando clientes...</option>
+            </select>
+          </div>
+
+          <div class="form-group" id="grupoResponsable" hidden>
+            <label class="form-label" for="selectResponsable">Usuario responsable</label>
+            <select id="selectResponsable" class="form-input">
+              <option value="">Cargando usuarios...</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="inputFechaInicio">Desde</label>
+            <input type="date" id="inputFechaInicio" class="form-input" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="inputFechaFin">Hasta</label>
+            <input type="date" id="inputFechaFin" class="form-input" required>
+          </div>
+
+          <div class="form-group reportes-form-actions">
+            <button type="submit" class="btn btn-primary">Generar reporte</button>
+          </div>
+        </form>
+
+        <p id="mensajeReporte" class="mensaje" aria-live="polite"></p>
+      </section>
+
+      <section class="reportes-section" id="resultadoReporte" hidden>
+        <h2>Resultado</h2>
+
+        <div class="reportes-meta">
+          <div>
+            <span class="detail-label" id="resultadoEntidadLabel">Cliente</span>
+            <strong id="resultadoEntidad">-</strong>
+          </div>
+          <div>
+            <span class="detail-label">Período consultado</span>
+            <strong id="resultadoPeriodo">-</strong>
+          </div>
+          <div>
+            <span class="detail-label">Fecha de generación</span>
+            <strong id="resultadoFechaGeneracion">-</strong>
+          </div>
+        </div>
+
+        <div class="clientes-cards" id="resumenEstadoCards"></div>
+
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Título</th>
+                <th>Cliente</th>
+                <th>Estado</th>
+                <th>Prioridad</th>
+                <th>Responsable</th>
+                <th>Creación</th>
+                <th>Vencimiento</th>
+              </tr>
+            </thead>
+            <tbody id="tablaTareasReporte"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script src="../assets/js/api_config.js"></script>
+<script src="../auth/logout.js"></script>
+<script src="../assets/js/navigation.js"></script>
+<script src="../assets/js/topbar.js"></script>
+<script src="../assets/js/permissions.js"></script>
+<script src="./reportes.js"></script>
+
+<script>
+  protegerPagina(["ADMINISTRADOR"]);
+  cargarNavegacion("reportes");
+  cargarTopbar();
+</script>
+
+</body>
+</html>
