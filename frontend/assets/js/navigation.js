@@ -29,6 +29,12 @@ const NAV_ITEMS = [
 
 const ADMIN_ITEMS = [
   {
+    id: "reportes",
+    label: "Reportes",
+    icon: "RE",
+    href: "../reportes/reportes.html"
+  },
+  {
     id: "registrar",
     label: "Registrar usuario",
     icon: "RU",

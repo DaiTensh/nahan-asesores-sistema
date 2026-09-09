@@ -291,7 +291,7 @@ def obtener_ficha_consolidada(id_cliente):
 
         with conexion.cursor(dictionary=True) as cursor:
             # 1. Traer la información base del cliente
-            cursor.execute("SELECT id_cliente, rut, razon_social, email, telefono, direccion FROM cliente WHERE id_cliente = %s", (id_cliente,))
+            cursor.execute("SELECT id_cliente, rut, razon_social, email, telefono, direccion, estado FROM cliente WHERE id_cliente = %s", (id_cliente,))
             cliente = cursor.fetchone()
             
             if not cliente:
@@ -310,7 +310,7 @@ def obtener_ficha_consolidada(id_cliente):
 
             # 3. Traer el historial completo de tareas vinculadas
             query_tareas = """
-                SELECT t.titulo, t.estado, DATE_FORMAT(t.fecha_vencimiento, '%%d-%%m-%%Y') as fecha_vencimiento, a.nombre_area 
+                SELECT t.titulo, t.estado, DATE_FORMAT(t.fecha_vencimiento, '%d-%m-%Y') as fecha_vencimiento, a.nombre_area
                 FROM tarea t
                 JOIN area a ON t.id_area = a.id_area
                 WHERE t.id_cliente = %s
@@ -319,9 +319,15 @@ def obtener_ficha_consolidada(id_cliente):
             cursor.execute(query_tareas, (id_cliente,))
             cliente["tareas"] = cursor.fetchall()
 
+            # RF61 — Panel resumen: cantidad de tareas activas, calculada sobre
+            # el mismo listado ya traído (sin disparar una consulta adicional).
+            cliente["tareas_activas"] = sum(
+                1 for tarea in cliente["tareas"] if tarea["estado"] in ("PENDIENTE", "EN_PROCESO")
+            )
+
             # 4. Traer los documentos e instrumentos guardados en la plataforma
             query_docs = """
-                SELECT nombre_documento, url_archivo, DATE_FORMAT(fecha_subida, '%%d-%%m-%%Y %%H:%%i') as fecha_subida 
+                SELECT nombre_documento, url_archivo, DATE_FORMAT(fecha_subida, '%d-%m-%Y %H:%i') as fecha_subida
                 FROM documento 
                 WHERE id_cliente = %s AND estado = 'ACTIVO'
                 ORDER BY fecha_subida DESC
@@ -351,26 +357,31 @@ def filtrar_clientes_combinado():
             return jsonify({"error": "Fallo de conexión con MySQL."}), 500
 
         with conexion.cursor(dictionary=True) as cursor:
-            # Base de la consulta
+            # Base de la consulta. El LEFT JOIN con área va siempre: además de
+            # filtrar por id_area, el texto libre debe poder encontrar
+            # coincidencias por nombre de área.
             query = """
-                SELECT DISTINCT c.id_cliente, c.rut, c.razon_social, c.telefono, c.estado 
+                SELECT DISTINCT c.id_cliente, c.rut, c.razon_social, c.telefono, c.estado
                 FROM cliente c
+                LEFT JOIN cliente_area ca ON c.id_cliente = ca.id_cliente
+                LEFT JOIN area a ON ca.id_area = a.id_area
             """
             condiciones = []
             parametros = []
 
-            # Si el usuario seleccionó un departamento, unimos con la intermedia
+            # Si el usuario seleccionó un departamento, filtramos por esa área
             if id_area:
-                query += " JOIN cliente_area ca ON c.id_cliente = ca.id_cliente"
                 condiciones.append("ca.id_area = %s")
                 parametros.append(id_area)
 
             # Si el usuario escribió en el input de texto, agregamos la cláusula LIKE cruzada
             if texto_buscar:
-                condiciones.append("(c.razon_social LIKE %s OR c.rut LIKE %s)")
+                condiciones.append(
+                    "(c.razon_social LIKE %s OR c.rut LIKE %s OR c.email LIKE %s "
+                    "OR a.nombre_area LIKE %s OR c.estado LIKE %s)"
+                )
                 parametro_like = f"%{texto_buscar}%"
-                parametros.append(parametro_like)
-                parametros.append(parametro_like)
+                parametros.extend([parametro_like] * 5)
 
             # Si existen condiciones acumuladas, las inyectamos dinámicamente con un WHERE
             if condiciones:
@@ -473,24 +484,29 @@ def listado_general_paginado_clientes():
             return jsonify({"error": "Error interno de base de datos MySQL."}), 500
 
         with conexion.cursor(dictionary=True) as cursor:
-            # Consulta base estructurada
+            # Consulta base estructurada. El LEFT JOIN con área va siempre:
+            # además de filtrar por id_area, el texto libre debe poder
+            # encontrar coincidencias por nombre de área.
             query_base = """
-                SELECT DISTINCT c.id_cliente, c.rut, c.razon_social, c.estado, c.telefono 
+                SELECT DISTINCT c.id_cliente, c.rut, c.razon_social, c.estado, c.telefono
                 FROM cliente c
+                LEFT JOIN cliente_area ca ON c.id_cliente = ca.id_cliente
+                LEFT JOIN area a ON ca.id_area = a.id_area
             """
             condiciones = []
             parametros = []
 
             if id_area:
-                query_base += " JOIN cliente_area ca ON c.id_cliente = ca.id_cliente"
                 condiciones.append("ca.id_area = %s")
                 parametros.append(id_area)
 
             if texto_buscar:
-                condiciones.append("(c.razon_social LIKE %s OR c.rut LIKE %s)")
+                condiciones.append(
+                    "(c.razon_social LIKE %s OR c.rut LIKE %s OR c.email LIKE %s "
+                    "OR a.nombre_area LIKE %s OR c.estado LIKE %s)"
+                )
                 parametro_like = f"%{texto_buscar}%"
-                parametros.append(parametro_like)
-                parametros.append(parametro_like)
+                parametros.extend([parametro_like] * 5)
 
             if condiciones:
                 query_base += " WHERE " + " AND ".join(condiciones)
