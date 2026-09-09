@@ -2,7 +2,7 @@ import logging
 import os
 import uuid
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 
 from backend.config.db import get_connection
@@ -167,6 +167,128 @@ def subir_documento_tarea(id_tarea):
     except Exception:
         logger.exception("Error al subir documento de tarea")
         return jsonify({"error": "Error interno al subir el archivo"}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
+@documentos_bp.route("/tareas/<int:id_tarea>/documentos", methods=["GET"])
+@login_required
+def listar_documentos_tarea(id_tarea):
+    connection = None
+    cursor = None
+    usuario = obtener_usuario_actual()
+
+    try:
+        connection = get_connection()
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            "SELECT id_responsable, id_creador FROM tarea WHERE id_tarea = %s",
+            (id_tarea,)
+        )
+        tarea = cursor.fetchone()
+
+        if not tarea:
+            return jsonify({"error": "Tarea no encontrada"}), 404
+
+        if not _usuario_tiene_acceso_a_tarea(usuario, tarea):
+            return jsonify({"error": "No tiene acceso a esta tarea"}), 403
+
+        cursor.execute(
+            """
+            SELECT
+                d.id_documento,
+                d.nombre_documento,
+                d.fecha_subida,
+                u.nombres AS subido_por
+            FROM documento d
+            INNER JOIN tarea_documento td ON td.id_documento = d.id_documento
+            INNER JOIN usuario u ON u.id_usuario = d.subido_por
+            WHERE td.id_tarea = %s AND d.estado = 'ACTIVO'
+            ORDER BY d.fecha_subida DESC
+            """,
+            (id_tarea,)
+        )
+        documentos = cursor.fetchall()
+
+        return jsonify(documentos), 200
+
+    except Exception:
+        logger.exception("Error al listar documentos de tarea")
+        return jsonify({"error": "Error interno al listar los documentos"}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
+@documentos_bp.route("/documentos/<int:id_documento>/descargar", methods=["GET"])
+@login_required
+def descargar_documento(id_documento):
+    connection = None
+    cursor = None
+    usuario = obtener_usuario_actual()
+
+    try:
+        connection = get_connection()
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            """
+            SELECT
+                d.id_documento,
+                d.nombre_documento,
+                d.url_archivo,
+                d.estado,
+                t.id_responsable,
+                t.id_creador
+            FROM documento d
+            INNER JOIN tarea_documento td ON td.id_documento = d.id_documento
+            INNER JOIN tarea t ON t.id_tarea = td.id_tarea
+            WHERE d.id_documento = %s
+            """,
+            (id_documento,)
+        )
+        documento = cursor.fetchone()
+
+        if not documento or documento["estado"] != "ACTIVO":
+            return jsonify({"error": "Documento no encontrado"}), 404
+
+        if not _usuario_tiene_acceso_a_tarea(usuario, documento):
+            return jsonify({"error": "No tiene acceso a este archivo"}), 403
+
+        directorio = _directorio_adjuntos()
+        ruta_absoluta = os.path.join(directorio, documento["url_archivo"])
+
+        if not os.path.isfile(ruta_absoluta):
+            logger.error("Adjunto id_documento=%s no existe en disco: %s", id_documento, ruta_absoluta)
+            return jsonify({"error": "El archivo ya no está disponible"}), 404
+
+        cursor.execute(
+            """
+            INSERT INTO auditoria (id_usuario, tabla_afectada, accion, datos_nuevos)
+            VALUES (%s, 'documento', 'DESCARGA', %s)
+            """,
+            (usuario["id_usuario"], f"id_documento={id_documento}")
+        )
+        connection.commit()
+
+        return send_from_directory(
+            directorio,
+            documento["url_archivo"],
+            as_attachment=True,
+            download_name=documento["nombre_documento"]
+        )
+
+    except Exception:
+        logger.exception("Error al descargar documento")
+        return jsonify({"error": "Error interno al descargar el archivo"}), 500
 
     finally:
         if cursor:
