@@ -13,6 +13,11 @@ const ESTADOS_FINALES = [
   ["CANCELADA", "Cancelada"]
 ];
 
+const EXTENSIONES_ADJUNTOS_AVISO = "pdf, doc, docx, xls, xlsx, ppt, pptx, jpg, jpeg, png";
+
+let tareasCache = [];
+const tareasSeleccionadas = new Set();
+
 document.addEventListener("DOMContentLoaded", () => {
   ClientesAutocomplete.configurarSelectorCliente({
     inputId: "cliente_busqueda",
@@ -27,6 +32,17 @@ document.addEventListener("DOMContentLoaded", () => {
     datalistId: "usuarios_responsables",
     soloActivos: true
   });
+
+  UsuariosAutocomplete.configurarSelectorUsuario({
+    inputId: "redistribuir_destino_busqueda",
+    hiddenId: "redistribuir_destino_id",
+    datalistId: "usuarios_redistribuir_destino",
+    soloActivos: true
+  });
+
+  document.getElementById("seleccionarTodas").addEventListener("change", alternarSeleccionarTodas);
+  document.getElementById("btnVerCarga").addEventListener("click", mostrarCargaTrabajo);
+  document.getElementById("btnRedistribuir").addEventListener("click", redistribuirSeleccionadas);
 
   cargarTareasPendientes();
 });
@@ -142,12 +158,29 @@ async function cargarTareasPendientes() {
       );
     }
 
+    tareasCache = tareas;
+
+    const idsVisibles = new Set(tareas.map(tarea => Number(tarea.id_tarea)));
+    for (const id of tareasSeleccionadas) {
+      if (!idsVisibles.has(id)) tareasSeleccionadas.delete(id);
+    }
+
     actualizarResumen(tareas);
     renderizarTabla(tareas, usuario);
+    actualizarBarraRedistribucion(usuario);
 
   } catch (error) {
     console.error(error);
   }
+}
+
+function actualizarBarraRedistribucion(usuario) {
+  const barra = document.getElementById("redistribuirBar");
+  barra.hidden = usuario.nombre_rol !== "ADMINISTRADOR";
+
+  const contador = document.getElementById("redistribuirContador");
+  contador.textContent = `${tareasSeleccionadas.size} tarea(s) seleccionada(s)`;
+  document.getElementById("redistribuirCarga").textContent = "";
 }
 
 function actualizarResumen(tareas) {
@@ -168,15 +201,28 @@ function renderizarTabla(tareas, usuario) {
   if (tareas.length === 0) {
     const filaVacia = document.createElement("tr");
     const celdaVacia = document.createElement("td");
-    celdaVacia.colSpan = 9;
+    celdaVacia.colSpan = 10;
     celdaVacia.textContent = "No hay tareas pendientes para mostrar.";
     filaVacia.appendChild(celdaVacia);
     tablaTareas.appendChild(filaVacia);
     return;
   }
 
+  const puedeAdministrar = usuario.nombre_rol === "ADMINISTRADOR";
+
   tareas.forEach(tarea => {
+    const idTarea = Number(tarea.id_tarea);
     const fila = document.createElement("tr");
+
+    const celdaSeleccion = document.createElement("td");
+    if (puedeAdministrar) {
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = tareasSeleccionadas.has(idTarea);
+      checkbox.addEventListener("change", () => alternarSeleccionTarea(idTarea, checkbox.checked, usuario));
+      celdaSeleccion.appendChild(checkbox);
+    }
+    fila.appendChild(celdaSeleccion);
 
     fila.appendChild(crearCeldaTexto(tarea.id_tarea));
     fila.appendChild(crearCeldaTexto(tarea.titulo));
@@ -192,7 +238,32 @@ function renderizarTabla(tareas, usuario) {
     fila.appendChild(celdaAcciones);
 
     tablaTareas.appendChild(fila);
+    tablaTareas.appendChild(crearFilaAdjuntos(idTarea));
   });
+}
+
+function alternarSeleccionarTodas(event) {
+  const marcar = event.target.checked;
+
+  tareasSeleccionadas.clear();
+  if (marcar) {
+    tareasCache.forEach(tarea => tareasSeleccionadas.add(Number(tarea.id_tarea)));
+  }
+
+  obtenerUsuarioActual().then(usuario => {
+    renderizarTabla(tareasCache, usuario);
+    actualizarBarraRedistribucion(usuario);
+  });
+}
+
+function alternarSeleccionTarea(idTarea, marcada, usuario) {
+  if (marcada) {
+    tareasSeleccionadas.add(idTarea);
+  } else {
+    tareasSeleccionadas.delete(idTarea);
+  }
+
+  actualizarBarraRedistribucion(usuario);
 }
 
 function crearCeldaTexto(valor) {
@@ -266,6 +337,12 @@ function accionesTarea(tarea, usuario) {
   botonPrioridad.textContent = "Prioridad";
   botonPrioridad.addEventListener("click", () => actualizarPrioridad(tarea.id_tarea));
   contenedor.appendChild(botonPrioridad);
+
+  const botonAdjuntos = document.createElement("button");
+  botonAdjuntos.className = "btn btn-secondary btn-small";
+  botonAdjuntos.textContent = "Adjuntos";
+  botonAdjuntos.addEventListener("click", () => alternarPanelAdjuntos(tarea.id_tarea));
+  contenedor.appendChild(botonAdjuntos);
 
   return contenedor;
 }
@@ -431,4 +508,318 @@ function formatearFecha(fecha) {
   }
 
   return new Date(fecha).toLocaleDateString("es-CL");
+}
+
+// --- RF54/RF55 — Adjuntos de tarea ---------------------------------------
+
+function crearFilaAdjuntos(idTarea) {
+  const fila = document.createElement("tr");
+  fila.id = `adjuntos-fila-${idTarea}`;
+  fila.className = "adjuntos-fila";
+  fila.hidden = true;
+
+  const celda = document.createElement("td");
+  celda.colSpan = 10;
+
+  const panel = document.createElement("div");
+  panel.className = "adjuntos-panel";
+
+  const lista = document.createElement("ul");
+  lista.className = "adjuntos-lista";
+  lista.id = `adjuntos-lista-${idTarea}`;
+  panel.appendChild(lista);
+
+  const form = document.createElement("form");
+  form.className = "adjuntos-form";
+
+  const input = document.createElement("input");
+  input.type = "file";
+  input.id = `adjuntos-input-${idTarea}`;
+  form.appendChild(input);
+
+  const botonSubir = document.createElement("button");
+  botonSubir.type = "submit";
+  botonSubir.className = "btn btn-primary btn-small";
+  botonSubir.textContent = "Adjuntar archivo";
+  form.appendChild(botonSubir);
+
+  const aviso = document.createElement("span");
+  aviso.className = "mensaje";
+  aviso.id = `adjuntos-mensaje-${idTarea}`;
+  form.appendChild(aviso);
+
+  form.addEventListener("submit", event => {
+    event.preventDefault();
+    subirAdjunto(idTarea, input, aviso);
+  });
+
+  panel.appendChild(form);
+
+  const ayuda = document.createElement("p");
+  ayuda.className = "redistribuir-carga";
+  ayuda.textContent = `Extensiones permitidas: ${EXTENSIONES_ADJUNTOS_AVISO}.`;
+  panel.appendChild(ayuda);
+
+  celda.appendChild(panel);
+  fila.appendChild(celda);
+
+  return fila;
+}
+
+async function alternarPanelAdjuntos(idTarea) {
+  const fila = document.getElementById(`adjuntos-fila-${idTarea}`);
+
+  if (!fila) return;
+
+  fila.hidden = !fila.hidden;
+
+  if (!fila.hidden) {
+    await cargarAdjuntos(idTarea);
+  }
+}
+
+async function cargarAdjuntos(idTarea) {
+  const lista = document.getElementById(`adjuntos-lista-${idTarea}`);
+  lista.textContent = "";
+
+  const itemCargando = document.createElement("li");
+  itemCargando.textContent = "Cargando adjuntos...";
+  lista.appendChild(itemCargando);
+
+  try {
+    const response = await fetch(`${API_URL}/tareas/${idTarea}/documentos`, {
+      credentials: window.API_CONFIG.credentials
+    });
+    const documentos = await response.json();
+
+    lista.textContent = "";
+
+    if (!response.ok) {
+      const itemError = document.createElement("li");
+      itemError.textContent = documentos.error || "No se pudieron cargar los adjuntos";
+      lista.appendChild(itemError);
+      return;
+    }
+
+    if (documentos.length === 0) {
+      const itemVacio = document.createElement("li");
+      itemVacio.textContent = "Esta tarea todavía no tiene archivos adjuntos.";
+      lista.appendChild(itemVacio);
+      return;
+    }
+
+    documentos.forEach(documento => {
+      lista.appendChild(crearItemAdjunto(documento));
+    });
+
+  } catch (error) {
+    console.error(error);
+    lista.textContent = "";
+    const itemError = document.createElement("li");
+    itemError.textContent = "Error al conectar con el servidor";
+    lista.appendChild(itemError);
+  }
+}
+
+function crearItemAdjunto(documento) {
+  const item = document.createElement("li");
+  item.className = "adjuntos-item";
+
+  const nombre = document.createElement("span");
+  nombre.className = "nombre";
+  nombre.textContent = documento.nombre_documento;
+  item.appendChild(nombre);
+
+  const meta = document.createElement("span");
+  meta.className = "meta";
+  meta.textContent = `subido por ${documento.subido_por} — ${formatearFecha(documento.fecha_subida)}`;
+  item.appendChild(meta);
+
+  const botonDescargar = document.createElement("button");
+  botonDescargar.type = "button";
+  botonDescargar.className = "btn btn-secondary btn-small";
+  botonDescargar.textContent = "Descargar";
+  botonDescargar.addEventListener("click", () => descargarAdjunto(documento.id_documento, documento.nombre_documento));
+  item.appendChild(botonDescargar);
+
+  return item;
+}
+
+async function subirAdjunto(idTarea, input, aviso) {
+  if (!input.files || input.files.length === 0) {
+    aviso.textContent = "Seleccione un archivo";
+    aviso.className = "mensaje error";
+    return;
+  }
+
+  const datosFormulario = new FormData();
+  datosFormulario.append("archivo", input.files[0]);
+
+  aviso.textContent = "Subiendo...";
+  aviso.className = "mensaje";
+
+  try {
+    const response = await fetch(`${API_URL}/tareas/${idTarea}/documentos`, {
+      method: "POST",
+      credentials: window.API_CONFIG.credentials,
+      body: datosFormulario
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      aviso.textContent = data.error || "No se pudo adjuntar el archivo";
+      aviso.className = "mensaje error";
+      return;
+    }
+
+    aviso.textContent = "Archivo adjuntado correctamente";
+    aviso.className = "mensaje success";
+    input.value = "";
+    await cargarAdjuntos(idTarea);
+
+  } catch (error) {
+    console.error(error);
+    aviso.textContent = "Error al conectar con el servidor";
+    aviso.className = "mensaje error";
+  }
+}
+
+async function descargarAdjunto(idDocumento, nombreDocumento) {
+  try {
+    const response = await fetch(`${API_URL}/documentos/${idDocumento}/descargar`, {
+      credentials: window.API_CONFIG.credentials
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      alert(data.error || "No se pudo descargar el archivo");
+      return;
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const enlace = document.createElement("a");
+    enlace.href = url;
+    enlace.download = nombreDocumento;
+    document.body.appendChild(enlace);
+    enlace.click();
+    enlace.remove();
+    window.URL.revokeObjectURL(url);
+
+  } catch (error) {
+    console.error(error);
+    alert("Error al conectar con el servidor");
+  }
+}
+
+// --- RF19 — Reasignando y Redistribuyendo Tareas --------------------------
+
+async function obtenerDestinoSeleccionado() {
+  const usuario = await UsuariosAutocomplete.obtenerUsuarioSeleccionado(
+    "redistribuir_destino_busqueda",
+    { soloActivos: true }
+  );
+
+  return usuario ? Number(usuario.id_usuario) : null;
+}
+
+async function mostrarCargaTrabajo() {
+  const contenedor = document.getElementById("redistribuirCarga");
+
+  if (tareasSeleccionadas.size === 0) {
+    contenedor.textContent = "Seleccione al menos una tarea";
+    return;
+  }
+
+  const idsOrigen = new Set();
+  tareasCache.forEach(tarea => {
+    if (tareasSeleccionadas.has(Number(tarea.id_tarea))) {
+      idsOrigen.add(Number(tarea.id_responsable));
+    }
+  });
+
+  const idDestino = await obtenerDestinoSeleccionado();
+  const idsConsulta = new Set(idsOrigen);
+  if (idDestino) idsConsulta.add(idDestino);
+
+  if (idsConsulta.size === 0) {
+    contenedor.textContent = "";
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `${API_URL}/tareas/carga?ids_usuario=${Array.from(idsConsulta).join(",")}`,
+      { credentials: window.API_CONFIG.credentials }
+    );
+    const carga = await response.json();
+
+    if (!response.ok) {
+      contenedor.textContent = carga.error || "No se pudo consultar la carga";
+      return;
+    }
+
+    const partes = Array.from(idsConsulta).map(id => {
+      const etiqueta = idDestino && id === idDestino ? "destino" : "origen";
+      return `usuario ${id} (${etiqueta}): ${carga[id] ?? 0} tarea(s)`;
+    });
+
+    contenedor.textContent = partes.join(" · ");
+
+  } catch (error) {
+    console.error(error);
+    contenedor.textContent = "Error al conectar con el servidor";
+  }
+}
+
+async function redistribuirSeleccionadas() {
+  if (tareasSeleccionadas.size === 0) {
+    alert("Seleccione al menos una tarea");
+    return;
+  }
+
+  const idResponsable = await obtenerDestinoSeleccionado();
+
+  if (!idResponsable) {
+    alert("Seleccione un responsable de destino de la lista");
+    return;
+  }
+
+  await mostrarCargaTrabajo();
+
+  const confirmar = confirm(
+    `Desea reasignar ${tareasSeleccionadas.size} tarea(s) seleccionada(s) al responsable indicado?`
+  );
+
+  if (!confirmar) return;
+
+  try {
+    const response = await fetch(`${API_URL}/tareas/reasignar-masivo`, {
+      method: "PUT",
+      credentials: window.API_CONFIG.credentials,
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        ids_tarea: Array.from(tareasSeleccionadas),
+        id_responsable: idResponsable
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      alert(data.error || "No se pudieron reasignar las tareas");
+      return;
+    }
+
+    alert(data.message);
+    tareasSeleccionadas.clear();
+    cargarTareasPendientes();
+
+  } catch (error) {
+    console.error(error);
+    alert("Error al conectar con el servidor");
+  }
 }
