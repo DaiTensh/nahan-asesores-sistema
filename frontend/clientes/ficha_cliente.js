@@ -43,6 +43,10 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
+      document.getElementById("resumenEstado").textContent = escapeHtml(data.estado);
+      document.getElementById("resumenArea").textContent = escapeHtml(data.areas_nombres || "Sin área asignada");
+      document.getElementById("resumenTareasActivas").textContent = escapeHtml(data.tareas_activas ?? 0);
+
       document.getElementById("fichaRut").textContent = data.rut;
       document.getElementById("fichaRazonSocial").textContent = data.razon_social;
       document.getElementById("fichaDireccion").textContent = data.direccion || "No registrada";
