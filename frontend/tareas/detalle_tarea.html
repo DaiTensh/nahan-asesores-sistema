@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Detalle de Tarea</title>
+
+  <link rel="stylesheet" href="../assets/css/variables.css">
+  <link rel="stylesheet" href="../assets/css/global.css">
+  <link rel="stylesheet" href="../assets/css/buttons.css">
+  <link rel="stylesheet" href="../assets/css/forms.css">
+  <link rel="stylesheet" href="../assets/css/cards.css">
+  <link rel="stylesheet" href="../assets/css/tables.css">
+  <link rel="stylesheet" href="../assets/css/badges.css">
+  <link rel="stylesheet" href="../assets/css/navigation.css">
+  <link rel="stylesheet" href="../assets/css/topbar.css">
+  <link rel="stylesheet" href="./tareas.css">
+</head>
+<body>
+
+<div class="app-layout">
+
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <div class="content-wrapper">
+
+    <header class="topbar" id="topbar"></header>
+
+    <main class="main-content">
+
+      <section class="tareas-header">
+        <div>
+          <h1 id="detalleTitulo">Detalle de la tarea</h1>
+          <p>Información completa, historial de cambios y archivos adjuntos.</p>
+        </div>
+
+        <div class="tareas-header-actions">
+          <a href="tareas.html" class="btn btn-secondary">Volver al listado</a>
+          <a href="#" id="enlaceEditar" class="btn btn-primary" hidden>Editar tarea</a>
+        </div>
+      </section>
+
+      <p id="detalleMensaje" class="mensaje"></p>
+
+      <section class="tareas-section" id="detalleContenido" hidden>
+        <h2>Antecedentes generales</h2>
+
+        <div class="tarea-detail-grid">
+          <div class="tarea-detail-label">Cliente</div>
+          <div class="tarea-detail-value" id="detalleCliente">-</div>
+          <div class="tarea-detail-label">Área</div>
+          <div class="tarea-detail-value" id="detalleArea">-</div>
+          <div class="tarea-detail-label">Responsable</div>
+          <div class="tarea-detail-value" id="detalleResponsable">-</div>
+          <div class="tarea-detail-label">Creador</div>
+          <div class="tarea-detail-value" id="detalleCreador">-</div>
+          <div class="tarea-detail-label">Estado</div>
+          <div class="tarea-detail-value" id="detalleEstado">-</div>
+          <div class="tarea-detail-label">Prioridad</div>
+          <div class="tarea-detail-value" id="detallePrioridad">-</div>
+          <div class="tarea-detail-label">Fecha de creación</div>
+          <div class="tarea-detail-value" id="detalleFechaCreacion">-</div>
+          <div class="tarea-detail-label">Fecha de vencimiento</div>
+          <div class="tarea-detail-value" id="detalleFechaVencimiento">-</div>
+          <div class="tarea-detail-label">Fecha de finalización</div>
+          <div class="tarea-detail-value" id="detalleFechaFinalizacion">-</div>
+          <div class="tarea-detail-label">Descripción</div>
+          <div class="tarea-detail-value" id="detalleDescripcion">-</div>
+        </div>
+      </section>
+
+      <section class="tareas-section" id="seccionHistorial" hidden>
+        <h2>Historial de cambios</h2>
+
+        <table class="tareas-table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Usuario</th>
+              <th>Acción</th>
+              <th>Valor anterior</th>
+              <th>Valor nuevo</th>
+            </tr>
+          </thead>
+          <tbody id="tablaHistorial"></tbody>
+        </table>
+      </section>
+
+      <section class="tareas-section" id="seccionAdjuntos" hidden>
+        <h2>Archivos adjuntos</h2>
+
+        <ul class="adjuntos-lista" id="detalleAdjuntos"></ul>
+      </section>
+
+    </main>
+
+  </div>
+
+</div>
+
+<script src="../assets/js/api_config.js"></script>
+<script src="../auth/logout.js"></script>
+<script src="../assets/js/navigation.js"></script>
+<script src="../assets/js/topbar.js"></script>
+<script src="../assets/js/permissions.js"></script>
+<script src="./detalle_tarea.js"></script>
+
+<script>
+  cargarNavegacion("tareas");
+  cargarTopbar();
+</script>
+
+</body>
+</html>

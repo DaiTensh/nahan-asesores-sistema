@@ -286,6 +286,12 @@ function accionesTarea(tarea, usuario) {
   const contenedor = document.createElement("div");
   contenedor.className = "tareas-actions";
 
+  const enlaceDetalle = document.createElement("a");
+  enlaceDetalle.className = "btn btn-secondary btn-small";
+  enlaceDetalle.textContent = "Detalle";
+  enlaceDetalle.href = `detalle_tarea.html?id=${tarea.id_tarea}`;
+  contenedor.appendChild(enlaceDetalle);
+
   if (puedeAdministrar) {
     const responsable = document.createElement("input");
     responsable.type = "text";

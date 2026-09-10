@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 
 from flask import Blueprint, request, jsonify
 from backend.config.db import get_connection
@@ -158,6 +159,246 @@ def listar_tareas_pendientes():
     except Exception:
         logger.exception("Error al listar tareas pendientes")
         return jsonify({"error": "Error interno al listar tareas"}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
+@tareas_bp.route("/tareas/<int:id_tarea>", methods=["GET"])
+@login_required
+def obtener_tarea(id_tarea):
+    """RF63 — Visualizando el Detalle Completo de Tarea."""
+    connection = None
+    cursor = None
+    usuario = obtener_usuario_actual()
+
+    try:
+        connection = get_connection()
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            """
+            SELECT
+                t.id_tarea,
+                t.id_cliente,
+                t.id_area,
+                t.id_responsable,
+                t.id_creador,
+                t.titulo,
+                t.descripcion,
+                t.estado,
+                t.prioridad,
+                t.fecha_creacion,
+                t.fecha_vencimiento,
+                t.fecha_inicio,
+                t.fecha_finalizacion,
+                t.observaciones,
+                c.razon_social AS cliente,
+                u.nombres AS responsable,
+                cr.nombres AS creador,
+                a.nombre_area AS area
+            FROM tarea t
+            INNER JOIN cliente c ON t.id_cliente = c.id_cliente
+            INNER JOIN usuario u ON t.id_responsable = u.id_usuario
+            INNER JOIN usuario cr ON t.id_creador = cr.id_usuario
+            INNER JOIN area a ON t.id_area = a.id_area
+            WHERE t.id_tarea = %s
+            """,
+            (id_tarea,)
+        )
+        tarea = cursor.fetchone()
+
+        if not tarea:
+            return jsonify({"error": "Tarea no encontrada"}), 404
+
+        # Un usuario sin rol ADMINISTRADOR solo puede abrir el detalle de
+        # tareas donde es responsable (RF63).
+        if (
+            usuario["nombre_rol"] != ROL_ADMINISTRADOR
+            and usuario["id_usuario"] != tarea["id_responsable"]
+        ):
+            return jsonify({"error": "No tiene acceso a esta tarea"}), 403
+
+        # El historial de cambios se arma a partir de auditoria: no existe una
+        # columna id_tarea allí, así que se filtra por el mismo prefijo que ya
+        # escribe la reasignación masiva ("id_tarea=<id>, ..."), tanto en el
+        # valor anterior como en el nuevo.
+        patron_tarea = f"id_tarea={id_tarea},%"
+        cursor.execute(
+            """
+            SELECT a.accion, a.datos_anteriores, a.datos_nuevos, a.fecha, u.nombres AS usuario
+            FROM auditoria a
+            INNER JOIN usuario u ON u.id_usuario = a.id_usuario
+            WHERE a.tabla_afectada = 'tarea'
+              AND (a.datos_anteriores LIKE %s OR a.datos_nuevos LIKE %s)
+            ORDER BY a.fecha DESC
+            """,
+            (patron_tarea, patron_tarea)
+        )
+        tarea["historial"] = cursor.fetchall()
+
+        return jsonify(tarea), 200
+
+    except Exception:
+        logger.exception("Error al obtener detalle de tarea")
+        return jsonify({"error": "Error interno al obtener la tarea"}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
+def _fecha_a_date(valor):
+    """Normaliza a `date` tanto el datetime/date que entrega mysql-connector
+    como el texto ISO que devuelve SQLite en los tests."""
+    if isinstance(valor, str):
+        return datetime.strptime(valor[:10], "%Y-%m-%d").date()
+    if isinstance(valor, datetime):
+        return valor.date()
+    return valor
+
+
+@tareas_bp.route("/tareas/<int:id_tarea>", methods=["PUT"])
+@login_required
+def editar_tarea(id_tarea):
+    """RF64 — Editando Tareas Existentes."""
+    connection = None
+    cursor = None
+    data = request.get_json()
+    usuario = obtener_usuario_actual()
+
+    titulo = (data.get("titulo") or "").strip()
+    descripcion = data.get("descripcion")
+    id_responsable = data.get("id_responsable")
+    prioridad = data.get("prioridad")
+    fecha_vencimiento = data.get("fecha_vencimiento") or None
+
+    prioridades_validas = ["BAJA", "MEDIA", "ALTA", "URGENTE"]
+
+    if not titulo:
+        return jsonify({"error": "El título es obligatorio"}), 400
+
+    if not id_responsable:
+        return jsonify({"error": "Debe seleccionar un responsable"}), 400
+
+    try:
+        id_responsable = int(id_responsable)
+    except (TypeError, ValueError):
+        return jsonify({"error": "El responsable seleccionado no es válido"}), 400
+
+    if prioridad not in prioridades_validas:
+        return jsonify({"error": "Prioridad no válida"}), 400
+
+    if fecha_vencimiento:
+        try:
+            fecha_vencimiento_valor = datetime.strptime(fecha_vencimiento, "%Y-%m-%d").date()
+        except ValueError:
+            return jsonify({"error": "La fecha de vencimiento no es válida"}), 400
+
+    try:
+        connection = get_connection()
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            """
+            SELECT id_tarea, id_responsable, titulo, descripcion, estado,
+                   prioridad, fecha_vencimiento, fecha_creacion
+            FROM tarea
+            WHERE id_tarea = %s
+            """,
+            (id_tarea,)
+        )
+        tarea = cursor.fetchone()
+
+        if not tarea:
+            return jsonify({"error": "Tarea no encontrada"}), 404
+
+        # Mismo criterio de acceso que el detalle (RF63): quien no es
+        # ADMINISTRADOR solo puede tocar sus propias tareas.
+        if (
+            usuario["nombre_rol"] != ROL_ADMINISTRADOR
+            and usuario["id_usuario"] != tarea["id_responsable"]
+        ):
+            return jsonify({"error": "No tiene acceso a esta tarea"}), 403
+
+        if tarea["estado"] in ESTADOS_FINALES:
+            return jsonify({
+                "error": "No se puede editar una tarea COMPLETADA o CANCELADA"
+            }), 409
+
+        if fecha_vencimiento:
+            fecha_creacion_valor = _fecha_a_date(tarea["fecha_creacion"])
+
+            if fecha_vencimiento_valor < fecha_creacion_valor:
+                return jsonify({
+                    "error": "La fecha de vencimiento no puede ser anterior a la fecha de creación"
+                }), 400
+
+        cursor.execute(
+            """
+            SELECT id_usuario, estado
+            FROM usuario
+            WHERE id_usuario = %s
+            """,
+            (id_responsable,)
+        )
+        responsable = cursor.fetchone()
+
+        if not responsable or responsable["estado"] != "ACTIVO":
+            return jsonify({"error": "El responsable seleccionado no es válido"}), 422
+
+        valor_anterior_vencimiento = (
+            str(tarea["fecha_vencimiento"]) if tarea["fecha_vencimiento"] else None
+        )
+
+        cambios = [
+            ("titulo", tarea["titulo"], titulo),
+            ("descripcion", tarea["descripcion"], descripcion),
+            ("id_responsable", tarea["id_responsable"], id_responsable),
+            ("prioridad", tarea["prioridad"], prioridad),
+            ("fecha_vencimiento", valor_anterior_vencimiento, fecha_vencimiento),
+        ]
+
+        cursor.execute(
+            """
+            UPDATE tarea
+            SET titulo = %s, descripcion = %s, id_responsable = %s,
+                prioridad = %s, fecha_vencimiento = %s
+            WHERE id_tarea = %s
+            """,
+            (titulo, descripcion, id_responsable, prioridad, fecha_vencimiento, id_tarea)
+        )
+
+        for campo, valor_anterior, valor_nuevo in cambios:
+            if valor_anterior == valor_nuevo:
+                continue
+
+            cursor.execute(
+                """
+                INSERT INTO auditoria (id_usuario, tabla_afectada, accion, datos_anteriores, datos_nuevos)
+                VALUES (%s, 'tarea', 'EDICION', %s, %s)
+                """,
+                (
+                    usuario["id_usuario"],
+                    f"id_tarea={id_tarea}, {campo}={valor_anterior}",
+                    f"id_tarea={id_tarea}, {campo}={valor_nuevo}"
+                )
+            )
+
+        connection.commit()
+
+        return jsonify({"message": "Tarea actualizada correctamente"}), 200
+
+    except Exception:
+        if connection:
+            connection.rollback()
+        logger.exception("Error al editar tarea")
+        return jsonify({"error": "Error interno al editar la tarea"}), 500
 
     finally:
         if cursor:
