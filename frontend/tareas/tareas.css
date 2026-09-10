@@ -12,6 +12,60 @@
   color: var(--color-text-light);
 }
 
+.tareas-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.tareas-header-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tarea-detail-grid {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.tarea-detail-label,
+.tarea-detail-value {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tarea-detail-label {
+  background: #f9fafb;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.tarea-detail-value {
+  color: var(--color-text-light);
+  white-space: pre-wrap;
+}
+
+.tarea-detail-label:last-of-type,
+.tarea-detail-value:last-of-type {
+  border-bottom: none;
+}
+
+@media (max-width: 640px) {
+  .tarea-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tarea-detail-label {
+    border-bottom: none;
+  }
+}
+
 .tareas-cards {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -150,6 +204,32 @@
 .badge.prioridad-urgente {
   background: #fee2e2;
   color: #dc2626;
+}
+
+.tareas-filtros {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.tareas-filtro-estado {
+  max-width: 320px;
+  margin-bottom: 0;
+}
+
+.tareas-filtro-responsable {
+  margin-bottom: 0;
+}
+
+.tareas-filtro-responsable-input {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.tareas-filtro-responsable-input input {
+  width: 220px;
 }
 
 .redistribuir-bar {
