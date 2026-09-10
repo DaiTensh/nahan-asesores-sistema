@@ -1635,7 +1635,7 @@ def test_control_horas_administrador_mantiene_consulta_autorizada_de_otro_usuari
 
 
 def test_navegacion_mantiene_unico_modulo_operativo_clientes():
-    source = (ROOT_DIR / "frontend/assets/js/navigation.js").read_text()
+    source = (ROOT_DIR / "frontend/assets/js/navigation.js").read_text(encoding="utf-8")
 
     assert 'href: "../clientes/listar_clientes.html"' in source
     assert "Gestión de clientes" not in source
@@ -1643,7 +1643,7 @@ def test_navegacion_mantiene_unico_modulo_operativo_clientes():
 
 
 def test_administrador_puede_ver_opcion_quitar_cliente():
-    source = (ROOT_DIR / "frontend/clientes/listar_clientes.js").read_text()
+    source = (ROOT_DIR / "frontend/clientes/listar_clientes.js").read_text(encoding="utf-8")
     admin_block = source.split("if (esAdmin) {", 1)[1]
 
     assert 'usuarioActual.nombre_rol === "ADMINISTRADOR"' in source
@@ -1651,7 +1651,7 @@ def test_administrador_puede_ver_opcion_quitar_cliente():
 
 
 def test_juridico_no_recibe_opcion_quitar_cliente():
-    source = (ROOT_DIR / "frontend/clientes/listar_clientes.js").read_text()
+    source = (ROOT_DIR / "frontend/clientes/listar_clientes.js").read_text(encoding="utf-8")
     before_admin_block = source.split("if (esAdmin) {", 1)[0]
 
     assert "localStorage" not in source
@@ -1659,7 +1659,7 @@ def test_juridico_no_recibe_opcion_quitar_cliente():
 
 
 def test_contable_no_recibe_opcion_quitar_cliente():
-    source = (ROOT_DIR / "frontend/clientes/listar_clientes.js").read_text()
+    source = (ROOT_DIR / "frontend/clientes/listar_clientes.js").read_text(encoding="utf-8")
 
     assert "obtenerUsuarioActual()" in source
     assert source.count("eliminar_cliente.html?id=${cliente.id_cliente}") == 1
