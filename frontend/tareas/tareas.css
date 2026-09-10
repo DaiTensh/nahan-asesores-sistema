@@ -206,6 +206,32 @@
   color: #dc2626;
 }
 
+.tareas-filtros {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.tareas-filtro-estado {
+  max-width: 320px;
+  margin-bottom: 0;
+}
+
+.tareas-filtro-responsable {
+  margin-bottom: 0;
+}
+
+.tareas-filtro-responsable-input {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.tareas-filtro-responsable-input input {
+  width: 220px;
+}
+
 .redistribuir-bar {
   display: flex;
   align-items: center;
