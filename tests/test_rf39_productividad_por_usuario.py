@@ -32,8 +32,8 @@ def _handler(usuarios, completadas, carga, area_valida=True):
         if "SELECT id_responsable, COUNT(*) AS total FROM tarea" in sql_normalizado:
             return [f.copy() for f in carga]
 
-        if "SELECT DATE_FORMAT(fecha_generacion" in sql_normalizado:
-            return [{"fecha_generacion": "10-09-2026 12:00"}]
+        if "DATE_FORMAT(fecha_generacion" in sql_normalizado:
+            return [{"id_reporte": 1, "fecha_generacion": "10-09-2026 12:00"}]
 
         return []
 
