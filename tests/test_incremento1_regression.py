@@ -345,6 +345,8 @@ def test_creacion_de_tarea(client, fake_connection_factory, monkeypatch, iniciar
 def test_actualizacion_de_estado_de_tarea(client, fake_connection_factory, monkeypatch, iniciar_sesion):
     iniciar_sesion()
     def handler(sql, params, cursor):
+        if "SELECT estado FROM tarea" in normalize_sql(sql):
+            return [{"estado": "PENDIENTE"}]
         return []
 
     connection = fake_connection_factory(handler)
@@ -1097,7 +1099,12 @@ def test_usuario_juridico_puede_usar_estado_operativo(
 ):
     iniciar_sesion(usuario_id=2, rol_id=2, area_id=1)
 
-    connection = fake_connection_factory(lambda sql, params, cursor: [])
+    def handler(sql, params, cursor):
+        if "SELECT estado FROM tarea" in normalize_sql(sql):
+            return [{"estado": "PENDIENTE"}]
+        return []
+
+    connection = fake_connection_factory(handler)
     monkeypatch.setattr(tareas_routes, "get_connection", lambda: connection)
 
     response = client.put("/api/tareas/50/estado", json={"estado": "EN_PROCESO"})
@@ -1114,7 +1121,12 @@ def test_usuario_contable_puede_usar_estado_operativo(
 ):
     iniciar_sesion(usuario_id=3, rol_id=3, area_id=2)
 
-    connection = fake_connection_factory(lambda sql, params, cursor: [])
+    def handler(sql, params, cursor):
+        if "SELECT estado FROM tarea" in normalize_sql(sql):
+            return [{"estado": "PENDIENTE"}]
+        return []
+
+    connection = fake_connection_factory(handler)
     monkeypatch.setattr(tareas_routes, "get_connection", lambda: connection)
 
     response = client.put("/api/tareas/51/estado", json={"estado": "EN_REVISION"})
@@ -1151,7 +1163,12 @@ def test_administrador_puede_cancelar_tarea(
 ):
     iniciar_sesion(usuario_id=1, rol_id=1, area_id=3)
 
-    connection = fake_connection_factory(lambda sql, params, cursor: [])
+    def handler(sql, params, cursor):
+        if "SELECT estado FROM tarea" in normalize_sql(sql):
+            return [{"estado": "PENDIENTE"}]
+        return []
+
+    connection = fake_connection_factory(handler)
     monkeypatch.setattr(tareas_routes, "get_connection", lambda: connection)
 
     response = client.put("/api/tareas/52/estado", json={"estado": "CANCELADA"})
@@ -1168,7 +1185,12 @@ def test_administrador_puede_completar_tarea(
 ):
     iniciar_sesion(usuario_id=1, rol_id=1, area_id=3)
 
-    connection = fake_connection_factory(lambda sql, params, cursor: [])
+    def handler(sql, params, cursor):
+        if "SELECT estado FROM tarea" in normalize_sql(sql):
+            return [{"estado": "PENDIENTE"}]
+        return []
+
+    connection = fake_connection_factory(handler)
     monkeypatch.setattr(tareas_routes, "get_connection", lambda: connection)
 
     response = client.put("/api/tareas/53/estado", json={"estado": "COMPLETADA"})

@@ -521,23 +521,51 @@ def actualizar_estado_tarea(id_tarea):
 
     try:
         connection = get_connection()
-        cursor = connection.cursor()
+        cursor = connection.cursor(dictionary=True)
 
-        sql = """
-            UPDATE tarea
-            SET estado = %s
-            WHERE id_tarea = %s
-        """
+        cursor.execute("SELECT estado FROM tarea WHERE id_tarea = %s", (id_tarea,))
+        tarea = cursor.fetchone()
 
-        cursor.execute(sql, (estado, id_tarea))
-        connection.commit()
-
-        if cursor.rowcount == 0:
+        if not tarea:
             return jsonify({"error": "Tarea no encontrada"}), 404
+
+        if estado == "COMPLETADA":
+            # RF65 — Marcando Tarea como Completada: además de cerrar el
+            # estado se registra la hora exacta del cierre; quién la
+            # completó queda en auditoria, igual que el resto de los
+            # cambios sobre tarea (RF64, RF16).
+            cursor.execute(
+                """
+                UPDATE tarea
+                SET estado = %s, fecha_finalizacion = CURRENT_TIMESTAMP
+                WHERE id_tarea = %s
+                """,
+                (estado, id_tarea)
+            )
+            cursor.execute(
+                """
+                INSERT INTO auditoria (id_usuario, tabla_afectada, accion, datos_anteriores, datos_nuevos)
+                VALUES (%s, 'tarea', 'COMPLETAR_TAREA', %s, %s)
+                """,
+                (
+                    usuario["id_usuario"],
+                    f"id_tarea={id_tarea}, estado={tarea['estado']}",
+                    f"id_tarea={id_tarea}, estado=COMPLETADA"
+                )
+            )
+        else:
+            cursor.execute(
+                "UPDATE tarea SET estado = %s WHERE id_tarea = %s",
+                (estado, id_tarea)
+            )
+
+        connection.commit()
 
         return jsonify({"message": "Estado actualizado correctamente"}), 200
 
     except Exception:
+        if connection:
+            connection.rollback()
         logger.exception("Error al actualizar estado de tarea")
         return jsonify({"error": "Error interno al actualizar estado"}), 500
 
