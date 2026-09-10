@@ -96,7 +96,7 @@ CREATE TABLE documento (
     id_cliente INT NOT NULL,
     nombre_documento VARCHAR(200) NOT NULL,
     -- Tipo del documento (p. ej. "Contrato", "Factura"). Solo lo completan
-    -- las referencias de RF07; los adjuntos de tarea de RF54 lo dejan NULL.
+    -- las referencias de RF07. Los adjuntos de tarea de RF54 lo dejan NULL.
     tipo_documento VARCHAR(60),
     url_archivo VARCHAR(255) NOT NULL,
     descripcion TEXT,

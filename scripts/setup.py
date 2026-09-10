@@ -66,7 +66,8 @@ def py_venv():
 
 
 def correr(cmd, **kw):
-    return subprocess.run(cmd, cwd=RAIZ, capture_output=True, text=True, **kw)
+    return subprocess.run(cmd, cwd=RAIZ, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", **kw)
 
 
 # --------------------------------------------------------------------- pasos

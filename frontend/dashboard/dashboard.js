@@ -14,6 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
   cargarDatosUsuario();
   cargarResumenUsuarios();
   cargarResumenClientes();
+  cargarTareasVencidas();
 });
 
 function formatearRol(rol) {
@@ -184,6 +185,57 @@ function cargarTablaClientes(clientes) {
           <a href="../clientes/modificar_clientes.html?id=${encodeURIComponent(cliente.id_cliente)}">Editar</a>
         </div>
       </td>
+    `;
+
+    tabla.appendChild(fila);
+  });
+}
+
+async function cargarTareasVencidas() {
+  try {
+    const response = await fetch(`${API_URL}/tareas/vencidas`, {
+      credentials: window.API_CONFIG.credentials
+    });
+    const tareas = await leerRespuestaJson(response);
+
+    if (!response.ok) {
+      console.error(tareas.error || "Error al cargar tareas vencidas");
+      return;
+    }
+
+    cargarTablaTareasVencidas(tareas);
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+function cargarTablaTareasVencidas(tareas) {
+  const tabla = document.getElementById("tablaTareasVencidas");
+  tabla.innerHTML = "";
+
+  if (tareas.length === 0) {
+    tabla.innerHTML = `
+      <tr>
+        <td colspan="6">No hay tareas vencidas.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  tareas.forEach(tarea => {
+    const fila = document.createElement("tr");
+
+    fila.innerHTML = `
+      <td>${escapeHtml(tarea.titulo)}</td>
+      <td>${escapeHtml(tarea.cliente)}</td>
+      <td>${escapeHtml(tarea.responsable)}</td>
+      <td>
+        <span class="badge prioridad-${escapeHtml(tarea.prioridad.toLowerCase())}">
+          ${escapeHtml(tarea.prioridad)}
+        </span>
+      </td>
+      <td>${escapeHtml(tarea.fecha_vencimiento)}</td>
+      <td>${escapeHtml(tarea.dias_retraso)}</td>
     `;
 
     tabla.appendChild(fila);
