@@ -24,6 +24,19 @@
   margin-bottom: 18px;
 }
 
+.reportes-resultado-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.reportes-resultado-header h2 {
+  margin-bottom: 0;
+}
+
 .reportes-form {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
