@@ -125,6 +125,85 @@
       </section>
 
       <section class="dashboard-section">
+        <h2>Tareas por estado</h2>
+
+        <div class="dashboard-cards" id="resumenEstadoTareas">
+          <div class="dashboard-card">
+            <p>Pendientes</p>
+            <h2 id="resumenPendiente">0</h2>
+          </div>
+
+          <div class="dashboard-card">
+            <p>En proceso</p>
+            <h2 id="resumenEnProceso">0</h2>
+          </div>
+
+          <div class="dashboard-card">
+            <p>En revisión</p>
+            <h2 id="resumenEnRevision">0</h2>
+          </div>
+
+          <div class="dashboard-card">
+            <p>Completadas</p>
+            <h2 id="resumenCompletada">0</h2>
+          </div>
+
+          <div class="dashboard-card">
+            <p>Canceladas</p>
+            <h2 id="resumenCancelada">0</h2>
+          </div>
+        </div>
+      </section>
+
+      <section class="dashboard-section">
+        <h2>Mis tareas prioritarias</h2>
+
+        <table class="dashboard-table">
+          <thead>
+            <tr>
+              <th>Título</th>
+              <th>Cliente</th>
+              <th>Prioridad</th>
+              <th>Estado</th>
+              <th>Vencimiento</th>
+            </tr>
+          </thead>
+
+          <tbody id="tablaTareasPrioritarias"></tbody>
+        </table>
+      </section>
+
+      <section class="dashboard-section">
+        <div class="dashboard-section-header">
+          <h2>Tareas próximas a vencer</h2>
+          <div class="form-group">
+            <label class="form-label" for="inputDiasPorVencer">En los próximos</label>
+            <select id="inputDiasPorVencer" class="form-input">
+              <option value="3">3 días</option>
+              <option value="7" selected>7 días</option>
+              <option value="15">15 días</option>
+              <option value="30">30 días</option>
+            </select>
+          </div>
+        </div>
+
+        <table class="dashboard-table">
+          <thead>
+            <tr>
+              <th>Título</th>
+              <th>Cliente</th>
+              <th>Responsable</th>
+              <th>Prioridad</th>
+              <th>Vencimiento</th>
+              <th>Días restantes</th>
+            </tr>
+          </thead>
+
+          <tbody id="tablaTareasPorVencer"></tbody>
+        </table>
+      </section>
+
+      <section class="dashboard-section">
         <h2>Últimos clientes registrados</h2>
 
         <table class="dashboard-table">

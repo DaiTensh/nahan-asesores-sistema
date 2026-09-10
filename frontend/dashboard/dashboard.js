@@ -15,6 +15,12 @@ document.addEventListener("DOMContentLoaded", () => {
   cargarResumenUsuarios();
   cargarResumenClientes();
   cargarTareasVencidas();
+  cargarTareasPrioritarias();
+  cargarResumenTareas();
+
+  const inputDias = document.getElementById("inputDiasPorVencer");
+  cargarTareasPorVencer(inputDias.value);
+  inputDias.addEventListener("change", () => cargarTareasPorVencer(inputDias.value));
 });
 
 function formatearRol(rol) {
@@ -240,6 +246,133 @@ function cargarTablaTareasVencidas(tareas) {
 
     tabla.appendChild(fila);
   });
+}
+
+async function cargarTareasPorVencer(dias) {
+  try {
+    const response = await fetch(`${API_URL}/tareas/por-vencer?dias=${encodeURIComponent(dias)}`, {
+      credentials: window.API_CONFIG.credentials
+    });
+    const tareas = await leerRespuestaJson(response);
+
+    if (!response.ok) {
+      console.error(tareas.error || "Error al cargar tareas próximas a vencer");
+      return;
+    }
+
+    cargarTablaTareasPorVencer(tareas);
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+function cargarTablaTareasPorVencer(tareas) {
+  const tabla = document.getElementById("tablaTareasPorVencer");
+  tabla.innerHTML = "";
+
+  if (tareas.length === 0) {
+    tabla.innerHTML = `
+      <tr>
+        <td colspan="6">No hay tareas próximas a vencer en este período.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  tareas.forEach(tarea => {
+    const fila = document.createElement("tr");
+
+    fila.innerHTML = `
+      <td>${escapeHtml(tarea.titulo)}</td>
+      <td>${escapeHtml(tarea.cliente)}</td>
+      <td>${escapeHtml(tarea.responsable)}</td>
+      <td>
+        <span class="badge prioridad-${escapeHtml(tarea.prioridad.toLowerCase())}">
+          ${escapeHtml(tarea.prioridad)}
+        </span>
+      </td>
+      <td>${escapeHtml(tarea.fecha_vencimiento)}</td>
+      <td>${escapeHtml(tarea.dias_restantes)}</td>
+    `;
+
+    tabla.appendChild(fila);
+  });
+}
+
+async function cargarTareasPrioritarias() {
+  try {
+    const response = await fetch(`${API_URL}/tareas/prioritarias`, {
+      credentials: window.API_CONFIG.credentials
+    });
+    const tareas = await leerRespuestaJson(response);
+
+    if (!response.ok) {
+      console.error(tareas.error || "Error al cargar tareas prioritarias");
+      return;
+    }
+
+    cargarTablaTareasPrioritarias(tareas);
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+function cargarTablaTareasPrioritarias(tareas) {
+  const tabla = document.getElementById("tablaTareasPrioritarias");
+  tabla.innerHTML = "";
+
+  if (tareas.length === 0) {
+    tabla.innerHTML = `
+      <tr>
+        <td colspan="5">No tienes tareas prioritarias pendientes.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  tareas.forEach(tarea => {
+    const fila = document.createElement("tr");
+
+    fila.innerHTML = `
+      <td>${escapeHtml(tarea.titulo)}</td>
+      <td>${escapeHtml(tarea.cliente)}</td>
+      <td>
+        <span class="badge prioridad-${escapeHtml(tarea.prioridad.toLowerCase())}">
+          ${escapeHtml(tarea.prioridad)}
+        </span>
+      </td>
+      <td>
+        <span class="badge ${escapeHtml(tarea.estado.toLowerCase())}">
+          ${escapeHtml(tarea.estado)}
+        </span>
+      </td>
+      <td>${escapeHtml(tarea.fecha_vencimiento || "Sin fecha")}</td>
+    `;
+
+    tabla.appendChild(fila);
+  });
+}
+
+async function cargarResumenTareas() {
+  try {
+    const response = await fetch(`${API_URL}/tareas/resumen`, {
+      credentials: window.API_CONFIG.credentials
+    });
+    const resumen = await leerRespuestaJson(response);
+
+    if (!response.ok) {
+      console.error(resumen.error || "Error al cargar el resumen de tareas");
+      return;
+    }
+
+    document.getElementById("resumenPendiente").textContent = resumen.PENDIENTE ?? 0;
+    document.getElementById("resumenEnProceso").textContent = resumen.EN_PROCESO ?? 0;
+    document.getElementById("resumenEnRevision").textContent = resumen.EN_REVISION ?? 0;
+    document.getElementById("resumenCompletada").textContent = resumen.COMPLETADA ?? 0;
+    document.getElementById("resumenCancelada").textContent = resumen.CANCELADA ?? 0;
+  } catch (error) {
+    console.error(error);
+  }
 }
 
 async function leerRespuestaJson(response) {
