@@ -27,6 +27,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const resultadoFechaGeneracion = document.getElementById("resultadoFechaGeneracion");
   const resumenEstadoCards = document.getElementById("resumenEstadoCards");
   const tablaTareasReporte = document.getElementById("tablaTareasReporte");
+  const btnExportarExcel = document.getElementById("btnExportarExcel");
+
+  let idReporteActual = null;
 
   cargarClientes();
   cargarResponsables();
@@ -169,8 +172,44 @@ document.addEventListener("DOMContentLoaded", () => {
     renderizarResumenEstado(data.resumen_por_estado || {});
     renderizarTareas(data.tareas || []);
 
+    idReporteActual = data.id_reporte || null;
+    btnExportarExcel.hidden = !idReporteActual;
+
     resultado.hidden = false;
   }
+
+  btnExportarExcel.addEventListener("click", async () => {
+    if (!idReporteActual) return;
+
+    try {
+      const response = await fetch(`${API_URL}/reportes/${idReporteActual}/excel`, {
+        credentials: window.API_CONFIG.credentials
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        mostrarMensaje(data.error || "No se pudo exportar el reporte.", "error");
+        return;
+      }
+
+      const disposicion = response.headers.get("Content-Disposition") || "";
+      const coincidencia = disposicion.match(/filename="?([^"]+)"?/);
+      const nombreArchivo = coincidencia ? coincidencia[1] : "reporte.xlsx";
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const enlace = document.createElement("a");
+      enlace.href = url;
+      enlace.download = nombreArchivo;
+      document.body.appendChild(enlace);
+      enlace.click();
+      enlace.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error(error);
+      mostrarMensaje("Error al conectar con el servidor.", "error");
+    }
+  });
 
   function renderizarResumenEstado(resumen) {
     resumenEstadoCards.textContent = "";
