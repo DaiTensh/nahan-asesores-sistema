@@ -1,0 +1,11 @@
+[Unit]
+Description=Nahan Asesores - Notificacion de vencimientos proximos (RF53)
+After=network.target mysql.service
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=www-data
+WorkingDirectory=/var/www/nahan-asesores
+EnvironmentFile=/var/www/nahan-asesores/.env
+ExecStart=/var/www/nahan-asesores/venv/bin/python -m backend.tareas_programadas

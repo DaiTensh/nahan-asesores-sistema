@@ -345,8 +345,8 @@ def test_creacion_de_tarea(client, fake_connection_factory, monkeypatch, iniciar
 def test_actualizacion_de_estado_de_tarea(client, fake_connection_factory, monkeypatch, iniciar_sesion):
     iniciar_sesion()
     def handler(sql, params, cursor):
-        if "SELECT estado FROM tarea" in normalize_sql(sql):
-            return [{"estado": "PENDIENTE"}]
+        if "SELECT estado, id_responsable, titulo FROM tarea" in normalize_sql(sql):
+            return [{"estado": "PENDIENTE", "id_responsable": 99, "titulo": "Tarea de prueba"}]
         return []
 
     connection = fake_connection_factory(handler)
@@ -1100,8 +1100,8 @@ def test_usuario_juridico_puede_usar_estado_operativo(
     iniciar_sesion(usuario_id=2, rol_id=2, area_id=1)
 
     def handler(sql, params, cursor):
-        if "SELECT estado FROM tarea" in normalize_sql(sql):
-            return [{"estado": "PENDIENTE"}]
+        if "SELECT estado, id_responsable, titulo FROM tarea" in normalize_sql(sql):
+            return [{"estado": "PENDIENTE", "id_responsable": 99, "titulo": "Tarea de prueba"}]
         return []
 
     connection = fake_connection_factory(handler)
@@ -1122,8 +1122,8 @@ def test_usuario_contable_puede_usar_estado_operativo(
     iniciar_sesion(usuario_id=3, rol_id=3, area_id=2)
 
     def handler(sql, params, cursor):
-        if "SELECT estado FROM tarea" in normalize_sql(sql):
-            return [{"estado": "PENDIENTE"}]
+        if "SELECT estado, id_responsable, titulo FROM tarea" in normalize_sql(sql):
+            return [{"estado": "PENDIENTE", "id_responsable": 99, "titulo": "Tarea de prueba"}]
         return []
 
     connection = fake_connection_factory(handler)
@@ -1164,8 +1164,8 @@ def test_administrador_puede_cancelar_tarea(
     iniciar_sesion(usuario_id=1, rol_id=1, area_id=3)
 
     def handler(sql, params, cursor):
-        if "SELECT estado FROM tarea" in normalize_sql(sql):
-            return [{"estado": "PENDIENTE"}]
+        if "SELECT estado, id_responsable, titulo FROM tarea" in normalize_sql(sql):
+            return [{"estado": "PENDIENTE", "id_responsable": 99, "titulo": "Tarea de prueba"}]
         return []
 
     connection = fake_connection_factory(handler)
@@ -1186,8 +1186,8 @@ def test_administrador_puede_completar_tarea(
     iniciar_sesion(usuario_id=1, rol_id=1, area_id=3)
 
     def handler(sql, params, cursor):
-        if "SELECT estado FROM tarea" in normalize_sql(sql):
-            return [{"estado": "PENDIENTE"}]
+        if "SELECT estado, id_responsable, titulo FROM tarea" in normalize_sql(sql):
+            return [{"estado": "PENDIENTE", "id_responsable": 99, "titulo": "Tarea de prueba"}]
         return []
 
     connection = fake_connection_factory(handler)

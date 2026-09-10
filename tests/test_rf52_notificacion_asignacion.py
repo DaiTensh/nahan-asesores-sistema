@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""RF65 — Marcando Tarea como Completada.
+"""RF52 — Notificando Nuevas Asignaciones.
 
-PUT /api/tareas/<id>/estado con estado=COMPLETADA sigue restringido a
-ADMINISTRADOR (igual que hoy con cualquier estado final), pero además
-registra fecha_finalizacion y deja en auditoria quién cerró la tarea.
-Corre sobre SQLite en memoria, igual que los demás tests de tareas.
+El caso "se notifica al nuevo responsable" ya está cubierto por
+test_rf16_reasignacion_individual.py (PUT /api/tareas/<id>/asignar comparte
+la misma ruta). Este archivo cubre el criterio de aceptación que falta ahí:
+no notificar a quien ejecuta la acción sobre sí mismo.
 """
 import sqlite3
 
@@ -24,8 +24,7 @@ CREATE TABLE usuario (
 CREATE TABLE cliente (id_cliente INTEGER PRIMARY KEY AUTOINCREMENT, razon_social TEXT);
 CREATE TABLE tarea (
     id_tarea INTEGER PRIMARY KEY AUTOINCREMENT, id_cliente INTEGER, id_area INTEGER,
-    id_responsable INTEGER, id_creador INTEGER, titulo TEXT,
-    estado TEXT DEFAULT 'PENDIENTE', fecha_finalizacion DATETIME);
+    id_responsable INTEGER, id_creador INTEGER, titulo TEXT, estado TEXT DEFAULT 'PENDIENTE');
 CREATE TABLE auditoria (
     id_auditoria INTEGER PRIMARY KEY AUTOINCREMENT, id_usuario INTEGER,
     tabla_afectada TEXT, accion TEXT, datos_anteriores TEXT, datos_nuevos TEXT,
@@ -38,12 +37,12 @@ CREATE TABLE notificacion (
 INSERT INTO rol (nombre_rol) VALUES ('ADMINISTRADOR'), ('USUARIO_AREA_CONTABLE');
 INSERT INTO area (nombre_area) VALUES ('ADMINISTRACION'), ('CONTABLE');
 INSERT INTO usuario (id_rol, id_area, nombres, email, password_hash, estado) VALUES
- (1, 1, 'Admin Nahan',      'admin@nahan.local',      'hash', 'ACTIVO'),
- (2, 2, 'Responsable Uno',  'responsable@nahan.local','hash', 'ACTIVO');
+ (1, 1, 'Admin Nahan',   'admin@nahan.local',   'hash', 'ACTIVO'),
+ (2, 2, 'Otro Usuario',  'otro@nahan.local',    'hash', 'ACTIVO');
 
 INSERT INTO cliente (razon_social) VALUES ('Cliente de prueba');
 INSERT INTO tarea (id_cliente, id_area, id_responsable, id_creador, titulo, estado) VALUES
- (1, 2, 2, 1, 'Tarea en proceso', 'EN_PROCESO');
+ (1, 2, 2, 1, 'Tarea de Otro Usuario', 'PENDIENTE');
 """
 
 
@@ -125,66 +124,21 @@ def _login(cliente, email):
     return cliente.post("/api/login", json={"email": email, "password": "x"})
 
 
-# --------------------------------------------------------------------------
+def _id_tarea(base, titulo):
+    return base.execute(
+        "SELECT id_tarea FROM tarea WHERE titulo = ?", (titulo,)
+    ).fetchone()["id_tarea"]
 
-def test_el_administrador_puede_completar_la_tarea(cliente, base):
+
+def test_no_se_notifica_la_autoasignacion(cliente, base):
     _login(cliente, "admin@nahan.local")
+    id_tarea = _id_tarea(base, "Tarea de Otro Usuario")
 
-    respuesta = cliente.put("/api/tareas/1/estado", json={"estado": "COMPLETADA"})
+    respuesta = cliente.put(
+        f"/api/tareas/{id_tarea}/asignar", json={"id_responsable": 1}
+    )
 
     assert respuesta.status_code == 200
-
-    fila = base.execute(
-        "SELECT estado, fecha_finalizacion FROM tarea WHERE id_tarea = 1"
-    ).fetchone()
-    assert fila["estado"] == "COMPLETADA"
-    assert fila["fecha_finalizacion"] is not None
-
-
-def test_un_usuario_no_administrador_no_puede_completar_la_tarea(cliente, base):
-    _login(cliente, "responsable@nahan.local")
-
-    respuesta = cliente.put("/api/tareas/1/estado", json={"estado": "COMPLETADA"})
-
-    assert respuesta.status_code == 403
-
-    fila = base.execute("SELECT estado FROM tarea WHERE id_tarea = 1").fetchone()
-    assert fila["estado"] == "EN_PROCESO"
-
-
-def test_completar_deja_en_auditoria_quien_cerro_la_tarea(cliente, base):
-    _login(cliente, "admin@nahan.local")
-
-    cliente.put("/api/tareas/1/estado", json={"estado": "COMPLETADA"})
-
-    evento = base.execute(
-        "SELECT * FROM auditoria WHERE accion = 'COMPLETAR_TAREA'"
-    ).fetchone()
-
-    assert evento is not None
-    assert evento["id_usuario"] == 1
-    assert evento["datos_anteriores"] == "id_tarea=1, estado=EN_PROCESO"
-    assert evento["datos_nuevos"] == "id_tarea=1, estado=COMPLETADA"
-
-
-def test_una_tarea_inexistente_responde_404(cliente):
-    _login(cliente, "admin@nahan.local")
-
-    respuesta = cliente.put("/api/tareas/999/estado", json={"estado": "COMPLETADA"})
-
-    assert respuesta.status_code == 404
-
-
-def test_un_estado_operativo_no_registra_fecha_finalizacion_ni_auditoria(cliente, base):
-    _login(cliente, "responsable@nahan.local")
-
-    respuesta = cliente.put("/api/tareas/1/estado", json={"estado": "EN_REVISION"})
-
-    assert respuesta.status_code == 200
-
-    fila = base.execute(
-        "SELECT estado, fecha_finalizacion FROM tarea WHERE id_tarea = 1"
-    ).fetchone()
-    assert fila["estado"] == "EN_REVISION"
-    assert fila["fecha_finalizacion"] is None
-    assert base.execute("SELECT COUNT(*) AS n FROM auditoria").fetchone()["n"] == 0
+    assert base.execute(
+        "SELECT COUNT(*) AS n FROM notificacion"
+    ).fetchone()["n"] == 0

@@ -165,6 +165,138 @@ def reporte_tareas_por_cliente():
         return jsonify({"error": "Ocurrió un error al generar el reporte."}), 500
 
 
+def _a_datetime(valor):
+    """Normaliza a `datetime` tanto el datetime que entrega mysql-connector
+    como el texto ISO que devuelve SQLite en los tests (mismo criterio que
+    `_fecha_a_date` en tareas_routes.py)."""
+    if isinstance(valor, str):
+        return datetime.strptime(valor[:19], "%Y-%m-%d %H:%M:%S")
+    return valor
+
+
+@reportes_blueprint.route('/reportes/productividad', methods=['GET'])
+@roles_required(ROL_ADMINISTRADOR)
+def reporte_productividad_por_usuario():
+    """RF39 — Visualizando la Productividad por Usuario.
+
+    Por cada usuario activo (filtrable por área): tareas completadas dentro
+    del período, tiempo promedio de resolución (entre fecha_creacion y
+    fecha_finalizacion — no hay una definición más precisa registrada en
+    CU-48 ni en el resto de la documentación, así que se usa este criterio
+    por decisión explícita del equipo) y carga vigente (PENDIENTE o
+    EN_PROCESO, sin filtrar por período: es una fotografía del momento).
+    """
+    try:
+        fecha_inicio, fecha_fin, error = _validar_periodo(request.args)
+        if error:
+            return jsonify({"error": error}), 400
+
+        id_area = request.args.get('id_area', '').strip()
+
+        conexion = get_connection()
+        if conexion is None:
+            return jsonify({"error": "Fallo de conexión con MySQL."}), 500
+
+        with conexion.cursor(dictionary=True) as cursor:
+            if id_area:
+                cursor.execute("SELECT id_area FROM area WHERE id_area = %s", (id_area,))
+                if not cursor.fetchone():
+                    return jsonify({"error": "Área inexistente."}), 404
+
+            query_usuarios = "SELECT id_usuario, nombres, id_area FROM usuario WHERE estado = 'ACTIVO'"
+            parametros_usuarios = []
+            if id_area:
+                query_usuarios += " AND id_area = %s"
+                parametros_usuarios.append(id_area)
+            query_usuarios += " ORDER BY nombres"
+
+            cursor.execute(query_usuarios, tuple(parametros_usuarios))
+            usuarios = cursor.fetchall()
+
+            acumulado = {
+                usuario["id_usuario"]: {"completadas": 0, "segundos_totales": 0}
+                for usuario in usuarios
+            }
+            carga_por_usuario = {}
+
+            if usuarios:
+                ids_usuario = [usuario["id_usuario"] for usuario in usuarios]
+                marcadores = ", ".join(["%s"] * len(ids_usuario))
+
+                cursor.execute(
+                    f"""
+                    SELECT id_responsable, fecha_creacion, fecha_finalizacion
+                    FROM tarea
+                    WHERE estado = 'COMPLETADA'
+                      AND id_responsable IN ({marcadores})
+                      AND fecha_finalizacion >= %s
+                      AND fecha_finalizacion < DATE_ADD(%s, INTERVAL 1 DAY)
+                    """,
+                    (*ids_usuario, fecha_inicio, fecha_fin)
+                )
+
+                for fila in cursor.fetchall():
+                    datos = acumulado[fila["id_responsable"]]
+                    datos["completadas"] += 1
+                    duracion = _a_datetime(fila["fecha_finalizacion"]) - _a_datetime(fila["fecha_creacion"])
+                    datos["segundos_totales"] += duracion.total_seconds()
+
+                cursor.execute(
+                    f"""
+                    SELECT id_responsable, COUNT(*) AS total
+                    FROM tarea
+                    WHERE estado IN ('PENDIENTE', 'EN_PROCESO')
+                      AND id_responsable IN ({marcadores})
+                    GROUP BY id_responsable
+                    """,
+                    tuple(ids_usuario)
+                )
+                carga_por_usuario = {
+                    fila["id_responsable"]: fila["total"] for fila in cursor.fetchall()
+                }
+
+            resultado = []
+            for usuario in usuarios:
+                datos = acumulado[usuario["id_usuario"]]
+                promedio_horas = None
+                if datos["completadas"] > 0:
+                    promedio_horas = round((datos["segundos_totales"] / datos["completadas"]) / 3600, 1)
+
+                resultado.append({
+                    "id_usuario": usuario["id_usuario"],
+                    "usuario": usuario["nombres"],
+                    "tareas_completadas": datos["completadas"],
+                    "tiempo_promedio_resolucion_horas": promedio_horas,
+                    "carga_vigente": carga_por_usuario.get(usuario["id_usuario"], 0),
+                })
+
+            resultado.sort(key=lambda fila: fila["tareas_completadas"], reverse=True)
+
+            respuesta = {
+                "periodo": {"fecha_inicio": fecha_inicio, "fecha_fin": fecha_fin},
+                "usuarios": resultado,
+            }
+
+            if not resultado:
+                respuesta["mensaje"] = "No hay usuarios activos para los criterios seleccionados"
+                return jsonify(respuesta), 200
+
+            usuario_actual = obtener_usuario_actual()
+            respuesta["fecha_generacion"] = _registrar_generacion(
+                cursor,
+                usuario_actual["id_usuario"],
+                "PRODUCTIVIDAD_POR_USUARIO",
+                {"fecha_inicio": fecha_inicio, "fecha_fin": fecha_fin, "id_area": id_area or None},
+            )
+            conexion.commit()
+
+        return jsonify(respuesta), 200
+
+    except Exception:
+        logger.exception("Error al generar reporte de productividad por usuario")
+        return jsonify({"error": "Ocurrió un error al generar el reporte."}), 500
+
+
 @reportes_blueprint.route('/reportes/tareas-por-responsable', methods=['GET'])
 @roles_required(ROL_ADMINISTRADOR)
 def reporte_tareas_por_responsable():
