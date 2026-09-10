@@ -125,6 +125,30 @@
       <section class="tareas-section">
         <h2>Tareas pendientes</h2>
 
+        <div class="tareas-filtros">
+          <div class="form-group tareas-filtro-estado">
+            <label class="form-label" for="filtroEstado">Filtrar por estado</label>
+            <select id="filtroEstado" class="form-input">
+              <option value="">Pendientes, en proceso y en revisión</option>
+              <option value="PENDIENTE">Pendiente</option>
+              <option value="EN_PROCESO">En proceso</option>
+              <option value="EN_REVISION">En revisión</option>
+              <option value="COMPLETADA">Completada</option>
+              <option value="CANCELADA">Cancelada</option>
+            </select>
+          </div>
+
+          <div class="form-group tareas-filtro-responsable" id="filtroResponsableContenedor" hidden>
+            <label class="form-label" for="filtro_responsable_busqueda">Ver tareas de</label>
+            <div class="tareas-filtro-responsable-input">
+              <input type="text" id="filtro_responsable_busqueda" class="form-input" list="usuarios_filtro_responsable" placeholder="Todos los responsables">
+              <input type="hidden" id="filtro_responsable_id">
+              <datalist id="usuarios_filtro_responsable"></datalist>
+              <button type="button" class="btn btn-secondary btn-small" id="btnLimpiarFiltroResponsable">Ver todos</button>
+            </div>
+          </div>
+        </div>
+
         <div class="redistribuir-bar" id="redistribuirBar" hidden>
           <span id="redistribuirContador">0 tareas seleccionadas</span>
 

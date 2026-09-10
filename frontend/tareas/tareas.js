@@ -16,6 +16,9 @@ const ESTADOS_FINALES = [
 const EXTENSIONES_ADJUNTOS_AVISO = "pdf, doc, docx, xls, xlsx, ppt, pptx, jpg, jpeg, png";
 
 let tareasCache = [];
+let filtroEstadoActual = "";
+let filtroResponsableActual = "";
+let filtroResponsableConfigurado = false;
 const tareasSeleccionadas = new Set();
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -43,6 +46,11 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("seleccionarTodas").addEventListener("change", alternarSeleccionarTodas);
   document.getElementById("btnVerCarga").addEventListener("click", mostrarCargaTrabajo);
   document.getElementById("btnRedistribuir").addEventListener("click", redistribuirSeleccionadas);
+
+  document.getElementById("filtroEstado").addEventListener("change", event => {
+    filtroEstadoActual = event.target.value;
+    cargarTareasPendientes();
+  });
 
   cargarTareasPendientes();
 });
@@ -141,8 +149,15 @@ async function cargarTareasPendientes() {
     return;
   }
 
+  await configurarFiltroResponsableSiCorresponde(usuario);
+
   try {
-    const response = await fetch(`${API_URL}/tareas/pendientes`, {
+    const parametrosUrl = new URLSearchParams();
+    if (filtroEstadoActual) parametrosUrl.set("estado", filtroEstadoActual);
+    if (filtroResponsableActual) parametrosUrl.set("id_responsable", filtroResponsableActual);
+    const query = parametrosUrl.toString();
+
+    const response = await fetch(`${API_URL}/tareas/pendientes${query ? `?${query}` : ""}`, {
       credentials: window.API_CONFIG.credentials
     });
     let tareas = await response.json();
@@ -174,6 +189,35 @@ async function cargarTareasPendientes() {
   }
 }
 
+// --- RF68 — Visualizando Tareas Asignadas a un Usuario Específico --------
+
+async function configurarFiltroResponsableSiCorresponde(usuario) {
+  const contenedor = document.getElementById("filtroResponsableContenedor");
+  contenedor.hidden = usuario.nombre_rol !== "ADMINISTRADOR";
+
+  if (usuario.nombre_rol !== "ADMINISTRADOR" || filtroResponsableConfigurado) return;
+
+  filtroResponsableConfigurado = true;
+
+  await UsuariosAutocomplete.configurarSelectorUsuario({
+    inputId: "filtro_responsable_busqueda",
+    hiddenId: "filtro_responsable_id",
+    datalistId: "usuarios_filtro_responsable",
+    soloActivos: true,
+    onSelect: usuarioSeleccionado => {
+      filtroResponsableActual = usuarioSeleccionado.id_usuario;
+      cargarTareasPendientes();
+    }
+  });
+
+  document.getElementById("btnLimpiarFiltroResponsable").addEventListener("click", () => {
+    filtroResponsableActual = "";
+    document.getElementById("filtro_responsable_busqueda").value = "";
+    document.getElementById("filtro_responsable_id").value = "";
+    cargarTareasPendientes();
+  });
+}
+
 function actualizarBarraRedistribucion(usuario) {
   const barra = document.getElementById("redistribuirBar");
   barra.hidden = usuario.nombre_rol !== "ADMINISTRADOR";
@@ -202,7 +246,9 @@ function renderizarTabla(tareas, usuario) {
     const filaVacia = document.createElement("tr");
     const celdaVacia = document.createElement("td");
     celdaVacia.colSpan = 10;
-    celdaVacia.textContent = "No hay tareas pendientes para mostrar.";
+    celdaVacia.textContent = filtroEstadoActual
+      ? `No hay tareas en estado "${formatearEstado(filtroEstadoActual)}" para mostrar.`
+      : "No hay tareas pendientes para mostrar.";
     filaVacia.appendChild(celdaVacia);
     tablaTareas.appendChild(filaVacia);
     return;
@@ -285,6 +331,12 @@ function accionesTarea(tarea, usuario) {
   const puedeAdministrar = usuario.nombre_rol === "ADMINISTRADOR";
   const contenedor = document.createElement("div");
   contenedor.className = "tareas-actions";
+
+  const enlaceDetalle = document.createElement("a");
+  enlaceDetalle.className = "btn btn-secondary btn-small";
+  enlaceDetalle.textContent = "Detalle";
+  enlaceDetalle.href = `detalle_tarea.html?id=${tarea.id_tarea}`;
+  contenedor.appendChild(enlaceDetalle);
 
   if (puedeAdministrar) {
     const responsable = document.createElement("input");
