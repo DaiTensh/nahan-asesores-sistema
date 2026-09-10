@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Editar Tarea</title>
+
+  <link rel="stylesheet" href="../assets/css/variables.css">
+  <link rel="stylesheet" href="../assets/css/global.css">
+  <link rel="stylesheet" href="../assets/css/buttons.css">
+  <link rel="stylesheet" href="../assets/css/forms.css">
+  <link rel="stylesheet" href="../assets/css/cards.css">
+  <link rel="stylesheet" href="../assets/css/navigation.css">
+  <link rel="stylesheet" href="../assets/css/topbar.css">
+  <link rel="stylesheet" href="./tareas.css">
+</head>
+<body>
+
+<div class="app-layout">
+
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <div class="content-wrapper">
+
+    <header class="topbar" id="topbar"></header>
+
+    <main class="main-content">
+
+      <section class="tareas-header">
+        <div>
+          <h1>Editar tarea</h1>
+          <p>Modifica título, descripción, responsable, prioridad y fecha límite.</p>
+        </div>
+
+        <div class="tareas-header-actions">
+          <a href="tareas.html" class="btn btn-secondary">Volver al listado</a>
+        </div>
+      </section>
+
+      <p id="editarMensaje" class="mensaje"></p>
+
+      <section class="tareas-section" id="editarSeccion" hidden>
+        <h2>Datos de la tarea</h2>
+
+        <form id="formEditarTarea" class="tareas-form">
+
+          <div class="form-grid">
+
+            <div class="form-group">
+              <label class="form-label" for="responsable_busqueda">Responsable</label>
+              <input type="text" id="responsable_busqueda" class="form-input" list="usuarios_responsables" placeholder="Escriba nombre o correo" required>
+              <input type="hidden" id="id_responsable">
+              <datalist id="usuarios_responsables"></datalist>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="prioridad">Prioridad</label>
+              <select id="prioridad" class="form-input" required>
+                <option value="BAJA">Baja</option>
+                <option value="MEDIA">Media</option>
+                <option value="ALTA">Alta</option>
+                <option value="URGENTE">Urgente</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="fecha_vencimiento">Fecha vencimiento</label>
+              <input type="date" id="fecha_vencimiento" class="form-input">
+            </div>
+
+            <div class="form-group form-full">
+              <label class="form-label" for="titulo">Título</label>
+              <input type="text" id="titulo" class="form-input" required>
+            </div>
+
+            <div class="form-group form-full">
+              <label class="form-label" for="descripcion">Descripción</label>
+              <textarea id="descripcion" class="form-input" rows="4"></textarea>
+            </div>
+
+          </div>
+
+          <button type="submit" class="btn btn-primary">
+            Guardar cambios
+          </button>
+
+          <p id="mensajeGuardar" class="mensaje"></p>
+        </form>
+      </section>
+
+    </main>
+
+  </div>
+
+</div>
+
+<script src="../assets/js/api_config.js"></script>
+<script src="../auth/logout.js"></script>
+<script src="../assets/js/navigation.js"></script>
+<script src="../assets/js/topbar.js"></script>
+<script src="../assets/js/permissions.js"></script>
+<script src="../assets/js/usuarios_autocomplete.js"></script>
+<script src="./editar_tarea.js"></script>
+
+<script>
+  cargarNavegacion("tareas");
+  cargarTopbar();
+</script>
+
+</body>
+</html>
