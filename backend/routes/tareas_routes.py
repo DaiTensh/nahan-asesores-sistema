@@ -769,6 +769,66 @@ def carga_trabajo():
             connection.close()
 
 
+@tareas_bp.route("/tareas/vencidas", methods=["GET"])
+@login_required
+def tareas_vencidas():
+    """RF42 — Visualizando Tareas Vencidas.
+
+    Tareas no finalizadas cuya fecha de vencimiento ya pasó. Mismo criterio de
+    visibilidad que /tareas/pendientes: quien no es ADMINISTRADOR solo ve las
+    suyas.
+    """
+    connection = None
+    cursor = None
+    usuario = obtener_usuario_actual()
+
+    try:
+        connection = get_connection()
+        cursor = connection.cursor(dictionary=True)
+
+        condiciones = [
+            "t.fecha_vencimiento < CURDATE()",
+            f"t.estado NOT IN ({', '.join(['%s'] * len(ESTADOS_FINALES))})",
+        ]
+        parametros = list(ESTADOS_FINALES)
+
+        if usuario["nombre_rol"] != ROL_ADMINISTRADOR:
+            condiciones.append("t.id_responsable = %s")
+            parametros.append(usuario["id_usuario"])
+
+        sql = f"""
+            SELECT
+                t.id_tarea,
+                t.titulo,
+                t.estado,
+                t.prioridad,
+                t.fecha_vencimiento,
+                c.razon_social AS cliente,
+                u.nombres AS responsable,
+                DATEDIFF(CURDATE(), t.fecha_vencimiento) AS dias_retraso
+            FROM tarea t
+            INNER JOIN cliente c ON t.id_cliente = c.id_cliente
+            INNER JOIN usuario u ON t.id_responsable = u.id_usuario
+            WHERE {" AND ".join(condiciones)}
+            ORDER BY dias_retraso DESC
+        """
+
+        cursor.execute(sql, tuple(parametros))
+        tareas = cursor.fetchall()
+
+        return jsonify(tareas), 200
+
+    except Exception:
+        logger.exception("Error al listar tareas vencidas")
+        return jsonify({"error": "Error interno al listar tareas vencidas"}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
 @tareas_bp.route("/tareas/reasignar-masivo", methods=["PUT"])
 @login_required
 def reasignar_tareas_masivo():
