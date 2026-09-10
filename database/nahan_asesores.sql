@@ -95,6 +95,9 @@ CREATE TABLE documento (
     id_documento INT AUTO_INCREMENT PRIMARY KEY,
     id_cliente INT NOT NULL,
     nombre_documento VARCHAR(200) NOT NULL,
+    -- Tipo del documento (p. ej. "Contrato", "Factura"). Solo lo completan
+    -- las referencias de RF07; los adjuntos de tarea de RF54 lo dejan NULL.
+    tipo_documento VARCHAR(60),
     url_archivo VARCHAR(255) NOT NULL,
     descripcion TEXT,
     fecha_subida DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -105,7 +108,9 @@ CREATE TABLE documento (
         FOREIGN KEY (id_cliente) REFERENCES cliente(id_cliente),
 
     CONSTRAINT fk_documento_usuario
-        FOREIGN KEY (subido_por) REFERENCES usuario(id_usuario)
+        FOREIGN KEY (subido_por) REFERENCES usuario(id_usuario),
+
+    CONSTRAINT uq_documento_referencia UNIQUE (id_cliente, nombre_documento, url_archivo)
 );
 
 CREATE TABLE tarea_documento (
@@ -121,6 +126,24 @@ CREATE TABLE tarea_documento (
         FOREIGN KEY (id_documento) REFERENCES documento(id_documento),
 
     CONSTRAINT uq_tarea_documento UNIQUE (id_tarea, id_documento)
+);
+
+-- RF09 — Observaciones internas de cliente. Visibles solo para el staff
+-- operativo (ADMINISTRADOR, JURIDICA, CONTABLE), igual que el resto de los
+-- datos de la ficha del cliente: no hay hoy un modelo de visibilidad más
+-- fino (por área) para datos de cliente en el sistema.
+CREATE TABLE observacion_cliente (
+    id_observacion INT AUTO_INCREMENT PRIMARY KEY,
+    id_cliente INT NOT NULL,
+    id_usuario INT NOT NULL,
+    texto TEXT NOT NULL,
+    fecha DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_observacion_cliente_cliente
+        FOREIGN KEY (id_cliente) REFERENCES cliente(id_cliente),
+
+    CONSTRAINT fk_observacion_cliente_usuario
+        FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
 );
 
 CREATE TABLE comentario_tarea (
@@ -318,6 +341,7 @@ CREATE INDEX idx_tarea_estado ON tarea(estado);
 CREATE INDEX idx_tarea_responsable ON tarea(id_responsable);
 CREATE INDEX idx_tarea_cliente ON tarea(id_cliente);
 CREATE INDEX idx_documento_cliente ON documento(id_cliente);
+CREATE INDEX idx_observacion_cliente_cliente ON observacion_cliente(id_cliente);
 CREATE INDEX idx_tiempo_tarea ON tiempo_trabajado(id_tarea);
 CREATE INDEX idx_tiempo_usuario ON tiempo_trabajado(id_usuario);
 CREATE INDEX idx_cobro_cliente ON cobro(id_cliente);
