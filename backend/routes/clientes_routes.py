@@ -325,11 +325,15 @@ def obtener_ficha_consolidada(id_cliente):
                 1 for tarea in cliente["tareas"] if tarea["estado"] in ("PENDIENTE", "EN_PROCESO")
             )
 
-            # 4. Traer los documentos e instrumentos guardados en la plataforma
+            # 4. Traer las referencias documentales del cliente (RF07/RF08).
+            # Solo las filas con tipo_documento son referencias registradas
+            # por RF07: los adjuntos de tarea (RF54) no lo completan y no
+            # corresponden a esta sección de "documentos referenciados".
             query_docs = """
-                SELECT nombre_documento, url_archivo, DATE_FORMAT(fecha_subida, '%d-%m-%Y %H:%i') as fecha_subida
-                FROM documento 
-                WHERE id_cliente = %s AND estado = 'ACTIVO'
+                SELECT nombre_documento, tipo_documento, descripcion,
+                       DATE_FORMAT(fecha_subida, '%d-%m-%Y %H:%i') as fecha_subida
+                FROM documento
+                WHERE id_cliente = %s AND estado = 'ACTIVO' AND tipo_documento IS NOT NULL
                 ORDER BY fecha_subida DESC
             """
             cursor.execute(query_docs, (id_cliente,))
@@ -536,6 +540,73 @@ def listado_general_paginado_clientes():
     except Exception:
         logger.exception("Error en listado paginado de clientes")
         return jsonify({"error": "Imposible recuperar la matriz general de clientes."}), 500
+
+
+# ==========================================================================
+# RF09: REGISTRANDO Y VISUALIZANDO OBSERVACIONES INTERNAS DE CLIENTES
+# ==========================================================================
+@clientes_blueprint.route('/clientes/<int:id_cliente>/observaciones', methods=['GET'])
+@roles_required(*ROLES_OPERATIVOS)
+def listar_observaciones_cliente(id_cliente):
+    try:
+        conexion = get_connection()
+        if conexion is None:
+            return jsonify({"error": "Error de base de datos."}), 500
+
+        with conexion.cursor(dictionary=True) as cursor:
+            cursor.execute("SELECT id_cliente FROM cliente WHERE id_cliente = %s", (id_cliente,))
+            if not cursor.fetchone():
+                return jsonify({"error": "Cliente inexistente."}), 404
+
+            cursor.execute("""
+                SELECT o.texto, u.nombres AS registrado_por,
+                       DATE_FORMAT(o.fecha, '%d-%m-%Y %H:%i') AS fecha
+                FROM observacion_cliente o
+                INNER JOIN usuario u ON u.id_usuario = o.id_usuario
+                WHERE o.id_cliente = %s
+                ORDER BY o.fecha DESC
+            """, (id_cliente,))
+            observaciones = cursor.fetchall()
+
+        return jsonify({"observaciones": observaciones}), 200
+
+    except Exception:
+        logger.exception("Error al listar observaciones de cliente")
+        return jsonify({"error": "Error interno al obtener las observaciones."}), 500
+
+
+@clientes_blueprint.route('/clientes/<int:id_cliente>/observaciones', methods=['POST'])
+@roles_required(*ROLES_OPERATIVOS)
+def registrar_observacion_cliente(id_cliente):
+    try:
+        datos = request.json or {}
+        texto = datos.get('texto', '').strip()
+        id_usuario = obtener_usuario_actual()["id_usuario"]
+
+        if not texto:
+            return jsonify({"error": "El texto de la observación es obligatorio."}), 400
+
+        conexion = get_connection()
+        if conexion is None:
+            return jsonify({"error": "Error de base de datos."}), 500
+
+        with conexion.cursor() as cursor:
+            cursor.execute("SELECT id_cliente FROM cliente WHERE id_cliente = %s", (id_cliente,))
+            if not cursor.fetchone():
+                return jsonify({"error": "Cliente inexistente."}), 404
+
+            cursor.execute("""
+                INSERT INTO observacion_cliente (id_cliente, id_usuario, texto)
+                VALUES (%s, %s, %s)
+            """, (id_cliente, id_usuario, texto))
+
+            conexion.commit()
+
+        return jsonify({"message": "Observación registrada correctamente."}), 201
+
+    except Exception:
+        logger.exception("Error al registrar observación de cliente")
+        return jsonify({"error": "Error interno al registrar la observación."}), 500
 
 
 @clientes_blueprint.route('/clientes/resumen', methods=['GET'])

@@ -92,18 +92,74 @@
       </section>
 
       <section class="clientes-section">
-        <h2>Documentos vinculados</h2>
+        <h2>Documentos referenciados</h2>
+
+        <form id="formReferenciaDocumento" class="clientes-form">
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label" for="docNombre">Nombre del documento</label>
+              <input type="text" id="docNombre" class="form-input" placeholder="Ej: Escritura de constitución" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="docTipo">Tipo</label>
+              <input type="text" id="docTipo" class="form-input" placeholder="Ej: Contrato, Factura" required>
+            </div>
+
+            <div class="form-group form-full">
+              <label class="form-label" for="docUbicacion">Ubicación de referencia</label>
+              <input type="text" id="docUbicacion" class="form-input" placeholder="Ej: Carpeta compartida, URL o ruta física" required>
+            </div>
+
+            <div class="form-group form-full">
+              <label class="form-label" for="docObservaciones">Observaciones</label>
+              <input type="text" id="docObservaciones" class="form-input" placeholder="Opcional">
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary">Registrar referencia</button>
+          <p id="mensajeDocFeedback" class="mensaje"></p>
+        </form>
 
         <table class="clientes-table">
           <thead>
             <tr>
               <th>Documento</th>
-              <th>Fecha de subida</th>
-              <th>Acción</th>
+              <th>Tipo</th>
+              <th>Fecha de registro</th>
+              <th>Observaciones</th>
             </tr>
           </thead>
           <tbody id="tablaDocumentoCuerpo">
-            <tr><td colspan="3" class="text-loading">Cargando documentos...</td></tr>
+            <tr><td colspan="4" class="text-loading">Cargando documentos...</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="clientes-section" id="seccionObservaciones" hidden>
+        <h2>Observaciones internas</h2>
+        <p>Visibles solo para el equipo. No se muestran fuera del staff operativo.</p>
+
+        <form id="formObservacionCliente" class="clientes-form">
+          <div class="form-group form-full">
+            <label class="form-label" for="obsTexto">Nueva observación</label>
+            <textarea id="obsTexto" class="form-input" rows="3" required></textarea>
+          </div>
+
+          <button type="submit" class="btn btn-primary">Registrar observación</button>
+          <p id="mensajeObsFeedback" class="mensaje"></p>
+        </form>
+
+        <table class="clientes-table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Registrado por</th>
+              <th>Observación</th>
+            </tr>
+          </thead>
+          <tbody id="tablaObservacionesCuerpo">
+            <tr><td colspan="3" class="text-loading">Cargando observaciones...</td></tr>
           </tbody>
         </table>
       </section>

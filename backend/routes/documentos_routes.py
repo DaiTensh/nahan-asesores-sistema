@@ -6,7 +6,13 @@ from flask import Blueprint, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 
 from backend.config.db import get_connection
-from backend.utils.auth import ROL_ADMINISTRADOR, login_required, obtener_usuario_actual
+from backend.utils.auth import (
+    ROL_ADMINISTRADOR,
+    ROLES_OPERATIVOS,
+    login_required,
+    obtener_usuario_actual,
+    roles_required,
+)
 
 documentos_bp = Blueprint("documentos", __name__)
 logger = logging.getLogger(__name__)
@@ -220,6 +226,87 @@ def listar_documentos_tarea(id_tarea):
     except Exception:
         logger.exception("Error al listar documentos de tarea")
         return jsonify({"error": "Error interno al listar los documentos"}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
+
+# ==========================================================================
+# RF07: REGISTRANDO REFERENCIAS A DOCUMENTOS DE CLIENTES
+# ==========================================================================
+@documentos_bp.route("/clientes/<int:id_cliente>/documentos", methods=["POST"])
+@roles_required(*ROLES_OPERATIVOS)
+def registrar_referencia_documento(id_cliente):
+    connection = None
+    cursor = None
+    usuario = obtener_usuario_actual()
+
+    datos = request.json or {}
+    nombre_documento = datos.get("nombre_documento", "").strip()
+    tipo_documento = datos.get("tipo_documento", "").strip()
+    ubicacion_referencia = datos.get("ubicacion_referencia", "").strip()
+    observaciones = datos.get("observaciones", "").strip()
+
+    if not nombre_documento or not tipo_documento or not ubicacion_referencia:
+        return jsonify({
+            "error": "Nombre, tipo y ubicación de referencia son obligatorios"
+        }), 400
+
+    try:
+        connection = get_connection()
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute("SELECT id_cliente FROM cliente WHERE id_cliente = %s", (id_cliente,))
+        if not cursor.fetchone():
+            return jsonify({"error": "Cliente no encontrado"}), 404
+
+        # No se puede repetir la misma referencia (nombre + ubicación) para
+        # el mismo cliente. El UNIQUE de la tabla respalda esta validación
+        # ante una carrera entre dos solicitudes simultáneas.
+        cursor.execute(
+            """
+            SELECT id_documento
+            FROM documento
+            WHERE id_cliente = %s AND nombre_documento = %s AND url_archivo = %s AND estado = 'ACTIVO'
+            """,
+            (id_cliente, nombre_documento, ubicacion_referencia)
+        )
+        if cursor.fetchone():
+            return jsonify({
+                "error": "Ya existe una referencia registrada con ese nombre y ubicación para este cliente"
+            }), 400
+
+        cursor.execute(
+            """
+            INSERT INTO documento (
+                id_cliente, nombre_documento, tipo_documento, url_archivo, descripcion, subido_por
+            )
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (
+                id_cliente,
+                nombre_documento,
+                tipo_documento,
+                ubicacion_referencia,
+                observaciones or None,
+                usuario["id_usuario"]
+            )
+        )
+        id_documento = cursor.lastrowid
+        connection.commit()
+
+        return jsonify({
+            "message": "Referencia registrada correctamente",
+            "id_documento": id_documento
+        }), 201
+
+    except Exception:
+        logger.exception("Error al registrar referencia de documento")
+        return jsonify({"error": "Error interno al registrar la referencia"}), 500
 
     finally:
         if cursor:
