@@ -488,9 +488,11 @@ def _reasignar_tarea(cursor, id_tarea, id_responsable):
 @tareas_bp.route("/tareas/<int:id_tarea>/asignar", methods=["PUT"])
 @login_required
 def asignar_tarea(id_tarea):
+    """RF16 — Modificando la Asignación de Tareas."""
     connection = None
     cursor = None
     data = request.get_json()
+    usuario = obtener_usuario_actual()
 
     id_responsable = data.get("id_responsable")
 
@@ -501,21 +503,72 @@ def asignar_tarea(id_tarea):
         connection = get_connection()
         cursor = connection.cursor()
 
-        ok, error, status, _ = _reasignar_tarea(cursor, id_tarea, id_responsable)
+        cursor.execute(
+            "SELECT estado, titulo FROM tarea WHERE id_tarea = %s",
+            (id_tarea,)
+        )
+        tarea = cursor.fetchone()
+
+        if not tarea:
+            return jsonify({"error": "Tarea no encontrada"}), 404
+
+        estado_actual, titulo_tarea = tarea
+
+        if estado_actual in ESTADOS_FINALES:
+            return jsonify({
+                "error": "No se puede reasignar una tarea COMPLETADA o CANCELADA"
+            }), 409
+
+        ok, error, status, id_responsable_anterior = _reasignar_tarea(
+            cursor, id_tarea, id_responsable
+        )
 
         if not ok:
             return jsonify({"error": error}), status
 
+        # El cambio queda en auditoria con responsable anterior, nuevo y
+        # fecha (columna con default en la propia tabla).
+        cursor.execute(
+            """
+            INSERT INTO auditoria (id_usuario, tabla_afectada, accion, datos_anteriores, datos_nuevos)
+            VALUES (%s, 'tarea', 'REASIGNACION', %s, %s)
+            """,
+            (
+                usuario["id_usuario"],
+                f"id_tarea={id_tarea}, id_responsable={id_responsable_anterior}",
+                f"id_tarea={id_tarea}, id_responsable={id_responsable}"
+            )
+        )
+
+        # El nuevo responsable recibe una notificación. La función de
+        # notificación de Vicente (RF52 y afines) todavía no existe en el
+        # repo, así que se inserta directo en la tabla `notificacion` (ya
+        # está en el esquema) para no bloquear el RF; cuando esa función
+        # exista hay que alinear esta llamada con su firma.
+        cursor.execute(
+            """
+            INSERT INTO notificacion (id_usuario, tipo, mensaje, url_destino)
+            VALUES (%s, 'REASIGNACION_TAREA', %s, %s)
+            """,
+            (
+                id_responsable,
+                f"Se te asignó la tarea \"{titulo_tarea}\"",
+                f"/frontend/tareas/detalle_tarea.html?id={id_tarea}"
+            )
+        )
+
         connection.commit()
 
-        # La existencia de la tarea ya se confirmó dentro de _reasignar_tarea:
-        # si rowcount es 0 aquí es porque el responsable nuevo es igual al
-        # que ya tenía (MySQL solo cuenta filas realmente modificadas), no
-        # porque no exista. Es un no-op válido, no un 404.
+        # La existencia de la tarea ya se confirmó arriba: si rowcount es 0
+        # en el UPDATE es porque el responsable nuevo es igual al que ya
+        # tenía (MySQL solo cuenta filas realmente modificadas), no porque
+        # no exista. Es un no-op válido, no un 404.
 
         return jsonify({"message": "Tarea asignada correctamente"}), 200
 
     except Exception:
+        if connection:
+            connection.rollback()
         logger.exception("Error al asignar tarea")
         return jsonify({"error": "Error interno al asignar tarea"}), 500
 
