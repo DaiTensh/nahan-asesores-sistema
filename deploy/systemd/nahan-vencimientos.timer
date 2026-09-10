@@ -1,0 +1,9 @@
+[Unit]
+Description=Ejecuta diariamente la notificacion de vencimientos proximos (RF53)
+
+[Timer]
+OnCalendar=*-*-* 07:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
