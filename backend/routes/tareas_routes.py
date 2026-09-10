@@ -9,6 +9,7 @@ tareas_bp = Blueprint("tareas", __name__)
 logger = logging.getLogger(__name__)
 
 ESTADOS_FINALES = {"COMPLETADA", "CANCELADA"}
+ESTADOS_VALIDOS = ["PENDIENTE", "EN_PROCESO", "EN_REVISION", "COMPLETADA", "CANCELADA"]
 
 
 @tareas_bp.route("/tareas", methods=["POST"])
@@ -115,19 +116,51 @@ def listar_tareas_pendientes():
     cursor = None
     usuario = obtener_usuario_actual()
 
+    # RF69 — Filtrando Tareas por Estado. Sin filtro se conserva el
+    # comportamiento de siempre (solo las tareas no finalizadas); con un
+    # estado explícito se acota a ese estado exacto, incluidos COMPLETADA y
+    # CANCELADA, que el listado por defecto no muestra.
+    estado_filtro = request.args.get("estado")
+
+    if estado_filtro and estado_filtro not in ESTADOS_VALIDOS:
+        return jsonify({"error": "Estado no válido"}), 400
+
+    # RF68 — Visualizando Tareas Asignadas a un Usuario Específico. Quien no
+    # es ADMINISTRADOR solo puede pedir sus propias tareas por este filtro.
+    id_responsable_filtro = request.args.get("id_responsable")
+
+    if id_responsable_filtro:
+        try:
+            id_responsable_filtro = int(id_responsable_filtro)
+        except ValueError:
+            return jsonify({"error": "id_responsable debe ser un número"}), 400
+
+        if (
+            usuario["nombre_rol"] != ROL_ADMINISTRADOR
+            and id_responsable_filtro != usuario["id_usuario"]
+        ):
+            return jsonify({"error": "No tiene acceso a las tareas de otro usuario"}), 403
+
     try:
         connection = get_connection()
         cursor = connection.cursor(dictionary=True)
 
-        condiciones = ["t.estado IN ('PENDIENTE', 'EN_PROCESO', 'EN_REVISION')"]
-        parametros = []
+        if estado_filtro:
+            condiciones = ["t.estado = %s"]
+            parametros = [estado_filtro]
+        else:
+            condiciones = ["t.estado IN ('PENDIENTE', 'EN_PROCESO', 'EN_REVISION')"]
+            parametros = []
 
         # Un usuario no administrador solo debe ver sus propias tareas: el
         # frontend (tareas.js) ya filtraba esto en el navegador, pero eso no
         # impedía que cualquier autenticado pidiera este endpoint directo y
         # recibiera las tareas de todas las áreas. Se aplica la misma regla
         # en el servidor.
-        if usuario["nombre_rol"] != ROL_ADMINISTRADOR:
+        if id_responsable_filtro:
+            condiciones.append("t.id_responsable = %s")
+            parametros.append(id_responsable_filtro)
+        elif usuario["nombre_rol"] != ROL_ADMINISTRADOR:
             condiciones.append("t.id_responsable = %s")
             parametros.append(usuario["id_usuario"])
 
@@ -503,15 +536,7 @@ def actualizar_estado_tarea(id_tarea):
 
     estado = data.get("estado")
 
-    estados_validos = [
-        "PENDIENTE",
-        "EN_PROCESO",
-        "EN_REVISION",
-        "COMPLETADA",
-        "CANCELADA"
-    ]
-
-    if estado not in estados_validos:
+    if estado not in ESTADOS_VALIDOS:
         return jsonify({"error": "Estado no válido"}), 400
 
     if estado in ESTADOS_FINALES and usuario["nombre_rol"] != ROL_ADMINISTRADOR:
