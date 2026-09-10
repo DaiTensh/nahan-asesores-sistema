@@ -829,6 +829,182 @@ def tareas_vencidas():
             connection.close()
 
 
+@tareas_bp.route("/tareas/por-vencer", methods=["GET"])
+@login_required
+def tareas_por_vencer():
+    """RF43 — Visualizando Tareas Próximas a Vencer.
+
+    Tareas no finalizadas cuya fecha de vencimiento cae dentro de los
+    próximos `dias` días (parámetro configurable, no fijo en el código).
+    No repite las que ya están vencidas (RF42): esas quedan estrictamente
+    antes de hoy, así que el rango de este endpoint parte de hoy inclusive.
+    """
+    connection = None
+    cursor = None
+    usuario = obtener_usuario_actual()
+
+    dias_texto = request.args.get("dias", "7")
+
+    try:
+        dias = int(dias_texto)
+    except ValueError:
+        return jsonify({"error": "dias debe ser un número entero"}), 400
+
+    if dias <= 0:
+        return jsonify({"error": "dias debe ser mayor que cero"}), 400
+
+    try:
+        connection = get_connection()
+        cursor = connection.cursor(dictionary=True)
+
+        condiciones = [
+            "t.fecha_vencimiento >= CURDATE()",
+            "t.fecha_vencimiento < DATE_ADD(CURDATE(), INTERVAL %s DAY)",
+            f"t.estado NOT IN ({', '.join(['%s'] * len(ESTADOS_FINALES))})",
+        ]
+        parametros = [dias + 1, *ESTADOS_FINALES]
+
+        if usuario["nombre_rol"] != ROL_ADMINISTRADOR:
+            condiciones.append("t.id_responsable = %s")
+            parametros.append(usuario["id_usuario"])
+
+        sql = f"""
+            SELECT
+                t.id_tarea,
+                t.titulo,
+                t.estado,
+                t.prioridad,
+                t.fecha_vencimiento,
+                c.razon_social AS cliente,
+                u.nombres AS responsable,
+                DATEDIFF(t.fecha_vencimiento, CURDATE()) AS dias_restantes
+            FROM tarea t
+            INNER JOIN cliente c ON t.id_cliente = c.id_cliente
+            INNER JOIN usuario u ON t.id_responsable = u.id_usuario
+            WHERE {" AND ".join(condiciones)}
+            ORDER BY t.fecha_vencimiento ASC
+        """
+
+        cursor.execute(sql, tuple(parametros))
+        tareas = cursor.fetchall()
+
+        return jsonify(tareas), 200
+
+    except Exception:
+        logger.exception("Error al listar tareas próximas a vencer")
+        return jsonify({"error": "Error interno al listar tareas próximas a vencer"}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
+@tareas_bp.route("/tareas/prioritarias", methods=["GET"])
+@login_required
+def tareas_prioritarias():
+    """RF48 — Visualizando Tareas Prioritarias.
+
+    Tareas de prioridad ALTA o URGENTE, solo del usuario autenticado (no las
+    de otros, ni siquiera si es ADMINISTRADOR): a diferencia de /vencidas y
+    /por-vencer, aquí no hay vista "de todos".
+    """
+    connection = None
+    cursor = None
+    usuario = obtener_usuario_actual()
+
+    try:
+        connection = get_connection()
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            """
+            SELECT
+                t.id_tarea,
+                t.titulo,
+                t.estado,
+                t.prioridad,
+                t.fecha_vencimiento,
+                c.razon_social AS cliente
+            FROM tarea t
+            INNER JOIN cliente c ON t.id_cliente = c.id_cliente
+            WHERE t.id_responsable = %s
+              AND t.prioridad IN ('ALTA', 'URGENTE')
+              AND t.estado NOT IN ('COMPLETADA', 'CANCELADA')
+            ORDER BY
+                FIELD(t.prioridad, 'URGENTE', 'ALTA'),
+                t.fecha_vencimiento ASC
+            """,
+            (usuario["id_usuario"],)
+        )
+        tareas = cursor.fetchall()
+
+        return jsonify(tareas), 200
+
+    except Exception:
+        logger.exception("Error al listar tareas prioritarias")
+        return jsonify({"error": "Error interno al listar tareas prioritarias"}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
+@tareas_bp.route("/tareas/resumen", methods=["GET"])
+@login_required
+def resumen_tareas_dashboard():
+    """RF50 — Resumiendo por Estado de Tareas.
+
+    Conteo por cada uno de los cinco estados, incluidos los que estén en
+    cero (mismo patrón que resumen_clientes_dashboard en clientes_routes.py).
+    Un ADMINISTRADOR ve el total del sistema; el resto, solo lo suyo.
+    """
+    connection = None
+    cursor = None
+    usuario = obtener_usuario_actual()
+
+    try:
+        connection = get_connection()
+        cursor = connection.cursor(dictionary=True)
+
+        condiciones = []
+        parametros = []
+
+        if usuario["nombre_rol"] != ROL_ADMINISTRADOR:
+            condiciones.append("id_responsable = %s")
+            parametros.append(usuario["id_usuario"])
+
+        where = f"WHERE {' AND '.join(condiciones)}" if condiciones else ""
+
+        cursor.execute(
+            f"""
+            SELECT estado, COUNT(*) AS total
+            FROM tarea
+            {where}
+            GROUP BY estado
+            """,
+            tuple(parametros)
+        )
+        conteos = {fila["estado"]: fila["total"] for fila in cursor.fetchall()}
+
+        resumen = {estado: conteos.get(estado, 0) for estado in ESTADOS_VALIDOS}
+
+        return jsonify(resumen), 200
+
+    except Exception:
+        logger.exception("Error al generar resumen de tareas por estado")
+        return jsonify({"error": "Error interno al generar el resumen"}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
 @tareas_bp.route("/tareas/reasignar-masivo", methods=["PUT"])
 @login_required
 def reasignar_tareas_masivo():
