@@ -140,6 +140,8 @@ LIMPIEZA = [
                         "(SELECT id_usuario FROM usuario WHERE email LIKE '%@nahan.local')", False),
     ("notificacion",    "DELETE FROM notificacion WHERE id_usuario IN "
                         "(SELECT id_usuario FROM usuario WHERE email LIKE '%@nahan.local')", False),
+    ("reporte",         "DELETE FROM reporte WHERE id_usuario IN "
+                        "(SELECT id_usuario FROM usuario WHERE email LIKE '%@nahan.local')", False),
     ("auditoria",       "DELETE FROM auditoria WHERE id_usuario IN "
                         "(SELECT id_usuario FROM usuario WHERE email LIKE '%@nahan.local')", False),
     ("tarea",           "DELETE FROM tarea WHERE id_cliente IN "
@@ -228,13 +230,18 @@ def sembrar(cursor):
         vence = hoy + timedelta(days=dias)
         inicio = None if estado == "PENDIENTE" else datetime.combine(vence - timedelta(days=10), time(9, 0))
         fin = datetime.combine(vence, time(17, 30)) if estado == "COMPLETADA" else None
+        # Para las tareas ya completadas, fecha_creacion debe quedar antes de
+        # fin; si se deja en el valor por defecto (CURRENT_TIMESTAMP, o sea el
+        # instante de la siembra) queda después de `fin` cuando `vence` cae en
+        # el pasado, y el tiempo de resolución de RF39 sale negativo.
+        creacion = datetime.combine(vence - timedelta(days=15), time(9, 0)) if estado == "COMPLETADA" else datetime.now()
         ids_tarea[titulo] = s.insertar(
             "tarea",
             "INSERT INTO tarea (id_cliente, id_area, id_responsable, id_creador, titulo, descripcion, "
-            "estado, prioridad, fecha_vencimiento, fecha_inicio, fecha_finalizacion) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            "estado, prioridad, fecha_creacion, fecha_vencimiento, fecha_inicio, fecha_finalizacion) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (ids_cliente[rut], areas[area], ids_usuario[resp], admin, titulo, desc,
-             estado, prio, vence, inicio, fin),
+             estado, prio, creacion, vence, inicio, fin),
             "SELECT id_tarea FROM tarea WHERE titulo = %s AND id_cliente = %s",
             (titulo, ids_cliente[rut]),
         )
