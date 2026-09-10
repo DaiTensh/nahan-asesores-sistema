@@ -3,6 +3,7 @@ from datetime import datetime
 
 from flask import Blueprint, request, jsonify
 from backend.config.db import get_connection
+from backend.routes.notificaciones_routes import crear_notificacion
 from backend.utils.auth import ROL_ADMINISTRADOR, login_required, obtener_usuario_actual
 
 tareas_bp = Blueprint("tareas", __name__)
@@ -540,21 +541,15 @@ def asignar_tarea(id_tarea):
             )
         )
 
-        # El nuevo responsable recibe una notificación. La función de
-        # notificación de Vicente (RF52 y afines) todavía no existe en el
-        # repo, así que se inserta directo en la tabla `notificacion` (ya
-        # está en el esquema) para no bloquear el RF; cuando esa función
-        # exista hay que alinear esta llamada con su firma.
-        cursor.execute(
-            """
-            INSERT INTO notificacion (id_usuario, tipo, mensaje, url_destino)
-            VALUES (%s, 'REASIGNACION_TAREA', %s, %s)
-            """,
-            (
-                id_responsable,
-                f"Se te asignó la tarea \"{titulo_tarea}\"",
-                f"/frontend/tareas/detalle_tarea.html?id={id_tarea}"
-            )
+        # El nuevo responsable recibe una notificación (RF52), salvo que se
+        # haya autoasignado la tarea.
+        crear_notificacion(
+            cursor,
+            id_responsable,
+            "REASIGNACION_TAREA",
+            f"Se te asignó la tarea \"{titulo_tarea}\"",
+            f"/frontend/tareas/detalle_tarea.html?id={id_tarea}",
+            id_usuario_actor=usuario["id_usuario"],
         )
 
         connection.commit()
@@ -601,11 +596,16 @@ def actualizar_estado_tarea(id_tarea):
         connection = get_connection()
         cursor = connection.cursor(dictionary=True)
 
-        cursor.execute("SELECT estado FROM tarea WHERE id_tarea = %s", (id_tarea,))
+        cursor.execute(
+            "SELECT estado, id_responsable, titulo FROM tarea WHERE id_tarea = %s",
+            (id_tarea,)
+        )
         tarea = cursor.fetchone()
 
         if not tarea:
             return jsonify({"error": "Tarea no encontrada"}), 404
+
+        estado_anterior = tarea["estado"]
 
         if estado == "COMPLETADA":
             # RF65 — Marcando Tarea como Completada: además de cerrar el
@@ -627,7 +627,7 @@ def actualizar_estado_tarea(id_tarea):
                 """,
                 (
                     usuario["id_usuario"],
-                    f"id_tarea={id_tarea}, estado={tarea['estado']}",
+                    f"id_tarea={id_tarea}, estado={estado_anterior}",
                     f"id_tarea={id_tarea}, estado=COMPLETADA"
                 )
             )
@@ -635,6 +635,18 @@ def actualizar_estado_tarea(id_tarea):
             cursor.execute(
                 "UPDATE tarea SET estado = %s WHERE id_tarea = %s",
                 (estado, id_tarea)
+            )
+
+        # RF51 — el responsable se entera del cambio de estado, salvo que lo
+        # haya hecho él mismo o que el estado no haya cambiado realmente.
+        if estado != estado_anterior:
+            crear_notificacion(
+                cursor,
+                tarea["id_responsable"],
+                "CAMBIO_ESTADO_TAREA",
+                f"La tarea \"{tarea['titulo']}\" cambió de {estado_anterior} a {estado}",
+                f"/frontend/tareas/detalle_tarea.html?id={id_tarea}",
+                id_usuario_actor=usuario["id_usuario"],
             )
 
         connection.commit()
