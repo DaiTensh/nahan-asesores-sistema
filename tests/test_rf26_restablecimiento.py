@@ -61,6 +61,7 @@ class _Cursor:
     def execute(self, sql, params=()):
         self._cursor.execute(_traducir(sql), tuple(params))
         self.lastrowid = self._cursor.lastrowid
+        self.rowcount = self._cursor.rowcount
 
     def executemany(self, sql, secuencia):
         self._cursor.executemany(_traducir(sql), [tuple(p) for p in secuencia])
@@ -262,3 +263,27 @@ def test_sin_cuenta_configurada_el_sistema_no_intenta_enviar(monkeypatch):
         monkeypatch.delenv(clave, raising=False)
 
     assert smtp_configurado() is False
+
+
+def test_token_consumido_entre_lectura_y_actualizacion_no_cambia_password(cliente, base, correos, monkeypatch):
+    _solicitar(cliente, 'elias.alarcon@nahan.local')
+    token = _token(correos)
+    anteriores = _filas(base, 'SELECT id_usuario, password_hash FROM usuario')
+    original = auth_routes._buscar_token_vigente
+    def consumir(cursor, valor):
+        registro = original(cursor, valor)
+        base.execute('UPDATE token_recuperacion SET utilizado = 1')
+        base.commit()
+        return registro
+    monkeypatch.setattr(auth_routes, '_buscar_token_vigente', consumir)
+    respuesta = cliente.post('/api/auth/restablecer', json={'token': token, 'password': 'OtraClave.2026'})
+    assert respuesta.status_code == 400
+    assert _filas(base, 'SELECT id_usuario, password_hash FROM usuario') == anteriores
+
+
+def test_produccion_no_registra_token_smtp_en_logs(monkeypatch, caplog):
+    from backend.utils import correo
+    monkeypatch.setenv('FLASK_ENV', 'production')
+    monkeypatch.setattr(correo, 'smtp_configurado', lambda: False)
+    assert correo.enviar_correo('prueba@example.invalid', 'Restablecimiento', 'token=prueba-secreta') is False
+    assert 'prueba-secreta' not in caplog.text

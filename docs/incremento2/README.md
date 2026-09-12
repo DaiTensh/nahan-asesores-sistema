@@ -8,16 +8,7 @@ que volver a cuadrar el informe y estas fichas contra él.
 
 ## Cómo empezar
 
-Instala Claude Code, ábrelo en la carpeta del repositorio y escribe tu nombre:
-
-```
-hola, soy Renato
-```
-
-Claude revisa tu entorno, instala lo que falte, crea tu rama, lee tu ficha y
-empieza a programar tus RF. Si prefieres ser explícito: `/soy renato`.
-
-Si algo del entorno falla y quieres verlo tú mismo:
+Consulta tu ficha en la tabla de responsabilidades y utiliza los scripts del proyecto:
 
 ```bash
 bash scripts/doctor.sh     # qué falta y cómo se arregla

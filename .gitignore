@@ -25,6 +25,10 @@ uploads/
 # Node
 node_modules/
 
-# Claude Code — configuración local por usuario
-.claude/settings.local.json
-.claude/_prueba.txt
+# Herramientas de asistencia y análisis locales
+/CLAUDE.md
+/.claude/
+/graphify-out/
+
+# Logs temporales
+*.log

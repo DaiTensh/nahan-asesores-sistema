@@ -37,7 +37,8 @@ CMD_TEST   = _PS.format("test")   if ES_WINDOWS else "bash scripts/test.sh"
 
 CLAVES_ENV = ["DB_HOST", "DB_PORT", "DB_USER", "DB_NAME"]
 PAQUETES = [("flask", "Flask"), ("mysql.connector", "mysql-connector-python"),
-            ("bcrypt", "bcrypt"), ("dotenv", "python-dotenv"), ("flask_cors", "flask-cors")]
+            ("bcrypt", "bcrypt"), ("dotenv", "python-dotenv"), ("flask_cors", "flask-cors"),
+            ("openpyxl", "openpyxl"), ("reportlab", "reportlab")]
 
 resultados = []
 
@@ -224,9 +225,7 @@ def revisar_puertos():
         corriendo = [p for p in candidatos
                      if p not in libres and responde_nuestra_api(p)]
 
-        if corriendo:
-            detalle = f"{corriendo[0]} ocupado — {quien} ya está corriendo ahí"
-        elif libres and libres[0] == primero:
+        if libres and libres[0] == primero:
             detalle = f"{primero} libre para {quien}"
         elif libres:
             detalle = f"{primero} ocupado" + (f" por {duenio}" if duenio else "")
@@ -236,8 +235,11 @@ def revisar_puertos():
             arreglo = ("Cierra lo que los tenga tomados. Para ver qué son: "
                        f"lsof -nP -iTCP:{primero} -sTCP:LISTEN")
 
+        if corriendo:
+            detalle += f"; API Nahan detectada en {corriendo[0]} (no se reutiliza)"
+
         if duenio in ("ControlCe", "ControlCenter", "AirPlayXPCHelper"):
-            detalle += " (receptor de AirPlay de macOS)"
+            detalle += f" ({primero}: receptor de AirPlay de macOS)"
             arreglo = arreglo or ("Se puede dejar así. Si prefieres liberar el 5000: "
                                   "Ajustes del Sistema → General → AirDrop y Handoff → "
                                   "Receptor de AirPlay → desactivar")

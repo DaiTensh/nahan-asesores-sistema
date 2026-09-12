@@ -9,4 +9,7 @@ def hash_password(password):
 def check_password(password, password_hash):
     password_bytes = password.encode("utf-8")
     hash_bytes = password_hash.encode("utf-8")
-    return bcrypt.checkpw(password_bytes, hash_bytes)
+    try:
+        return bcrypt.checkpw(password_bytes, hash_bytes)
+    except ValueError:
+        return False

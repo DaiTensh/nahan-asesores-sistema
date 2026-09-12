@@ -4,7 +4,7 @@
 
 Este documento define cómo se verificará el correcto funcionamiento del sistema.
 
-Claude debe utilizarlo para planificar y ejecutar pruebas cuando corresponda.
+El equipo debe utilizarlo para planificar y ejecutar pruebas cuando corresponda.
 
 ---
 
@@ -86,7 +86,7 @@ Buscan problemas relacionados con:
 
 # 4. Antes de una modificación
 
-Claude debe identificar:
+El equipo debe identificar:
 
 - Qué funcionalidad será afectada.
 
@@ -98,7 +98,7 @@ Claude debe identificar:
 
 # 5. Después de una modificación
 
-Claude debe ejecutar las pruebas disponibles.
+El equipo debe ejecutar las pruebas disponibles.
 
 Debe informar:
 
@@ -142,6 +142,6 @@ Cuando una prueba falle:
 
 # 8. Regla
 
-Claude no debe afirmar que una funcionalidad está validada simplemente porque el código parece correcto.
+El equipo no debe afirmar que una funcionalidad está validada simplemente porque el código parece correcto.
 
 Debe existir evidencia suficiente.

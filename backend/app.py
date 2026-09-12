@@ -3,7 +3,8 @@ import os
 import time
 from datetime import timedelta
 
-from flask import Flask
+from flask import Flask, jsonify, request
+from werkzeug.exceptions import HTTPException
 from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -59,12 +60,12 @@ def create_app():
     es_produccion = entorno == "production"
     secret_key = os.getenv("SECRET_KEY")
 
-    if es_produccion and not secret_key:
+    if es_produccion and (not secret_key or secret_key == DEFAULT_DEV_SECRET_KEY):
         raise RuntimeError("SECRET_KEY debe estar configurada en producción.")
 
     app = Flask(__name__)
     app.config["ENV"] = entorno
-    app.config["DEBUG"] = _bool_env("DEBUG", default=not es_produccion)
+    app.config["DEBUG"] = not es_produccion and _bool_env("DEBUG", default=True)
     app.config["SECRET_KEY"] = secret_key or DEFAULT_DEV_SECRET_KEY
     app.config["SESSION_COOKIE_HTTPONLY"] = _bool_env(
         "SESSION_COOKIE_HTTPONLY",
@@ -87,6 +88,53 @@ def create_app():
     app.config["SESSION_REFRESH_EACH_REQUEST"] = True
     app.config["APP_TIMEZONE"] = _configurar_zona_horaria()
 
+    @app.before_request
+    def validar_cuerpo_json():
+        if not request.path.startswith("/api/") or not request.is_json:
+            return None
+        datos = request.get_json(silent=True)
+        if not isinstance(datos, dict):
+            return jsonify({"error": "El cuerpo debe ser un objeto JSON válido"}), 400
+
+        campos_texto = {
+            "email", "password", "token", "nombres", "rut", "razon_social",
+            "telefono", "direccion", "titulo", "descripcion", "prioridad", "estado",
+            "nuevo_estado", "fecha_vencimiento", "nombre_documento", "tipo_documento",
+            "ubicacion_referencia", "observaciones", "texto",
+        }
+        largos_maximos = {
+            "nombres": 100, "email": 150, "rut": 20, "razon_social": 200,
+            "telefono": 20, "direccion": 255, "titulo": 200,
+            "nombre_documento": 200, "tipo_documento": 60, "ubicacion_referencia": 255,
+        }
+        for campo, valor in datos.items():
+            if campo in campos_texto and valor is not None and not isinstance(valor, str):
+                return jsonify({"error": f"{campo} debe ser texto"}), 400
+            if campo in largos_maximos and isinstance(valor, str) and len(valor) > largos_maximos[campo]:
+                return jsonify({"error": f"{campo} supera el máximo de {largos_maximos[campo]} caracteres"}), 400
+            if campo in {"areas", "ids_tarea"} and valor is not None:
+                if not isinstance(valor, list) or any(
+                    isinstance(item, bool) or not str(item).isdecimal() or int(item) < 1
+                    for item in valor
+                ):
+                    return jsonify({"error": f"{campo} debe ser una lista de IDs enteros positivos"}), 400
+            if campo.startswith("id_") and valor not in (None, ""):
+                if campo == "id_area" and valor == "AMBAS":
+                    continue
+                if isinstance(valor, bool) or not str(valor).isdecimal() or int(valor) < 1:
+                    return jsonify({"error": f"{campo} debe ser un ID entero positivo"}), 400
+        password = datos.get("password")
+        if password and len(password.encode("utf-8")) > 72:
+            return jsonify({"error": "La contraseña no puede superar 72 bytes UTF-8"}), 400
+
+    @app.errorhandler(HTTPException)
+    def error_http(error):
+        respuesta = error.get_response()
+        if request.path.startswith("/api/"):
+            respuesta.data = app.json.dumps({"error": error.description})
+            respuesta.content_type = "application/json"
+        return respuesta
+
     logging.basicConfig(
         level=logging.DEBUG if app.config["DEBUG"] else logging.INFO,
         format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
@@ -101,6 +149,7 @@ def create_app():
             app,
             origins=origenes,
             supports_credentials=True,
+            expose_headers=["Content-Disposition"],
         )
 
     if _bool_env("TRUST_PROXY", default=False):

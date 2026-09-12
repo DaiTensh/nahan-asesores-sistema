@@ -136,7 +136,7 @@ def _ids(base, nombres):
 # --------------------------------------------------------------------------
 
 def test_redistribuye_varias_tareas_en_una_sola_operacion(cliente, base):
-    _login(cliente, "origen@nahan.local")
+    _login(cliente, "admin@nahan.local")
     ids_tarea = _ids(base, ["Tarea 1 de Origen", "Tarea 2 de Origen"])
 
     respuesta = cliente.put(
@@ -155,7 +155,7 @@ def test_redistribuye_varias_tareas_en_una_sola_operacion(cliente, base):
 
 
 def test_cada_movimiento_queda_en_auditoria(cliente, base):
-    _login(cliente, "origen@nahan.local")
+    _login(cliente, "admin@nahan.local")
     ids_tarea = _ids(base, ["Tarea 1 de Origen", "Tarea 2 de Origen"])
 
     cliente.put(
@@ -167,17 +167,19 @@ def test_cada_movimiento_queda_en_auditoria(cliente, base):
         "SELECT * FROM auditoria WHERE accion = 'REASIGNACION_MASIVA'"
     ).fetchall()
     assert len(filas) == 2
+    assert all(fila["id_usuario"] == 1 for fila in filas)
     assert all("id_responsable=2" in fila["datos_anteriores"] for fila in filas)
     assert all("id_responsable=3" in fila["datos_nuevos"] for fila in filas)
 
 
-def test_un_responsable_invalido_no_deja_reasignaciones_a_medias(cliente, base):
-    _login(cliente, "origen@nahan.local")
+@pytest.mark.parametrize("id_responsable", [4, 999])
+def test_un_responsable_invalido_no_deja_reasignaciones_a_medias(cliente, base, id_responsable):
+    _login(cliente, "admin@nahan.local")
     ids_tarea = _ids(base, ["Tarea 1 de Origen", "Tarea 2 de Origen"])
 
     respuesta = cliente.put(
         "/api/tareas/reasignar-masivo",
-        json={"ids_tarea": ids_tarea, "id_responsable": 4}  # cuenta inactiva
+        json={"ids_tarea": ids_tarea, "id_responsable": id_responsable}
     )
 
     assert respuesta.status_code == 422
@@ -193,7 +195,7 @@ def test_un_responsable_invalido_no_deja_reasignaciones_a_medias(cliente, base):
 
 
 def test_requiere_al_menos_una_tarea_y_un_responsable(cliente):
-    _login(cliente, "origen@nahan.local")
+    _login(cliente, "admin@nahan.local")
 
     assert cliente.put(
         "/api/tareas/reasignar-masivo", json={"ids_tarea": [], "id_responsable": 3}
@@ -204,7 +206,7 @@ def test_requiere_al_menos_una_tarea_y_un_responsable(cliente):
 
 
 def test_muestra_la_carga_de_origen_y_destino_antes_de_confirmar(cliente):
-    _login(cliente, "origen@nahan.local")
+    _login(cliente, "admin@nahan.local")
 
     respuesta = cliente.get("/api/tareas/carga?ids_usuario=2,3")
     carga = respuesta.get_json()
@@ -217,8 +219,82 @@ def test_muestra_la_carga_de_origen_y_destino_antes_de_confirmar(cliente):
 
 
 def test_carga_sin_ids_usuario_responde_400(cliente):
-    _login(cliente, "origen@nahan.local")
+    _login(cliente, "admin@nahan.local")
 
     respuesta = cliente.get("/api/tareas/carga")
 
     assert respuesta.status_code == 400
+
+
+@pytest.mark.parametrize("email", ["origen@nahan.local", "destino@nahan.local"])
+def test_no_administrador_no_puede_redistribuir(cliente, base, email):
+    assert _login(cliente, email).status_code == 200
+    anteriores = base.execute("SELECT id_tarea, id_responsable FROM tarea").fetchall()
+
+    respuesta = cliente.put(
+        "/api/tareas/reasignar-masivo",
+        json={"ids_tarea": [1, 2], "id_responsable": 3}
+    )
+
+    assert respuesta.status_code == 403
+    assert respuesta.get_json() == {"error": "No tiene permisos para acceder a este recurso"}
+    assert base.execute("SELECT id_tarea, id_responsable FROM tarea").fetchall() == anteriores
+    assert base.execute("SELECT COUNT(*) FROM auditoria").fetchone()[0] == 0
+
+
+def test_no_administrador_no_puede_consultar_carga(cliente):
+    assert _login(cliente, "origen@nahan.local").status_code == 200
+
+    respuesta = cliente.get("/api/tareas/carga?ids_usuario=2,3")
+
+    assert respuesta.status_code == 403
+    assert respuesta.get_json() == {"error": "No tiene permisos para acceder a este recurso"}
+
+
+def test_sin_sesion_no_puede_acceder_a_rf19(cliente):
+    assert cliente.put(
+        "/api/tareas/reasignar-masivo",
+        json={"ids_tarea": [1, 2], "id_responsable": 3}
+    ).status_code == 401
+    assert cliente.get("/api/tareas/carga?ids_usuario=2,3").status_code == 401
+
+
+def test_tarea_inexistente_revierte_todo_el_lote(cliente, base):
+    _login(cliente, "admin@nahan.local")
+    anteriores = base.execute("SELECT id_tarea, id_responsable FROM tarea").fetchall()
+
+    respuesta = cliente.put(
+        "/api/tareas/reasignar-masivo",
+        json={"ids_tarea": [1, 999], "id_responsable": 3}
+    )
+
+    assert respuesta.status_code == 404
+    assert base.execute("SELECT id_tarea, id_responsable FROM tarea").fetchall() == anteriores
+    assert base.execute("SELECT COUNT(*) FROM auditoria").fetchone()[0] == 0
+
+
+def test_carga_de_usuario_inexistente_responde_404(cliente):
+    _login(cliente, "admin@nahan.local")
+
+    assert cliente.get("/api/tareas/carga?ids_usuario=2,999").status_code == 404
+
+
+def test_carga_de_usuario_existente_sin_tareas_es_cero(cliente):
+    _login(cliente, "admin@nahan.local")
+
+    respuesta = cliente.get("/api/tareas/carga?ids_usuario=1")
+
+    assert respuesta.status_code == 200
+    assert respuesta.get_json() == {"1": 0}
+
+
+@pytest.mark.parametrize('estado', ['COMPLETADA', 'CANCELADA'])
+def test_rf19_respeta_bloqueo_final_y_revierte_lote(cliente, base, estado):
+    _login(cliente, 'admin@nahan.local')
+    base.execute('UPDATE tarea SET estado = ? WHERE id_tarea = 3', (estado,))
+    base.commit()
+    respuesta = cliente.put('/api/tareas/reasignar-masivo', json={'ids_tarea': [1, 3], 'id_responsable': 3})
+    assert respuesta.status_code == 409
+    filas = base.execute('SELECT id_responsable FROM tarea WHERE id_tarea IN (1, 3)').fetchall()
+    assert all(fila['id_responsable'] == 2 for fila in filas)
+    assert base.execute('SELECT COUNT(*) AS n FROM auditoria').fetchone()['n'] == 0

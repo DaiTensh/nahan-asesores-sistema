@@ -109,7 +109,6 @@ Los siguientes archivos sirven como sistema de gestión interna del proyecto:
 
 | Archivo | Propósito |
 |---|---|
-| `CLAUDE.md` | Reglas de trabajo de Claude |
 | `project_context.md` | Contexto general |
 | `architecture.md` | Arquitectura técnica |
 | `requirements.md` | Requerimientos y trazabilidad |
@@ -126,7 +125,7 @@ Los siguientes archivos sirven como sistema de gestión interna del proyecto:
 
 Este archivo debe mantenerse actualizado cuando cambien aspectos fundamentales del proyecto.
 
-Para información detallada sobre el estado de implementación, Claude debe revisar:
+Para información detallada sobre el estado de implementación, El equipo debe revisar:
 
 - GitHub.
 - Documentación de incrementos.
@@ -139,4 +138,4 @@ Para información detallada sobre el estado de implementación, Claude debe revi
 
 Este archivo es un resumen y NO reemplaza la documentación oficial.
 
-Cuando exista una diferencia entre este archivo y la documentación oficial, Claude debe investigar la diferencia antes de asumir cuál es correcta.
+Cuando exista una diferencia entre este archivo y la documentación oficial, El equipo debe investigar la diferencia antes de asumir cuál es correcta.

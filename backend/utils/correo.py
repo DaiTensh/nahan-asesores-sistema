@@ -53,6 +53,9 @@ def enviar_correo(destinatario, asunto, cuerpo):
     revelar al usuario si el correo pudo entregarse.
     """
     if not smtp_configurado():
+        if os.getenv("FLASK_ENV", "development").lower() == "production":
+            logger.warning("SMTP no configurado; el correo no se envió.")
+            return False
         logger.warning(
             "SMTP no configurado. El correo no se envió y su contenido queda "
             "registrado aquí para desarrollo.\nPara: %s\nAsunto: %s\n%s",

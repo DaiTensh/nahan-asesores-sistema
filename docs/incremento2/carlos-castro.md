@@ -4,7 +4,6 @@
 
 Usuario para probar: `carlos.castro@nahan.local` — contraseña `Nahan.2026`
 
-> Esta ficha es la que lee Claude cuando dices «hola, soy Carlos».
 > Si algo aquí no calza con el código, avisa antes de programar: puede ser que
 > el informe y el repositorio se hayan separado.
 

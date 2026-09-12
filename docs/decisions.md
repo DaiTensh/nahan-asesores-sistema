@@ -4,7 +4,7 @@
 
 Este archivo registra decisiones relevantes tomadas durante el desarrollo del proyecto.
 
-Su objetivo es evitar que decisiones importantes se pierdan y proporcionar contexto histórico a Claude y al equipo.
+Su objetivo es evitar que decisiones importantes se pierdan y proporcionar contexto histórico al equipo.
 
 ---
 

@@ -19,6 +19,17 @@ document.addEventListener("DOMContentLoaded", () => {
   const selectResponsable = document.getElementById("selectResponsable");
   const inputFechaInicio = document.getElementById("inputFechaInicio");
   const inputFechaFin = document.getElementById("inputFechaFin");
+  document.getElementById("atajoPeriodo").addEventListener("change", event => {
+    if (!event.target.value) return;
+    const fin = new Date();
+    const inicio = new Date(fin);
+    if (event.target.value === "anio") inicio.setMonth(0, 1);
+    else if (event.target.value === "mes") inicio.setMonth(inicio.getMonth() - 1);
+    else inicio.setDate(inicio.getDate() - 6);
+    const fechaLocal = fecha => `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, "0")}-${String(fecha.getDate()).padStart(2, "0")}`;
+    inputFechaInicio.value = fechaLocal(inicio);
+    inputFechaFin.value = fechaLocal(fin);
+  });
   const mensaje = document.getElementById("mensajeReporte");
   const resultado = document.getElementById("resultadoReporte");
   const resultadoEntidadLabel = document.getElementById("resultadoEntidadLabel");
@@ -174,15 +185,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     idReporteActual = data.id_reporte || null;
     btnExportarExcel.hidden = !idReporteActual;
+    document.getElementById("btnExportarPdf").hidden = !idReporteActual;
 
     resultado.hidden = false;
   }
 
-  btnExportarExcel.addEventListener("click", async () => {
+  async function exportar(formato) {
     if (!idReporteActual) return;
 
     try {
-      const response = await fetch(`${API_URL}/reportes/${idReporteActual}/excel`, {
+      const response = await fetch(`${API_URL}/reportes/${idReporteActual}/${formato}`, {
         credentials: window.API_CONFIG.credentials
       });
 
@@ -194,7 +206,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const disposicion = response.headers.get("Content-Disposition") || "";
       const coincidencia = disposicion.match(/filename="?([^"]+)"?/);
-      const nombreArchivo = coincidencia ? coincidencia[1] : "reporte.xlsx";
+      const nombreArchivo = coincidencia ? coincidencia[1] : `reporte.${formato === "excel" ? "xlsx" : "pdf"}`;
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -209,7 +221,9 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error(error);
       mostrarMensaje("Error al conectar con el servidor.", "error");
     }
-  });
+  }
+  btnExportarExcel.addEventListener("click", () => exportar("excel"));
+  document.getElementById("btnExportarPdf").addEventListener("click", () => exportar("pdf"));
 
   function renderizarResumenEstado(resumen) {
     resumenEstadoCards.textContent = "";

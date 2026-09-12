@@ -4,6 +4,10 @@
 
 Este documento mantiene el historial de revisiones, auditorías y controles realizados sobre el proyecto.
 
+Las menciones a herramientas y archivos retirados se conservan como antecedentes
+históricos de esas revisiones; no constituyen instrucciones vigentes ni dependencias
+del sistema.
+
 ---
 
 # Estados
@@ -19,7 +23,7 @@ Este documento mantiene el historial de revisiones, auditorías y controles real
 
 # Reglas
 
-Claude debe:
+Al registrar una revisión:
 
 1. No eliminar revisiones anteriores.
 2. Mantener historial cronológico.
@@ -42,7 +46,7 @@ Claude debe:
 
 **Tipo:** Revisión / Auditoría / Incremento / Entrega
 
-**Responsable:** Claude / Equipo / Ambos
+**Responsable:** Nombre del responsable o equipo
 
 **Branch:** `nombre-branch`
 

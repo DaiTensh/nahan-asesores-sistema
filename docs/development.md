@@ -4,7 +4,7 @@
 
 Este documento define las convenciones utilizadas para desarrollar y mantener el proyecto.
 
-Claude debe consultar este documento antes de realizar modificaciones importantes.
+El equipo debe consultar este documento antes de realizar modificaciones importantes.
 
 ---
 

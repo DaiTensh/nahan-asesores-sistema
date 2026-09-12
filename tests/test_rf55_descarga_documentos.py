@@ -218,3 +218,17 @@ def test_un_documento_inexistente_devuelve_404(cliente):
     respuesta = cliente.get("/api/documentos/999/descargar")
 
     assert respuesta.status_code == 404
+
+
+def test_creador_sin_responsabilidad_no_tiene_acceso_a_adjuntos(cliente, base):
+    _login(cliente, 'ivan@nahan.local')
+    id_documento = _subir(cliente, 1, 'factura.pdf').get_json()['id_documento']
+    base.execute('UPDATE tarea SET id_creador = 3 WHERE id_tarea = 1')
+    base.commit()
+    _login(cliente, 'ajeno@nahan.local')
+    assert cliente.get('/api/tareas/1/documentos').status_code == 403
+    assert cliente.get(f'/api/documentos/{id_documento}/descargar').status_code == 403
+    assert _subir(cliente, 1, 'rechazado.pdf').status_code == 403
+    assert base.execute('SELECT COUNT(*) AS n FROM documento').fetchone()['n'] == 1
+    assert base.execute('SELECT COUNT(*) AS n FROM tarea_documento').fetchone()['n'] == 1
+    assert base.execute("SELECT COUNT(*) AS n FROM auditoria WHERE accion = 'DESCARGA'").fetchone()['n'] == 0

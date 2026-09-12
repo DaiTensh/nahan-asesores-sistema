@@ -15,11 +15,60 @@ document.addEventListener("DOMContentLoaded", () => {
   const selectArea = document.getElementById("selectArea");
   const inputFechaInicio = document.getElementById("inputFechaInicio");
   const inputFechaFin = document.getElementById("inputFechaFin");
+  document.getElementById("atajoPeriodo").addEventListener("change", event => {
+    if (!event.target.value) return;
+    const fin = new Date();
+    const inicio = new Date(fin);
+    if (event.target.value === "anio") inicio.setMonth(0, 1);
+    else if (event.target.value === "mes") inicio.setMonth(inicio.getMonth() - 1);
+    else inicio.setDate(inicio.getDate() - 6);
+    const fechaLocal = fecha => `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, "0")}-${String(fecha.getDate()).padStart(2, "0")}`;
+    inputFechaInicio.value = fechaLocal(inicio);
+    inputFechaFin.value = fechaLocal(fin);
+  });
   const mensaje = document.getElementById("mensajeProductividad");
   const resultado = document.getElementById("resultadoProductividad");
   const resultadoPeriodo = document.getElementById("resultadoPeriodo");
   const resultadoFechaGeneracion = document.getElementById("resultadoFechaGeneracion");
   const tablaProductividad = document.getElementById("tablaProductividad");
+
+  let idReporteActual = null;
+  const btnExportarExcel = document.getElementById("btnExportarExcel");
+
+  async function exportar(formato) {
+    if (!idReporteActual) return;
+
+    try {
+      const response = await fetch(`${API_URL}/reportes/${idReporteActual}/${formato}`, {
+        credentials: window.API_CONFIG.credentials
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        mostrarMensaje(data.error || "No se pudo exportar el reporte.", "error");
+        return;
+      }
+
+      const disposicion = response.headers.get("Content-Disposition") || "";
+      const coincidencia = disposicion.match(/filename="?([^"]+)"?/);
+      const nombreArchivo = coincidencia ? coincidencia[1] : `reporte.${formato === "excel" ? "xlsx" : "pdf"}`;
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const enlace = document.createElement("a");
+      enlace.href = url;
+      enlace.download = nombreArchivo;
+      document.body.appendChild(enlace);
+      enlace.click();
+      enlace.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error(error);
+      mostrarMensaje("Error al conectar con el servidor.", "error");
+    }
+  }
+  btnExportarExcel.addEventListener("click", () => exportar("excel"));
+  document.getElementById("btnExportarPdf").addEventListener("click", () => exportar("pdf"));
 
   cargarAreas();
 
@@ -99,6 +148,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   function renderizarResultado(data) {
+    idReporteActual = data.id_reporte || null;
     resultadoPeriodo.textContent = `${formatearFecha(data.periodo.fecha_inicio)} — ${formatearFecha(data.periodo.fecha_fin)}`;
     resultadoFechaGeneracion.textContent = data.fecha_generacion || "-";
 
