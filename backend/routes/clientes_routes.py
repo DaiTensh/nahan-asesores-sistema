@@ -1,5 +1,7 @@
 import logging
 
+from mysql.connector import IntegrityError
+
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 from backend.config.db import get_connection
@@ -11,14 +13,15 @@ logger = logging.getLogger(__name__)
 @clientes_blueprint.route('/clientes', methods=['POST'])
 @roles_required(*ROLES_OPERATIVOS)
 def registrar_cliente():
+    conexion = None
     try:
         datos = request.json
         
-        rut = datos.get('rut', '').strip()
-        razon_social = datos.get('razon_social', '').strip()
-        email = datos.get('email', '').strip()
-        telefono = datos.get('telefono', '').strip()
-        direccion = datos.get('direccion', '').strip()
+        rut = (datos.get('rut') or '').strip()
+        razon_social = (datos.get('razon_social') or '').strip()
+        email = (datos.get('email') or '').strip()
+        telefono = (datos.get('telefono') or '').strip()
+        direccion = (datos.get('direccion') or '').strip()
         areas = datos.get('areas', []) # Array de IDs de áreas [1, 2]
 
         # Validaciones de campos obligatorios según esquema de BD
@@ -61,13 +64,31 @@ def registrar_cliente():
 
         return jsonify({"message": "Cliente incorporado exitosamente junto a sus áreas asociadas."}), 201
 
+    except IntegrityError as error:
+        if conexion:
+            conexion.rollback()
+        if error.errno == 1062:
+            return jsonify({"error": "Ya existe un registro con esos datos únicos"}), 400
+        if error.errno == 1452:
+            return jsonify({"error": "Un rol o área indicada no existe"}), 422
+        logger.exception("Error de integridad al guardar datos")
+        return jsonify({"error": "Error interno al guardar datos"}), 500
+
     except Exception:
+        if conexion:
+            conexion.rollback()
         logger.exception("Error al registrar cliente")
         return jsonify({"error": "Ocurrió una anomalía interna en el servidor al guardar el expediente."}), 500
+
+    finally:
+        if conexion:
+            conexion.close()
+
 
 @clientes_blueprint.route('/clientes/<int:id_cliente>', methods=['GET'])
 @roles_required(*ROLES_OPERATIVOS)
 def obtener_cliente(id_cliente):
+    conexion = None
     try:
         conexion = get_connection()
         if conexion is None:
@@ -95,8 +116,14 @@ def obtener_cliente(id_cliente):
         return jsonify(cliente), 200
 
     except Exception:
+        if conexion:
+            conexion.rollback()
         logger.exception("Error al obtener cliente")
         return jsonify({"error": "Error interno del servidor."}), 500
+
+    finally:
+        if conexion:
+            conexion.close()
 
 
 
@@ -104,12 +131,13 @@ def obtener_cliente(id_cliente):
 @clientes_blueprint.route('/clientes/<int:id_cliente>', methods=['PUT'])
 @roles_required(*ROLES_OPERATIVOS)
 def modificar_cliente(id_cliente):
+    conexion = None
     try:
         datos = request.json
-        razon_social = datos.get('razon_social', '').strip()
-        email = datos.get('email', '').strip()
-        telefono = datos.get('telefono', '').strip()
-        direccion = datos.get('direccion', '').strip()
+        razon_social = (datos.get('razon_social') or '').strip()
+        email = (datos.get('email') or '').strip()
+        telefono = (datos.get('telefono') or '').strip()
+        direccion = (datos.get('direccion') or '').strip()
         areas = datos.get('areas', []) # Arreglo de enteros [1] o [2] o [1,2]
 
         if not razon_social:
@@ -150,9 +178,26 @@ def modificar_cliente(id_cliente):
 
         return jsonify({"message": "Expediente modificado con éxito."}), 200
 
+    except IntegrityError as error:
+        if conexion:
+            conexion.rollback()
+        if error.errno == 1062:
+            return jsonify({"error": "Ya existe un registro con esos datos únicos"}), 400
+        if error.errno == 1452:
+            return jsonify({"error": "Un rol o área indicada no existe"}), 422
+        logger.exception("Error de integridad al guardar datos")
+        return jsonify({"error": "Error interno al guardar datos"}), 500
+
     except Exception:
+        if conexion:
+            conexion.rollback()
         logger.exception("Error al modificar cliente")
         return jsonify({"error": "Error inesperado al almacenar cambios."}), 500
+
+    finally:
+        if conexion:
+            conexion.close()
+
 
 
 # ==========================================================================
@@ -161,6 +206,7 @@ def modificar_cliente(id_cliente):
 @clientes_blueprint.route('/clientes/<int:id_cliente>/verificar-vinculos', methods=['GET'])
 @roles_required(ROL_ADMINISTRADOR)
 def verificar_vinculos_cliente(id_cliente):
+    conexion = None
     try:
         conexion = get_connection()
         if conexion is None:
@@ -197,8 +243,14 @@ def verificar_vinculos_cliente(id_cliente):
         }), 200
 
     except Exception:
+        if conexion:
+            conexion.rollback()
         logger.exception("Error en verificación de vínculos de cliente")
         return jsonify({"error": "Error al calcular dependencias."}), 500
+
+    finally:
+        if conexion:
+            conexion.close()
 
 
 # ==========================================================================
@@ -207,6 +259,7 @@ def verificar_vinculos_cliente(id_cliente):
 @clientes_blueprint.route('/clientes/<int:id_cliente>/deshabilitar', methods=['PATCH'])
 @roles_required(ROL_ADMINISTRADOR)
 def deshabilitar_cliente_rf3(id_cliente):
+    conexion = None
     try:
         usuario_actual = obtener_usuario_actual()
         id_usuario = usuario_actual["id_usuario"]
@@ -232,8 +285,14 @@ def deshabilitar_cliente_rf3(id_cliente):
 
         return jsonify({"message": "Cliente deshabilitado y registrado en auditoría."}), 200
     except Exception:
+        if conexion:
+            conexion.rollback()
         logger.exception("Error procesando deshabilitación de cliente")
         return jsonify({"error": "Error procesando deshabilitación."}), 500
+
+    finally:
+        if conexion:
+            conexion.close()
 
 
 # ==========================================================================
@@ -242,6 +301,7 @@ def deshabilitar_cliente_rf3(id_cliente):
 @clientes_blueprint.route('/clientes/<int:id_cliente>/eliminar-definitivo', methods=['DELETE'])
 @roles_required(ROL_ADMINISTRADOR)
 def eliminar_definitivo_cliente(id_cliente):
+    conexion = None
     try:
         usuario_actual = obtener_usuario_actual()
         id_usuario = usuario_actual["id_usuario"]
@@ -275,8 +335,14 @@ def eliminar_definitivo_cliente(id_cliente):
 
         return jsonify({"message": "Cliente eliminado físicamente y registrado en auditoría."}), 200
     except Exception:
+        if conexion:
+            conexion.rollback()
         logger.exception("Error en eliminación definitiva de cliente")
         return jsonify({"error": "No se pudo realizar la eliminación por dependencias."}), 500
+
+    finally:
+        if conexion:
+            conexion.close()
 
 # ==========================================================================
 # RF04: VISUALIZANDO LA FICHA COMPLETA Y CONSOLIDADA DEL CLIENTE
@@ -284,6 +350,7 @@ def eliminar_definitivo_cliente(id_cliente):
 @clientes_blueprint.route('/clientes/<int:id_cliente>/ficha', methods=['GET'])
 @roles_required(*ROLES_OPERATIVOS)
 def obtener_ficha_consolidada(id_cliente):
+    conexion = None
     try:
         conexion = get_connection()
         if conexion is None:
@@ -342,8 +409,14 @@ def obtener_ficha_consolidada(id_cliente):
         return jsonify(cliente), 200
 
     except Exception:
+        if conexion:
+            conexion.rollback()
         logger.exception("Error al obtener ficha consolidada de cliente")
         return jsonify({"error": "Ocurrió una anomalía interna al consolidar los antecedentes del cliente."}), 500
+
+    finally:
+        if conexion:
+            conexion.close()
 
 # ==========================================================================
 # RF06: FILTRANDO CLIENTES POR ÁREA DE SERVICIO Y CRITERIO DE TEXTO (LIKE)
@@ -351,6 +424,7 @@ def obtener_ficha_consolidada(id_cliente):
 @clientes_blueprint.route('/clientes/filtrar', methods=['GET'])
 @roles_required(*ROLES_OPERATIVOS)
 def filtrar_clientes_combinado():
+    conexion = None
     try:
         # Captura de parámetros opcionales (?id_area=1&buscar=alfa)
         id_area = request.args.get('id_area')
@@ -399,8 +473,14 @@ def filtrar_clientes_combinado():
         return jsonify(resultados), 200
 
     except Exception:
+        if conexion:
+            conexion.rollback()
         logger.exception("Error al filtrar clientes")
         return jsonify({"error": "Ocurrió una anomalía al procesar el filtrado multi-criterio."}), 500
+
+    finally:
+        if conexion:
+            conexion.close()
 
 
 # ==========================================================================
@@ -409,9 +489,10 @@ def filtrar_clientes_combinado():
 @clientes_blueprint.route('/clientes/<int:id_cliente>/cambiar-estado', methods=['POST'])
 @roles_required(ROL_ADMINISTRADOR)
 def cambiar_estado_cliente_rf10(id_cliente):
+    conexion = None
     try:
         datos = request.json
-        nuevo_estado = datos.get('nuevo_estado', '').strip().upper()
+        nuevo_estado = (datos.get('nuevo_estado') or '').strip().upper()
         id_usuario = obtener_usuario_actual()["id_usuario"]
 
         if nuevo_estado not in ['ACTIVO', 'INACTIVO']:
@@ -452,8 +533,14 @@ def cambiar_estado_cliente_rf10(id_cliente):
         return jsonify({"message": f"Estado actualizado exitosamente a {nuevo_estado}."}), 200
 
     except Exception:
+        if conexion:
+            conexion.rollback()
         logger.exception("Error al cambiar estado de cliente")
         return jsonify({"error": "Error interno al procesar el cambio de estado."}), 500
+
+    finally:
+        if conexion:
+            conexion.close()
 
 
 # ==========================================================================
@@ -462,6 +549,7 @@ def cambiar_estado_cliente_rf10(id_cliente):
 @clientes_blueprint.route('/clientes/listado', methods=['GET'])
 @roles_required(*ROLES_OPERATIVOS)
 def listado_general_paginado_clientes():
+    conexion = None
     try:
         # Captura de parámetros de orden y paginación (?pagina=1&limite=7)
         try:
@@ -538,8 +626,14 @@ def listado_general_paginado_clientes():
         return jsonify({"clientes": clientes}), 200
 
     except Exception:
+        if conexion:
+            conexion.rollback()
         logger.exception("Error en listado paginado de clientes")
         return jsonify({"error": "Imposible recuperar la matriz general de clientes."}), 500
+
+    finally:
+        if conexion:
+            conexion.close()
 
 
 # ==========================================================================
@@ -548,6 +642,7 @@ def listado_general_paginado_clientes():
 @clientes_blueprint.route('/clientes/<int:id_cliente>/observaciones', methods=['GET'])
 @roles_required(*ROLES_OPERATIVOS)
 def listar_observaciones_cliente(id_cliente):
+    conexion = None
     try:
         conexion = get_connection()
         if conexion is None:
@@ -571,16 +666,23 @@ def listar_observaciones_cliente(id_cliente):
         return jsonify({"observaciones": observaciones}), 200
 
     except Exception:
+        if conexion:
+            conexion.rollback()
         logger.exception("Error al listar observaciones de cliente")
         return jsonify({"error": "Error interno al obtener las observaciones."}), 500
+
+    finally:
+        if conexion:
+            conexion.close()
 
 
 @clientes_blueprint.route('/clientes/<int:id_cliente>/observaciones', methods=['POST'])
 @roles_required(*ROLES_OPERATIVOS)
 def registrar_observacion_cliente(id_cliente):
+    conexion = None
     try:
         datos = request.json or {}
-        texto = datos.get('texto', '').strip()
+        texto = (datos.get('texto') or '').strip()
         id_usuario = obtener_usuario_actual()["id_usuario"]
 
         if not texto:
@@ -605,13 +707,20 @@ def registrar_observacion_cliente(id_cliente):
         return jsonify({"message": "Observación registrada correctamente."}), 201
 
     except Exception:
+        if conexion:
+            conexion.rollback()
         logger.exception("Error al registrar observación de cliente")
         return jsonify({"error": "Error interno al registrar la observación."}), 500
+
+    finally:
+        if conexion:
+            conexion.close()
 
 
 @clientes_blueprint.route('/clientes/resumen', methods=['GET'])
 @roles_required(*ROLES_OPERATIVOS)
 def resumen_clientes_dashboard():
+    conexion = None
     try:
         conexion = get_connection()
 
@@ -645,5 +754,11 @@ def resumen_clientes_dashboard():
         }), 200
 
     except Exception:
+        if conexion:
+            conexion.rollback()
         logger.exception("Error en resumen de clientes para dashboard")
         return jsonify({"error": "No se pudo cargar el resumen de clientes."}), 500
+
+    finally:
+        if conexion:
+            conexion.close()

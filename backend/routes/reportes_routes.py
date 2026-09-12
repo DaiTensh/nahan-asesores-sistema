@@ -2,6 +2,12 @@ import io
 import json
 import logging
 from datetime import datetime
+from xml.sax.saxutils import escape
+
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, LongTable, TableStyle
 
 from flask import Blueprint, request, jsonify, send_file
 from openpyxl import Workbook
@@ -33,7 +39,7 @@ MENSAJE_SIN_TAREAS = "No se registran tareas para los criterios seleccionados"
 # }
 #
 # "id_reporte" es la clave para exportar (GET /reportes/<id_reporte>/excel,
-# RF35; en el futuro también el PDF de RF34): con él y los parámetros ya
+# RF35; también el PDF de RF34): con él y los parámetros ya
 # guardados en la tabla `reporte` se vuelve a consultar la base en vez de
 # convertir el HTML ya renderizado. Ver _datos_para_exportar más abajo.
 # ==========================================================================
@@ -48,8 +54,8 @@ def _validar_periodo(args):
         return None, None, "Debe indicar fecha_inicio y fecha_fin (formato AAAA-MM-DD)."
 
     try:
-        datetime.strptime(fecha_inicio, "%Y-%m-%d")
-        datetime.strptime(fecha_fin, "%Y-%m-%d")
+        fecha_inicio = datetime.strptime(fecha_inicio, "%Y-%m-%d").date().isoformat()
+        fecha_fin = datetime.strptime(fecha_fin, "%Y-%m-%d").date().isoformat()
     except ValueError:
         return None, None, "Las fechas deben tener el formato AAAA-MM-DD."
 
@@ -103,7 +109,7 @@ def _consultar_tareas_periodo(cursor, fecha_inicio, fecha_fin, id_cliente=None, 
 def _registrar_generacion(cursor, id_usuario, tipo_reporte, parametros):
     """Inserta la generación efectiva en `reporte` y devuelve id y fecha.
 
-    El id_reporte lo consume RF35 (exportar a Excel) y, en el futuro, RF34
+    El id_reporte lo consume RF35 (exportar a Excel) y RF34
     (exportar a PDF, Renato): con él y `parametros` se puede volver a
     consultar exactamente lo mismo que se mostró en pantalla.
     """
@@ -124,8 +130,11 @@ def _registrar_generacion(cursor, id_usuario, tipo_reporte, parametros):
 @reportes_blueprint.route('/reportes/tareas-por-cliente', methods=['GET'])
 @roles_required(ROL_ADMINISTRADOR)
 def reporte_tareas_por_cliente():
+    conexion = None
     try:
         id_cliente = request.args.get('id_cliente', '').strip()
+        if id_cliente and (not id_cliente.isdecimal() or int(id_cliente) < 1):
+            return jsonify({"error": "id_cliente debe ser un ID entero positivo"}), 400
         if not id_cliente:
             return jsonify({"error": "Debe indicar id_cliente."}), 400
 
@@ -176,8 +185,14 @@ def reporte_tareas_por_cliente():
         return jsonify(respuesta), 200
 
     except Exception:
+        if conexion:
+            conexion.rollback()
         logger.exception("Error al generar reporte de tareas por cliente")
         return jsonify({"error": "Ocurrió un error al generar el reporte."}), 500
+
+    finally:
+        if conexion:
+            conexion.close()
 
 
 def _a_datetime(valor):
@@ -272,17 +287,20 @@ def reporte_productividad_por_usuario():
 
     Por cada usuario activo (filtrable por área): tareas completadas dentro
     del período, tiempo promedio de resolución (entre fecha_creacion y
-    fecha_finalizacion — no hay una definición más precisa registrada en
-    CU-48 ni en el resto de la documentación, así que se usa este criterio
-    por decisión explícita del equipo) y carga vigente (PENDIENTE o
+    fecha_finalizacion; el modelo no guarda una fecha de asignación explícita).
+    Este criterio requiere contraste con CU-48, no disponible en el repositorio.
+    También informa carga vigente (PENDIENTE o
     EN_PROCESO, sin filtrar por período: es una fotografía del momento).
     """
+    conexion = None
     try:
         fecha_inicio, fecha_fin, error = _validar_periodo(request.args)
         if error:
             return jsonify({"error": error}), 400
 
         id_area = request.args.get('id_area', '').strip()
+        if id_area and (not id_area.isdecimal() or int(id_area) < 1):
+            return jsonify({"error": "id_area debe ser un ID entero positivo"}), 400
 
         conexion = get_connection()
         if conexion is None:
@@ -319,15 +337,24 @@ def reporte_productividad_por_usuario():
         return jsonify(respuesta), 200
 
     except Exception:
+        if conexion:
+            conexion.rollback()
         logger.exception("Error al generar reporte de productividad por usuario")
         return jsonify({"error": "Ocurrió un error al generar el reporte."}), 500
+
+    finally:
+        if conexion:
+            conexion.close()
 
 
 @reportes_blueprint.route('/reportes/tareas-por-responsable', methods=['GET'])
 @roles_required(ROL_ADMINISTRADOR)
 def reporte_tareas_por_responsable():
+    conexion = None
     try:
         id_responsable = request.args.get('id_responsable', '').strip()
+        if id_responsable and (not id_responsable.isdecimal() or int(id_responsable) < 1):
+            return jsonify({"error": "id_responsable debe ser un ID entero positivo"}), 400
         if not id_responsable:
             return jsonify({"error": "Debe indicar id_responsable."}), 400
 
@@ -380,8 +407,14 @@ def reporte_tareas_por_responsable():
         return jsonify(respuesta), 200
 
     except Exception:
+        if conexion:
+            conexion.rollback()
         logger.exception("Error al generar reporte de tareas por responsable")
         return jsonify({"error": "Ocurrió un error al generar el reporte."}), 500
+
+    finally:
+        if conexion:
+            conexion.close()
 
 
 _CARACTERES_INVALIDOS_ARCHIVO = '\\/:*?"<>|'
@@ -400,7 +433,7 @@ def _nombre_archivo_seguro(texto):
 def _datos_para_exportar(cursor, tipo_reporte, parametros):
     """Capa de consulta compartida para exportar (RF35, Elías; ver
     equipo.json → coordinación). Vuelve a consultar con los parámetros
-    guardados en `reporte` —igual que haría el PDF de RF34— en vez de
+    guardados en `reporte` —igual que el PDF de RF34— en vez de
     convertir el HTML ya renderizado, así ambos formatos no pueden divergir.
 
     Devuelve (nombre_archivo, encabezados, filas) o None si el tipo de
@@ -456,27 +489,29 @@ def _datos_para_exportar(cursor, tipo_reporte, parametros):
         filas = [
             [
                 fila["usuario"], fila["tareas_completadas"],
-                fila["tiempo_promedio_resolucion_horas"] or "",
+                fila["tiempo_promedio_resolucion_horas"] if fila["tiempo_promedio_resolucion_horas"] is not None else "",
                 fila["carga_vigente"],
             ]
             for fila in resultado
         ]
 
-        nombre = f"reporte_productividad_{fecha_inicio}_a_{fecha_fin}.xlsx"
+        nombre = f"reporte_productividad_area_{id_area or 'todas'}_{fecha_inicio}_a_{fecha_fin}.xlsx"
         return nombre, encabezados, filas
 
     return None
 
 
+@reportes_blueprint.route('/reportes/<int:id_reporte>/pdf', methods=['GET'], defaults={'formato': 'pdf'})
 @reportes_blueprint.route('/reportes/<int:id_reporte>/excel', methods=['GET'])
 @roles_required(ROL_ADMINISTRADOR)
-def exportar_reporte_excel(id_reporte):
+def exportar_reporte_excel(id_reporte, formato="excel"):
     """RF35 — Exportando Reportes en Formato Excel.
 
     Recibe el id_reporte que devolvió la generación en pantalla (RF31, RF32,
     RF39) y arma el .xlsx con _datos_para_exportar: una fila por elemento del
     reporte y los mismos encabezados que se ven en pantalla.
     """
+    conexion = None
     try:
         conexion = get_connection()
         if conexion is None:
@@ -501,12 +536,59 @@ def exportar_reporte_excel(id_reporte):
 
             nombre_archivo, encabezados, filas = resultado
 
+        if formato == "pdf":
+            buffer = io.BytesIO()
+            estilos = getSampleStyleSheet()
+            estilos["BodyText"].fontSize = 8
+            estilos["BodyText"].leading = 10
+            titulo = {
+                "TAREAS_POR_CLIENTE": "Tareas por cliente",
+                "TAREAS_POR_RESPONSABLE": "Tareas por usuario responsable",
+                "PRODUCTIVIDAD_POR_USUARIO": "Productividad por usuario",
+            }[reporte["tipo_reporte"]]
+            documento = SimpleDocTemplate(buffer, pagesize=landscape(A4),
+                                          rightMargin=24, leftMargin=24,
+                                          topMargin=24, bottomMargin=24, title=titulo)
+            contenido = [
+                Paragraph(escape(titulo), estilos["Title"]),
+                Paragraph(escape(f"Período: {parametros['fecha_inicio']} a {parametros['fecha_fin']}"), estilos["Normal"]),
+                Paragraph(f"Fecha de generación: {datetime.now():%d-%m-%Y %H:%M}", estilos["Normal"]),
+                Spacer(1, 12),
+            ]
+            if reporte["tipo_reporte"].startswith("TAREAS_"):
+                resumen = {}
+                for fila in filas:
+                    resumen[fila[3]] = resumen.get(fila[3], 0) + 1
+                contenido.append(Paragraph(escape("Resumen por estado: " + ", ".join(
+                    f"{estado}: {total}" for estado, total in resumen.items()
+                )), estilos["Normal"]))
+            datos = [[Paragraph(escape(str(valor)), estilos["BodyText"])
+                      for valor in fila] for fila in [encabezados, *filas]]
+            tabla = LongTable(datos, colWidths=[documento.width / len(encabezados)] * len(encabezados),
+                              repeatRows=1, splitInRow=1)
+            tabla.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                ("GRID", (0, 0), (-1, -1), 0.3, colors.grey),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]))
+            contenido.append(tabla)
+            if not filas:
+                contenido.append(Paragraph(MENSAJE_SIN_TAREAS, estilos["Normal"]))
+            documento.build(contenido)
+            buffer.seek(0)
+            return send_file(buffer, mimetype="application/pdf", as_attachment=True,
+                             download_name=nombre_archivo.rsplit(".", 1)[0] + ".pdf")
+
         libro = Workbook()
         hoja = libro.active
         hoja.title = "Reporte"
         hoja.append(encabezados)
         for fila in filas:
             hoja.append(fila)
+            # Los textos del usuario son datos, nunca fórmulas ejecutables.
+            for celda in hoja[hoja.max_row]:
+                if celda.data_type == "f":
+                    celda.data_type = "s"
 
         buffer = io.BytesIO()
         libro.save(buffer)
@@ -520,5 +602,11 @@ def exportar_reporte_excel(id_reporte):
         )
 
     except Exception:
+        if conexion:
+            conexion.rollback()
         logger.exception("Error al exportar reporte a Excel")
         return jsonify({"error": "Ocurrió un error al exportar el reporte."}), 500
+
+    finally:
+        if conexion:
+            conexion.close()

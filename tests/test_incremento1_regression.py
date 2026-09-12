@@ -309,6 +309,8 @@ def test_creacion_de_tarea(client, fake_connection_factory, monkeypatch, iniciar
     iniciar_sesion(usuario_id=1, rol_id=1)
 
     def handler(sql, params, cursor):
+        if "SELECT id_cliente FROM cliente" in normalize_sql(sql):
+            return [(10,)]
         if "SELECT id_usuario, estado FROM usuario" in normalize_sql(sql):
             return [(2, "ACTIVO")]
         return []
@@ -680,6 +682,8 @@ def test_creacion_de_tarea_usa_usuario_de_sesion_como_creador(
     iniciar_sesion(usuario_id=7, rol_id=2, area_id=1)
 
     def handler(sql, params, cursor):
+        if "SELECT id_cliente FROM cliente" in normalize_sql(sql):
+            return [(10,)]
         if "SELECT id_usuario, estado FROM usuario" in normalize_sql(sql):
             return [(2, "ACTIVO")]
         return []
@@ -1733,3 +1737,324 @@ def test_administrador_puede_eliminar_cliente_definitivamente(
     assert deletes == [(10,)]
     assert auditorias[0][0] == 7
     assert connection.commits == 1
+
+
+@pytest.mark.parametrize("api_responde", [False, True])
+def test_dev_usa_api_propia_y_solo_anuncia_arranque_confirmado(monkeypatch, capsys, api_responde):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    from scripts import dev
+
+    monkeypatch.setattr(dev.sys, "argv", ["dev.py", "--sin-navegador"])
+    monkeypatch.setattr(dev, "ocupado", lambda puerto: puerto in (5000, 5001, 5500, 5501))
+    monkeypatch.setattr(dev, "quien_ocupa", lambda puerto: "otro proceso")
+    monkeypatch.setattr(dev, "origenes_del_env", lambda: [])
+    monkeypatch.setattr(dev, "url_frontend", lambda puerto: None)
+    monkeypatch.setattr(dev.subprocess, "run", lambda *a, **k: SimpleNamespace(returncode=0))
+    proceso = Mock(pid=12345, returncode=1)
+    proceso.poll.return_value = None if api_responde else 1
+    proceso.wait.return_value = 1
+    arrancar = Mock(return_value=proceso)
+    monkeypatch.setattr(dev.subprocess, "Popen", arrancar)
+    monkeypatch.setattr(dev, "es_nuestra_api", lambda puerto: api_responde)
+    monkeypatch.setattr(dev, "ES_WINDOWS", False)
+    detener = Mock()
+    monkeypatch.setattr(dev.os, "killpg", detener, raising=False)
+    servidor = Mock()
+    servir = Mock(return_value=servidor)
+    monkeypatch.setattr(dev, "servir_frontend", servir)
+    hilo = Mock()
+    monkeypatch.setattr(dev.threading, "Thread", hilo)
+
+    assert dev.main() == 1  # La API termina; no debe dejar un frontend huérfano.
+    entorno = arrancar.call_args.kwargs["env"]
+    assert entorno["FLASK_RUN_PORT"] == "5002"
+    assert "http://127.0.0.1:5502" in entorno["ALLOWED_ORIGINS"].split(",")
+    servir.assert_called_once_with(5502, 5002)
+    assert 'API_URL: "http://127.0.0.1:5002/api"' in dev.api_config_generado(5002)
+    salida = capsys.readouterr().out
+    assert ("Listo." in salida) == api_responde
+    assert hilo.called == api_responde
+    servidor.server_close.assert_called_once()
+    detener.assert_called_once_with(12345, dev.signal.SIGTERM)
+
+    monkeypatch.setenv("ALLOWED_ORIGINS", entorno["ALLOWED_ORIGINS"])
+    respuesta = create_app().test_client().options(
+        "/api/login", headers={
+            "Origin": "http://127.0.0.1:5502",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        }
+    )
+    assert respuesta.headers["Access-Control-Allow-Origin"] == "http://127.0.0.1:5502"
+    assert respuesta.headers["Access-Control-Allow-Credentials"] == "true"
+
+
+def test_dev_no_arranca_si_falla_la_comprobacion_de_api(monkeypatch, capsys):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    from scripts import dev
+
+    monkeypatch.setattr(dev.sys, "argv", ["dev.py", "--sin-navegador"])
+    monkeypatch.setattr(dev.subprocess, "run", lambda *a, **k: SimpleNamespace(
+        returncode=1, stdout="", stderr="No se pudo conectar a MySQL"
+    ))
+    arrancar = Mock()
+    monkeypatch.setattr(dev.subprocess, "Popen", arrancar)
+
+    assert dev.main() == 1
+    arrancar.assert_not_called()
+    salida = capsys.readouterr().out
+    assert "MySQL" in salida
+    assert "Listo." not in salida
+
+
+def test_setup_normal_conserva_base_existente(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    from scripts import setup
+
+    cfg = {"DB_HOST": "localhost", "DB_PORT": "3306", "DB_USER": "prueba",
+           "DB_PASSWORD": "", "DB_NAME": "nahan_prueba"}
+    monkeypatch.setattr(setup, "conectar", lambda *a: SimpleNamespace(returncode=0, stdout="OK"))
+    correr = Mock(return_value=SimpleNamespace(returncode=0, stdout="EXISTE"))
+    monkeypatch.setattr(setup, "correr", correr)
+    confirmar = Mock()
+    monkeypatch.setattr(setup, "confirmar_borrado", confirmar)
+
+    assert setup.importar_esquema(cfg) is False
+    confirmar.assert_not_called()
+    assert correr.call_count == 1
+    assert "DROP DATABASE" not in correr.call_args.args[0][-1]
+
+
+def test_setup_completa_env_sin_perder_configuracion_local():
+    from scripts import setup
+
+    actual = {"ADJUNTOS_DIR": "/tmp/adjuntos-prueba", "CLAVE_LOCAL": "valor",
+              "SECRET_KEY": "secreto-prueba", "DB_PASSWORD": "clave-prueba"}
+    valores = setup.valores_por_defecto(actual)
+    for clave, valor in actual.items():
+        assert valores[clave] == valor
+
+
+@pytest.mark.parametrize('ruta', ['/api/login', '/api/tareas', '/api/usuarios', '/api/clientes', '/api/auth/recuperar'])
+def test_api_rechaza_json_no_objeto(client, iniciar_sesion, ruta):
+    iniciar_sesion()
+    respuesta = client.post(ruta, json=['dato'])
+    assert respuesta.status_code == 400
+    assert respuesta.is_json
+
+
+@pytest.mark.parametrize('ruta,metodo,payload', [
+    ('/api/login', 'post', {'email': [], 'password': 'x'}),
+    ('/api/login', 'post', {'email': 'x', 'password': 'ñ' * 37}),
+    ('/api/tareas/1/asignar', 'put', {'id_responsable': 1.5}),
+    ('/api/tareas/reasignar-masivo', 'put', {'ids_tarea': [True], 'id_responsable': 3}),
+    ('/api/usuarios/1', 'put', {'id_rol': 1, 'id_area': 3, 'nombres': 'Usuario', 'email': 'x', 'estado': 'INVALIDO'}),
+])
+def test_api_rechaza_tipos_e_ids_invalidos(client, iniciar_sesion, ruta, metodo, payload):
+    iniciar_sesion()
+    respuesta = getattr(client, metodo)(ruta, json=payload)
+    assert respuesta.status_code == 400
+    assert respuesta.is_json
+
+
+@pytest.mark.parametrize('ruta', ['/.env', '/backend/app.py', '/frontend/../.env', '/frontend/'])
+def test_dev_no_sirve_archivos_internos_ni_directorios(monkeypatch, ruta):
+    from unittest.mock import Mock
+    from scripts import dev
+    def crear_servidor(direccion, clase):
+        handler = object.__new__(clase)
+        handler.directory = dev.RAIZ
+        handler.path = ruta
+        handler.send_error = Mock()
+        return handler
+    monkeypatch.setattr(dev.http.server, 'ThreadingHTTPServer', crear_servidor)
+    handler = dev.servir_frontend(5502, 5002)
+    assert handler.send_head() is None
+    handler.send_error.assert_called_once_with(404)
+
+
+def test_modificacion_cliente_revierte_y_cierra_si_falla_area(client, iniciar_sesion, monkeypatch, fake_connection_factory):
+    iniciar_sesion()
+    def handler(sql, params, cursor):
+        if 'SELECT id_cliente' in sql:
+            return [(1,)]
+        if 'INSERT INTO cliente_area' in sql:
+            raise RuntimeError('Fallo simulado de relación')
+        return []
+    conexion = fake_connection_factory(handler)
+    monkeypatch.setattr(clientes_routes, 'get_connection', lambda: conexion)
+    respuesta = client.put('/api/clientes/1', json={'razon_social':'Cliente', 'areas':[1]})
+    assert respuesta.status_code == 500
+    assert conexion.commits == 0
+    assert conexion.rollbacks == 1
+    assert conexion.closed
+
+
+def test_produccion_no_habilita_debug(monkeypatch):
+    monkeypatch.setenv('FLASK_ENV', 'production')
+    monkeypatch.setenv('SECRET_KEY', 'secreto-solo-test')
+    monkeypatch.setenv('DEBUG', 'true')
+    assert create_app().debug is False
+
+
+def test_rf05_busqueda_incluye_correo_area_estado_parametrizados(client, iniciar_sesion, monkeypatch, fake_connection_factory):
+    iniciar_sesion()
+    conexion = fake_connection_factory(lambda *args: [])
+    monkeypatch.setattr(clientes_routes, 'get_connection', lambda: conexion)
+    respuesta = client.get('/api/clientes/filtrar?buscar=contable&id_area=2')
+    assert respuesta.status_code == 200
+    sql, params = conexion.executed[0]
+    assert 'c.email LIKE %s' in sql and 'a.nombre_area LIKE %s' in sql and 'c.estado LIKE %s' in sql
+    assert params == ('2', '%contable%', '%contable%', '%contable%', '%contable%', '%contable%')
+    assert conexion.closed
+
+
+def test_rf07_registra_referencia_sin_archivo_y_rechaza_duplicado(client, iniciar_sesion, monkeypatch, fake_connection_factory):
+    from backend.routes import documentos_routes
+    iniciar_sesion()
+    def handler(sql, params, cursor):
+        if 'SELECT id_cliente' in sql:
+            return [(1,)]
+        return []
+    conexion = fake_connection_factory(handler)
+    monkeypatch.setattr(documentos_routes, 'get_connection', lambda: conexion)
+    payload = {'nombre_documento': 'Contrato', 'tipo_documento':'PDF',
+               'ubicacion_referencia':'Archivo físico A', 'observaciones':'Revisión'}
+    respuesta = client.post('/api/clientes/1/documentos', json=payload)
+    assert respuesta.status_code == 201
+    assert conexion.commits == 1
+    insert = [(sql, params) for sql, params in conexion.executed if 'INSERT INTO documento' in sql]
+    assert insert[0][1] == (1, 'Contrato', 'PDF', 'Archivo físico A', 'Revisión', 1)
+    assert conexion.closed
+
+    def duplicado(sql, params, cursor):
+        return [(1,)]
+    conexion = fake_connection_factory(duplicado)
+    monkeypatch.setattr(documentos_routes, 'get_connection', lambda: conexion)
+    assert client.post('/api/clientes/1/documentos', json=payload).status_code == 400
+    assert conexion.commits == 0
+
+
+def test_rf09_observacion_registra_actor_y_requiere_rol(client, iniciar_sesion, monkeypatch, fake_connection_factory):
+    iniciar_sesion(usuario_id=2, rol_id=2)
+    conexion = fake_connection_factory(lambda *args: [(1,)])
+    monkeypatch.setattr(clientes_routes, 'get_connection', lambda: conexion)
+    assert client.post('/api/clientes/1/observaciones', json={'texto':'Observación interna'}).status_code == 201
+    inserciones = [params for sql, params in conexion.executed if 'INSERT INTO observacion_cliente' in sql]
+    assert inserciones == [(1, 2, 'Observación interna')]
+    assert conexion.closed
+    iniciar_sesion(rol_id=999)
+    assert client.get('/api/clientes/1/observaciones').status_code == 403
+
+
+def test_rf61_rf08_ficha_cuenta_activas_y_lista_referencias(client, iniciar_sesion, monkeypatch, fake_connection_factory):
+    iniciar_sesion(usuario_id=2, rol_id=2, area_id=1)
+
+    def handler(sql, params, cursor):
+        assert params == (5,)
+        if 'FROM cliente WHERE' in sql:
+            return [{'id_cliente': 5, 'razon_social': 'Cliente', 'estado': 'ACTIVO'}]
+        if 'FROM cliente_area' in sql:
+            return [{'nombre_area': 'JURIDICA'}]
+        if 'FROM tarea t' in sql:
+            return [{'estado': estado} for estado in ('PENDIENTE', 'EN_PROCESO', 'EN_REVISION', 'COMPLETADA', 'CANCELADA')]
+        if 'FROM documento' in sql:
+            assert "estado = 'ACTIVO' AND tipo_documento IS NOT NULL" in sql
+            assert 'ORDER BY fecha_subida DESC' in sql
+            return [{'nombre_documento': 'Contrato', 'tipo_documento': 'Referencia', 'descripcion': 'Observación'}]
+        return []
+
+    conexion = fake_connection_factory(handler)
+    monkeypatch.setattr(clientes_routes, 'get_connection', lambda: conexion)
+    respuesta = client.get('/api/clientes/5/ficha')
+    assert respuesta.status_code == 200
+    datos = respuesta.get_json()
+    assert datos['tareas_activas'] == 2
+    assert datos['areas_nombres'] == 'JURIDICA'
+    assert datos['documentos'][0]['descripcion'] == 'Observación'
+    assert conexion.closed
+
+
+def test_setup_base_nueva_usa_nombre_configurado_sin_drop(monkeypatch):
+    import sys
+    from types import SimpleNamespace
+    from scripts import setup
+
+    cfg = {'DB_HOST': 'localhost', 'DB_PORT': '3306', 'DB_USER': 'prueba',
+           'DB_PASSWORD': '', 'DB_NAME': 'nahan_prueba'}
+    sentencias = []
+    cursor = SimpleNamespace(execute=lambda sql: sentencias.append(sql), nextset=lambda: False, close=lambda: None)
+    conexion = SimpleNamespace(cursor=lambda: cursor, commit=lambda: None, close=lambda: None)
+    connector = SimpleNamespace(connect=lambda **kw: conexion)
+    monkeypatch.setitem(sys.modules, 'mysql', SimpleNamespace(connector=connector))
+    monkeypatch.setitem(sys.modules, 'mysql.connector', connector)
+    monkeypatch.setattr(setup, 'conectar', lambda *a: SimpleNamespace(returncode=0, stdout='OK'))
+
+    def correr(cmd):
+        codigo = cmd[-1]
+        if 'SELECT SCHEMA_NAME' in codigo:
+            return SimpleNamespace(returncode=0, stdout='NUEVA')
+        if 'sql = open(' in codigo:
+            exec(codigo, {})
+            return SimpleNamespace(returncode=0, stdout='SENTENCIAS 21')
+        return SimpleNamespace(returncode=0, stdout='TABLAS 21')
+
+    monkeypatch.setattr(setup, 'correr', correr)
+    monkeypatch.setattr(setup, 'confirmar_borrado', lambda *a: pytest.fail('No debe preparar borrado'))
+    assert setup.importar_esquema(cfg)
+    assert not any('DROP DATABASE' in sql for sql in sentencias)
+    assert sentencias[0].startswith('CREATE DATABASE `nahan_prueba`')
+    assert sentencias[1] == 'USE `nahan_prueba`'
+
+
+def test_tarea_cliente_inexistente_no_persiste(client, iniciar_sesion, monkeypatch, fake_connection_factory):
+    iniciar_sesion()
+    def handler(sql, params, cursor):
+        if 'FROM usuario' in sql:
+            return [(1, 'ACTIVO')]
+        return []
+    conexion = fake_connection_factory(handler)
+    monkeypatch.setattr(tareas_routes, 'get_connection', lambda: conexion)
+    respuesta = client.post('/api/tareas', json={'titulo': 'Prueba', 'id_cliente': 999, 'id_area': 1, 'id_responsable': 1})
+    assert respuesta.status_code == 404
+    assert not any('INSERT' in sql for sql, _ in conexion.executed)
+    assert conexion.commits == 0
+    assert conexion.closed
+
+
+def test_todas_las_api_privadas_rechazan_anonimos(client):
+    import re
+    publicas = {'auth.login', 'auth.logout', 'auth.solicitar_restablecimiento', 'auth.verificar_token_restablecimiento', 'auth.confirmar_restablecimiento'}
+    for regla in client.application.url_map.iter_rules():
+        if not regla.rule.startswith('/api/') or regla.endpoint in publicas:
+            continue
+        ruta = re.sub(r'<(?:int:)?[^>]+>', '1', regla.rule)
+        for metodo in regla.methods - {'OPTIONS', 'HEAD'}:
+            respuesta = client.open(ruta, method=metodo, json={} if metodo != 'GET' else None)
+            assert respuesta.status_code == 401, (regla.endpoint, metodo, respuesta.status_code)
+
+
+@pytest.mark.parametrize('datos', [{'id_cliente': '²'}, {'titulo': 'x' * 201}])
+def test_limites_del_esquema_y_id_no_decimal(client, iniciar_sesion, datos):
+    iniciar_sesion()
+    assert client.post('/api/tareas', json=datos).status_code == 400
+
+
+@pytest.mark.parametrize('errno,esperado', [(1062, 400), (1452, 422)])
+def test_error_de_integridad_cliente_rechaza_sin_commit(client, iniciar_sesion, monkeypatch, fake_connection_factory, errno, esperado):
+    from mysql.connector import IntegrityError
+    iniciar_sesion()
+    def handler(sql, params, cursor):
+        if 'INSERT INTO cliente' in sql:
+            raise IntegrityError('Error controlado', errno=errno)
+        return []
+    conexion = fake_connection_factory(handler)
+    monkeypatch.setattr(clientes_routes, 'get_connection', lambda: conexion)
+    respuesta = client.post('/api/clientes', json={'rut': '1-9', 'razon_social': 'Prueba', 'areas': [999]})
+    assert respuesta.status_code == esperado
+    assert conexion.commits == 0
+    assert conexion.rollbacks == 1
+    assert conexion.closed

@@ -28,8 +28,9 @@ El instalador crea el entorno virtual, instala las dependencias, te pregunta los
 datos de tu MySQL local, genera el `.env` con claves propias de tu máquina,
 importa el esquema, carga datos de prueba y comprueba que la aplicación arranca.
 
-Se puede volver a ejecutar, pero **el esquema empieza con `DROP DATABASE`**: si tu
-base ya tiene contenido, el instalador te avisa y te pregunta antes de borrarla.
+El flujo normal puede repetirse: conserva una base existente y no vuelve a cargar
+datos de prueba. La opción explícita `--solo-bd` recrea el esquema y puede borrar
+los datos; no debe usarse para actualizar una instalación existente.
 Cuando solo quieras poner al día las dependencias sin tocar nada más:
 
 ```bash
@@ -77,14 +78,9 @@ falta, dice el comando exacto que la resuelve.
 
 ## Cómo se trabaja en el Incremento 2
 
-di tu nombre:
-
-```
-hola, soy Renato
-```
-
-los requerimientos que te tocan y empieza a programarlos contigo. El reparto
-completo está en [`docs/incremento2/README.md`](docs/incremento2/README.md).
+El reparto de responsabilidades, los criterios de aceptación y las interfaces
+compartidas están en [`docs/incremento2/README.md`](docs/incremento2/README.md).
+Consulta la ficha del módulo correspondiente antes de modificarlo.
 
 ## Estructura
 
@@ -116,7 +112,7 @@ tests/              pruebas de regresión con pytest (bash scripts/test.sh)
   puerto que le tocó realmente a la API, sin modificar el del repositorio.
 - **Producción**: Gunicorn + Nginx + systemd sobre una instancia EC2.
 
-Las convenciones de código están en [`docs/development.md`](docs/development.md)
+Las convenciones de código están en [`docs/development.md`](docs/development.md).
 
 ## Pruebas
 

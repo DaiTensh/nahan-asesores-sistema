@@ -9,6 +9,8 @@ tarea (o por usuario en productividad) y los encabezados del reporte.
 import io
 import json
 
+import pytest
+
 from openpyxl import load_workbook
 
 from tests.conftest import normalize_sql
@@ -128,3 +130,116 @@ def test_exporta_productividad_una_fila_por_usuario(client, monkeypatch, iniciar
                          "Tiempo promedio de resolución (horas)", "Carga vigente")
     # openpyxl relee una celda escrita como "" como None: no es un valor real.
     assert filas[1] == ("Fulano", 0, None, 0)
+
+
+def test_excel_no_ejecuta_formulas_del_usuario(client, monkeypatch, iniciar_sesion, fake_connection_factory):
+    iniciar_sesion()
+    original = _handler_tareas_por_cliente()
+    formula = '=HYPERLINK("https://example.invalid")'
+
+    def handler(sql, params, cursor):
+        filas = original(sql, params, cursor)
+        if filas and "titulo" in filas[0]:
+            filas[0]["titulo"] = formula
+        return filas
+
+    conexion = fake_connection_factory(handler)
+    monkeypatch.setattr(reportes_routes, "get_connection", lambda: conexion)
+    respuesta = client.get("/api/reportes/1/excel")
+    libro = load_workbook(io.BytesIO(respuesta.data))
+    assert libro.active['A2'].value == formula
+    assert libro.active['A2'].data_type == 's'
+    assert conexion.closed
+
+
+def test_pdf_abrible_con_texto_especial_y_varias_paginas(client, monkeypatch, iniciar_sesion, fake_connection_factory):
+    from pypdf import PdfReader
+    iniciar_sesion()
+    original = _handler_tareas_por_cliente()
+
+    def handler(sql, params, cursor):
+        filas = original(sql, params, cursor)
+        if filas and "titulo" in filas[0]:
+            filas[0]["titulo"] = "Revisión Ñandú <legal> & contable"
+            return [dict(filas[0], id_tarea=i) for i in range(100)]
+        return filas
+
+    conexion = fake_connection_factory(handler)
+    monkeypatch.setattr(reportes_routes, "get_connection", lambda: conexion)
+    respuesta = client.get("/api/reportes/1/pdf")
+    assert respuesta.status_code == 200
+    assert respuesta.mimetype == 'application/pdf'
+    assert '.pdf' in respuesta.headers['Content-Disposition']
+    pdf = PdfReader(io.BytesIO(respuesta.data), strict=True)
+    assert len(pdf.pages) > 1
+    texto = ' '.join(' '.join(p.extract_text() for p in pdf.pages).split())
+    assert 'Revisión Ñandú <legal> & contable' in texto
+    assert '2026-01-01 a 2026-01-31' in texto
+    assert 'Fecha de generación' in texto
+    assert 'PENDIENTE: 100' in texto
+    assert conexion.closed
+
+
+def test_pdf_productividad_y_reporte_vacio(client, monkeypatch, iniciar_sesion, fake_connection_factory):
+    from pypdf import PdfReader
+    iniciar_sesion()
+    for handler, identificador in [(_handler_productividad(), 2), (_handler_tareas_por_cliente(), 1)]:
+        def sin_tareas(sql, params, cursor):
+            filas = handler(sql, params, cursor)
+            return [] if filas and 'titulo' in filas[0] else filas
+        conexion = fake_connection_factory(sin_tareas)
+        monkeypatch.setattr(reportes_routes, "get_connection", lambda: conexion)
+        respuesta = client.get(f"/api/reportes/{identificador}/pdf")
+        assert respuesta.status_code == 200
+        pdf = PdfReader(io.BytesIO(respuesta.data), strict=True)
+        assert len(pdf.pages) == 1
+        assert ('Fulano' if identificador == 2 else reportes_routes.MENSAJE_SIN_TAREAS) in pdf.pages[0].extract_text()
+
+
+def test_pdf_requiere_admin_y_reporte_existente(client, monkeypatch, iniciar_sesion, fake_connection_factory):
+    assert client.get('/api/reportes/1/pdf').status_code == 401
+    iniciar_sesion(rol_id=2)
+    assert client.get('/api/reportes/1/pdf').status_code == 403
+    iniciar_sesion()
+    conexion = fake_connection_factory(lambda *a: [])
+    monkeypatch.setattr(reportes_routes, 'get_connection', lambda: conexion)
+    assert client.get('/api/reportes/999/pdf').status_code == 404
+    assert conexion.closed
+
+
+@pytest.mark.parametrize('tipo,campo', [('cliente', 'id_cliente'), ('responsable', 'id_responsable')])
+@pytest.mark.parametrize('con_tareas', [False, True])
+def test_rf31_rf32_registran_solo_generacion_con_datos(client, monkeypatch, iniciar_sesion, fake_connection_factory, tipo, campo, con_tareas):
+    iniciar_sesion()
+
+    def handler(sql, params, cursor):
+        if 'FROM cliente WHERE' in sql:
+            return [{'id_cliente': 1, 'razon_social': 'Cliente', 'rut': '1-9'}]
+        if 'FROM usuario WHERE' in sql:
+            return [{'id_usuario': 1, 'nombres': 'Responsable', 'email': 'prueba@test.local'}]
+        if 'FROM tarea t' in sql:
+            assert params == ('2026-01-01', '2026-01-31', '1')
+            return [{'id_tarea': 2, 'estado': 'PENDIENTE'}] if con_tareas else []
+        if 'LAST_INSERT_ID()' in sql:
+            return [{'id_reporte': 8, 'fecha_generacion': '31-01-2026 10:00'}]
+        return []
+
+    conexion = fake_connection_factory(handler)
+    monkeypatch.setattr(reportes_routes, 'get_connection', lambda: conexion)
+    respuesta = client.get(f'/api/reportes/tareas-por-{tipo}?{campo}=1&fecha_inicio=2026-01-01&fecha_fin=2026-01-31')
+    assert respuesta.status_code == 200
+    datos = respuesta.get_json()
+    assert datos['resumen_por_estado'] == ({'PENDIENTE': 1} if con_tareas else {})
+    assert bool(datos.get('id_reporte')) == con_tareas
+    assert conexion.commits == int(con_tareas)
+    assert any('INSERT INTO reporte' in sql for sql, _ in conexion.executed) == con_tareas
+    assert conexion.closed
+
+
+def test_exportacion_expone_nombre_archivo_al_frontend(client, monkeypatch, iniciar_sesion, fake_connection_factory):
+    iniciar_sesion()
+    conexion = fake_connection_factory(_handler_tareas_por_cliente())
+    monkeypatch.setattr(reportes_routes, 'get_connection', lambda: conexion)
+    respuesta = client.get('/api/reportes/1/excel', headers={'Origin': 'http://127.0.0.1:5500'})
+    assert respuesta.status_code == 200
+    assert respuesta.headers['Access-Control-Expose-Headers'] == 'Content-Disposition'

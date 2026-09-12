@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
+r"""
 Instalador del entorno de desarrollo de Nahan Asesores.
 
 Deja una máquina recién clonada en condiciones de levantar el sistema:
@@ -136,6 +136,7 @@ def valores_por_defecto(actual):
     los enlaces de restablecimiento vigentes cada vez que se corre el instalador.
     """
     return {
+        **actual,
         "FLASK_ENV": actual.get("FLASK_ENV", "development"),
         "DEBUG": actual.get("DEBUG", "true"),
         "SECRET_KEY": actual.get("SECRET_KEY") or secrets.token_urlsafe(48),
@@ -305,7 +306,7 @@ def confirmar_borrado(cfg, interactivo):
         sys.exit(0)
 
 
-def importar_esquema(cfg, interactivo=True):
+def importar_esquema(cfg, interactivo=True, recrear=False):
     paso("Importando el esquema de la base de datos")
     if not os.path.isfile(ESQUEMA):
         morir(f"No está {ESQUEMA}.")
@@ -318,11 +319,41 @@ def importar_esquema(cfg, interactivo=True):
               "      Windows: inicia el servicio MySQL desde «Servicios»")
     bien("MySQL responde — " + r.stdout.strip().replace("OK ", "servidor "))
 
-    confirmar_borrado(cfg, interactivo)
+    if not recrear:
+        # Repetir setup no debe borrar una base existente, ni volver a
+        # sembrar sobre el trabajo local. --solo-bd conserva el flujo
+        # explícito de reimportación con su confirmación de borrado.
+        codigo = f'''
+import mysql.connector
+cn = mysql.connector.connect(host={cfg['DB_HOST']!r}, port={int(cfg['DB_PORT'])},
+                             user={cfg['DB_USER']!r}, password={cfg['DB_PASSWORD']!r})
+cur = cn.cursor()
+cur.execute("SELECT SCHEMA_NAME FROM information_schema.schemata WHERE SCHEMA_NAME = %s",
+            ({cfg['DB_NAME']!r},))
+print("EXISTE" if cur.fetchone() else "NUEVA")
+cur.close(); cn.close()
+'''
+        r = correr([py_venv(), "-c", codigo])
+        if r.returncode:
+            morir("No se pudo comprobar si la base existe; no se importó el esquema.")
+        if r.stdout.strip() == "EXISTE":
+            bien("Base existente conservada; no se reimporta ni se cargan datos de prueba.")
+            return False
+
+    if not re.fullmatch(r"[A-Za-z0-9_]+", cfg["DB_NAME"]):
+        morir("DB_NAME debe contener únicamente letras, números y guiones bajos.")
+    if recrear:
+        confirmar_borrado(cfg, interactivo)
 
     codigo = f'''
-import sys, mysql.connector
+import sys, re, mysql.connector
 sql = open({ESQUEMA!r}, encoding="utf-8").read()
+# El SQL distribuido nombra la base predeterminada y comienza con DROP.
+# Una instalación normal nunca debe borrar una base, ni apuntar a otra.
+if not {recrear!r}:
+    sql = re.sub(r"DROP DATABASE IF EXISTS nahan_asesores;", "", sql, count=1)
+sql = re.sub(r"(?<=DATABASE )nahan_asesores|(?<=EXISTS )nahan_asesores|(?<=USE )nahan_asesores",
+             {('`' + cfg['DB_NAME'] + '`')!r}, sql)
 cn = mysql.connector.connect(host={cfg['DB_HOST']!r}, port={int(cfg['DB_PORT'])},
                              user={cfg['DB_USER']!r}, password={cfg['DB_PASSWORD']!r})
 cur = cn.cursor()
@@ -354,6 +385,7 @@ print("TABLAS", cur.fetchone()[0])
     if tablas < 20:
         morir(f"La base quedó con {tablas} tablas; se esperaban 20.")
     bien(f"{tablas} tablas creadas en «{cfg['DB_NAME']}»")
+    return True
 
 
 def sembrar():
@@ -427,16 +459,14 @@ def main():
         crear_venv()
         instalar_dependencias()
 
-    # --solo-deps existe para el caso de agregar una dependencia nueva a un
-    # entorno que ya funciona: volver a correr el instalador completo importaría
-    # el esquema, y el esquema empieza con DROP DATABASE.
+    # --solo-deps actualiza paquetes sin modificar configuración ni consultar BD.
     if args.solo_deps:
         print("\n    Dependencias al día. No se tocó .env ni la base de datos.")
         return 0
 
     cfg = configurar_env(interactivo=not args.si_a_todo)
-    importar_esquema(cfg, interactivo=not args.si_a_todo)
-    if not args.sin_datos:
+    creada = importar_esquema(cfg, interactivo=not args.si_a_todo, recrear=args.solo_bd)
+    if creada and not args.sin_datos:
         sembrar()
     verificar(cfg)
     final()

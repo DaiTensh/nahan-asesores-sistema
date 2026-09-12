@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
+r"""
 Levanta el sistema completo para trabajar: la API de Flask y el frontend
 estático, negociando ambos puertos al arrancar.
 
@@ -26,6 +26,7 @@ import http.server
 import json
 import os
 import socket
+import signal
 import subprocess
 import sys
 import threading
@@ -70,14 +71,6 @@ def es_nuestra_api(puerto):
             return json.loads(r.read(400).decode("utf-8")).get("message") == IDENTIFICACION_API
     except Exception:
         return False
-
-
-def api_ya_corriendo():
-    """Puerto en el que ya está levantada nuestra API, si es que lo está."""
-    for puerto in PUERTOS_API:
-        if ocupado(puerto) and es_nuestra_api(puerto):
-            return puerto
-    return None
 
 
 def quien_ocupa(puerto):
@@ -159,6 +152,14 @@ def servir_frontend(puerto_front, puerto_api):
         def __init__(self, *a, **k):
             super().__init__(*a, directory=RAIZ, **k)
 
+        def send_head(self):
+            ruta = os.path.realpath(self.translate_path(self.path))
+            publico = os.path.realpath(os.path.join(RAIZ, "frontend")) + os.sep
+            if not ruta.startswith(publico) or not os.path.isfile(ruta):
+                self.send_error(404)
+                return None
+            return super().send_head()
+
         def do_GET(self):
             if self.path.split("?")[0].endswith("/assets/js/api_config.js"):
                 self.send_response(200)
@@ -173,7 +174,7 @@ def servir_frontend(puerto_front, puerto_api):
         def log_message(self, *a, **k):
             pass
 
-    http.server.ThreadingHTTPServer(("127.0.0.1", puerto_front), Handler).serve_forever()
+    return http.server.ThreadingHTTPServer(("127.0.0.1", puerto_front), Handler)
 
 
 def explicar_puertos_ocupados():
@@ -206,32 +207,37 @@ def main():
     if not os.path.isfile(PY):
         print("Aviso: no encuentro .venv; uso el Python del sistema.\n")
 
-    # Antes de intentar levantar la API, comprobar que las dependencias estén.
-    # Si no lo están, el arranque muere con un traceback que no le dice nada a
-    # nadie; es preferible nombrar el comando que lo resuelve.
-    comprobacion = subprocess.run(
-        [python, "-c", "import flask, mysql.connector, bcrypt, dotenv, flask_cors"],
-        cwd=RAIZ, capture_output=True, text=True)
+    # Importar la aplicación completa detecta también dependencias de rutas
+    # (por ejemplo openpyxl), y comprueba MySQL antes de anunciar el arranque.
+    try:
+        comprobacion = subprocess.run(
+            [python, "-c", "from backend.app import app; "
+             "from backend.config.db import get_connection; "
+             "c = get_connection(); "
+             "assert c is not None, 'No se pudo conectar a MySQL'; c.close()"],
+            cwd=RAIZ, env=dict(os.environ, PYTHONPATH=RAIZ),
+            capture_output=True, text=True, timeout=15)
+    except subprocess.TimeoutExpired:
+        print("La comprobación de la API/MySQL no respondió en 15 segundos.")
+        print(f"Ejecuta: {instalar}")
+        return 1
 
     if comprobacion.returncode:
-        falta = comprobacion.stderr.strip().splitlines()[-1] if comprobacion.stderr else ""
-        print("El entorno no está instalado: faltan dependencias.")
-        print(f"  {falta}")
+        print("No se pudo preparar la API. Revisa las dependencias y MySQL:")
+        print(comprobacion.stdout.strip())
+        print(comprobacion.stderr.strip())
         print(f"\nEjecuta:\n  {instalar}")
         return 1
 
-    # Si la API ya está levantada en otra terminal, no se levanta una segunda:
-    # se sirve el frontend apuntando a la que hay.
-    ya = api_ya_corriendo()
-    puerto_api = ya or elegir_puerto(PUERTOS_API)
+    # Cada ejecución necesita su propia API: una API ya abierta puede ser de
+    # otro checkout y no admitir el origen dinámico de este frontend por CORS.
+    puerto_api = elegir_puerto(PUERTOS_API)
 
     if puerto_api is None:
         explicar_puertos_ocupados()
         return 1
 
-    if ya:
-        print(f"La API ya estaba corriendo en el puerto {ya}; no la levanto otra vez.")
-    elif puerto_api != 5000:
+    if puerto_api != 5000:
         duenio = quien_ocupa(5000)
         print(f"El puerto 5000 está ocupado{f' por {duenio}' if duenio else ''}; "
               f"levanto la API en el {puerto_api}.")
@@ -245,7 +251,8 @@ def main():
         puerto_front = elegir_puerto(PUERTOS_FRONT)
 
         if puerto_front is None:
-            print("No hay puerto libre para el frontend; sigo solo con la API.")
+            print("No hay puerto libre para el frontend. Cierra una instancia de desarrollo.")
+            return 1
         else:
             if puerto_front != 5500:
                 duenio = quien_ocupa(5500)
@@ -254,28 +261,8 @@ def main():
                 print("  Usa la dirección de abajo, no la de Live Server: Live Server")
                 print("  entrega el api_config.js del repositorio, que apunta al 5000.")
                 print()
-            threading.Thread(target=servir_frontend,
-                             args=(puerto_front, puerto_api), daemon=True).start()
 
     login = f"http://127.0.0.1:{puerto_front}/frontend/auth/login.html" if puerto_front else None
-
-    if login:
-        print(f"Frontend  →  {login}")
-    print(f"API       →  http://127.0.0.1:{puerto_api}/api")
-    print("Usuario   →  renato.villalobos@nahan.local  /  Nahan.2026")
-    print("\nCtrl+C para detener.\n")
-
-    if login and not args.sin_navegador:
-        threading.Timer(1.5, lambda: webbrowser.open(login)).start()
-
-    if ya:
-        # No hay proceso hijo que esperar: el frontend vive en un hilo daemon.
-        try:
-            while True:
-                time.sleep(3600)
-        except KeyboardInterrupt:
-            print("\nDetenido.")
-            return 0
 
     # El frontend puede quedar en un puerto distinto del que trae .env, así que
     # se le pasa a la API el origen real para que CORS lo acepte. Las variables
@@ -288,17 +275,69 @@ def main():
 
     entorno = dict(os.environ,
                    PYTHONPATH=RAIZ,
+                   FLASK_RUN_HOST="127.0.0.1",
                    FLASK_RUN_PORT=str(puerto_api),
                    ALLOWED_ORIGINS=",".join(origenes))
 
     url = url_frontend(puerto_front)
     if url:
         entorno["APP_URL_FRONTEND"] = url
+    proceso = None
+    servidor = None
     try:
-        return subprocess.call([python, "-m", "backend.app"], cwd=RAIZ, env=entorno)
+        # Reservar el puerto antes de mostrar la URL; un error de bind debe
+        # llegar a la terminal principal, no perderse dentro de un hilo.
+        if puerto_front:
+            servidor = servir_frontend(puerto_front, puerto_api)
+        proceso = subprocess.Popen(
+            [python, "-m", "backend.app"], cwd=RAIZ, env=entorno,
+            start_new_session=not ES_WINDOWS)
+        limite = time.monotonic() + 15
+        while not es_nuestra_api(puerto_api):
+            if proceso.poll() is not None:
+                print(f"La API terminó al arrancar (código {proceso.returncode}).")
+                return 1
+            if time.monotonic() >= limite:
+                print("La API no respondió en 15 segundos. Revisa el error de arranque anterior.")
+                return 1
+            time.sleep(0.1)
+
+        if proceso.poll() is not None:
+            print("La API terminó antes de completar el arranque.")
+            return 1
+        if servidor:
+            threading.Thread(target=servidor.serve_forever, daemon=True).start()
+            print(f"Frontend  →  {login} (PID {os.getpid()})")
+        print(f"API       →  http://127.0.0.1:{puerto_api}/api (PID {proceso.pid})")
+        print(f"Estado    →  http://127.0.0.1:{puerto_api}/")
+        print("Usuario   →  renato.villalobos@nahan.local  /  Nahan.2026")
+        print("\nListo. Ctrl+C para detener ambos procesos.\n", flush=True)
+        if login and not args.sin_navegador:
+            webbrowser.open(login)
+
+        codigo = proceso.wait()
+        print(f"La API terminó (código {codigo}); se detiene también el frontend.")
+        return codigo or 1
     except KeyboardInterrupt:
         print("\nDetenido.")
         return 0
+    except OSError as error:
+        print(f"No se pudo levantar el sistema: {error}")
+        return 1
+    finally:
+        if servidor:
+            servidor.server_close()
+        if proceso:
+            if not ES_WINDOWS:
+                # Incluye al hijo del recargador de Flask, pero nunca toca
+                # procesos de otra terminal o checkout.
+                try:
+                    os.killpg(proceso.pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+            elif proceso.poll() is None:
+                proceso.terminate()
+            proceso.wait()
 
 
 if __name__ == "__main__":

@@ -6,3 +6,4 @@
 # 3.13 (Windows), y ninguna versión exacta de pytest cubre bien ese rango.
 # Fijarla dejaría a alguien sin poder instalar las pruebas.
 pytest>=8.0,<9
+pypdf==5.9.0

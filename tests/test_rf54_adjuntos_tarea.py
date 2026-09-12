@@ -142,10 +142,12 @@ def _subir(cliente, id_tarea, nombre, contenido=b"contenido de prueba"):
 
 # --------------------------------------------------------------------------
 
-def test_el_responsable_puede_adjuntar_un_archivo(cliente, base):
+@pytest.mark.parametrize("tamano_bytes", [32, 1024 * 1024 - 1, 1024 * 1024])
+def test_el_responsable_puede_adjuntar_un_archivo(cliente, base, tmp_path, tamano_bytes):
     _login(cliente, "ivan@nahan.local")
 
-    respuesta = _subir(cliente, 1, "factura.pdf")
+    contenido = b"x" * tamano_bytes
+    respuesta = _subir(cliente, 1, "factura.pdf", contenido)
 
     assert respuesta.status_code == 201
     fila = base.execute("SELECT * FROM documento").fetchone()
@@ -156,6 +158,8 @@ def test_el_responsable_puede_adjuntar_un_archivo(cliente, base):
     vinculo = base.execute("SELECT * FROM tarea_documento").fetchone()
     assert vinculo["id_tarea"] == 1
     assert vinculo["id_documento"] == fila["id_documento"]
+    assert (tmp_path / fila["url_archivo"]).read_bytes() == contenido
+    assert len(list(tmp_path.iterdir())) == 1
 
 
 def test_un_usuario_ajeno_a_la_tarea_no_puede_adjuntar(cliente):
@@ -166,24 +170,64 @@ def test_un_usuario_ajeno_a_la_tarea_no_puede_adjuntar(cliente):
     assert respuesta.status_code == 403
 
 
-def test_se_rechaza_una_extension_fuera_de_la_lista_blanca(cliente, base):
+def test_se_rechaza_una_extension_fuera_de_la_lista_blanca(cliente, base, tmp_path):
     _login(cliente, "ivan@nahan.local")
 
     respuesta = _subir(cliente, 1, "script.exe")
 
     assert respuesta.status_code == 400
+    assert "Tipo de archivo no permitido" in respuesta.get_json()["error"]
     assert base.execute("SELECT COUNT(*) AS n FROM documento").fetchone()["n"] == 0
+    assert base.execute("SELECT COUNT(*) AS n FROM tarea_documento").fetchone()["n"] == 0
+    assert list(tmp_path.iterdir()) == []
 
 
-def test_se_rechaza_un_archivo_que_supera_el_tamano_configurado(cliente, base):
+@pytest.mark.parametrize("tamano_bytes", [1024 * 1024 + 1, 2 * 1024 * 1024])
+def test_se_rechaza_un_archivo_que_supera_el_tamano_configurado(
+    cliente, base, tmp_path, tamano_bytes
+):
     _login(cliente, "ivan@nahan.local")
 
-    contenido_2mb = b"x" * (2 * 1024 * 1024)  # el límite de prueba es 1 MB
-    respuesta = _subir(cliente, 1, "grande.pdf", contenido_2mb)
+    contenido = b"x" * tamano_bytes  # el límite de prueba es 1 MB
+    respuesta = _subir(cliente, 1, "grande.pdf", contenido)
 
     assert respuesta.status_code == 400
-    assert "tamaño" in respuesta.get_json()["error"]
+    assert respuesta.get_json() == {
+        "error": "El archivo supera el tamaño máximo permitido (1 MB)"
+    }
     assert base.execute("SELECT COUNT(*) AS n FROM documento").fetchone()["n"] == 0
+    assert base.execute("SELECT COUNT(*) AS n FROM tarea_documento").fetchone()["n"] == 0
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_el_limite_se_actualiza_desde_la_base_en_cada_carga(cliente, base, tmp_path):
+    _login(cliente, "ivan@nahan.local")
+    contenido = b"x" * (1024 * 1024 + 1)
+
+    assert _subir(cliente, 1, "factura.pdf", contenido).status_code == 400
+    assert list(tmp_path.iterdir()) == []
+
+    base.execute(
+        "UPDATE parametros_sistema SET valor_parametro = ? WHERE nombre_parametro = ?",
+        ("2", "ADJUNTOS_TAMANO_MAXIMO_MB")
+    )
+    base.commit()
+
+    assert _subir(cliente, 1, "factura.pdf", contenido).status_code == 201
+    fila = base.execute("SELECT * FROM documento").fetchone()
+    assert (tmp_path / fila["url_archivo"]).read_bytes() == contenido
+
+    base.execute(
+        "UPDATE parametros_sistema SET valor_parametro = ? WHERE nombre_parametro = ?",
+        ("1", "ADJUNTOS_TAMANO_MAXIMO_MB")
+    )
+    base.commit()
+
+    assert _subir(cliente, 1, "otra.pdf", contenido).status_code == 400
+    assert base.execute("SELECT COUNT(*) AS n FROM documento").fetchone()["n"] == 1
+    assert base.execute("SELECT COUNT(*) AS n FROM tarea_documento").fetchone()["n"] == 1
+    assert list(tmp_path.iterdir()) == [tmp_path / fila["url_archivo"]]
+    assert (tmp_path / fila["url_archivo"]).read_bytes() == contenido
 
 
 def test_el_nombre_en_disco_no_depende_del_nombre_del_cliente(cliente, base, tmp_path):
@@ -208,3 +252,37 @@ def test_una_tarea_inexistente_devuelve_404(cliente):
     respuesta = _subir(cliente, 999, "factura.pdf")
 
     assert respuesta.status_code == 404
+
+
+def test_archivo_vacio_no_se_persiste(cliente, base, tmp_path):
+    _login(cliente, "ivan@nahan.local")
+    respuesta = _subir(cliente, 1, 'vacio.pdf', b'')
+    assert respuesta.status_code == 400
+    assert 'vacío' in respuesta.get_json()['error']
+    assert list(tmp_path.iterdir()) == []
+    assert base.execute('SELECT COUNT(*) FROM documento').fetchone()[0] == 0
+    assert base.execute('SELECT COUNT(*) FROM tarea_documento').fetchone()[0] == 0
+
+
+@pytest.mark.parametrize('fallo', ['disco', 'asociacion'])
+def test_fallo_de_subida_revierte_archivo_y_bd(cliente, base, tmp_path, monkeypatch, fallo):
+    from werkzeug.datastructures import FileStorage
+    _login(cliente, "ivan@nahan.local")
+    if fallo == 'disco':
+        def guardar_parcial(self, destino, *args, **kwargs):
+            with open(destino, 'wb') as archivo:
+                archivo.write(b'parcial')
+            raise OSError('Fallo de disco simulado')
+        monkeypatch.setattr(FileStorage, 'save', guardar_parcial)
+    else:
+        original = _Cursor.execute
+        def ejecutar(self, sql, params=()):
+            if 'INSERT INTO tarea_documento' in sql:
+                raise sqlite3.IntegrityError('Fallo de asociación simulado')
+            return original(self, sql, params)
+        monkeypatch.setattr(_Cursor, 'execute', ejecutar)
+    respuesta = _subir(cliente, 1, 'archivo.pdf')
+    assert respuesta.status_code == 500
+    assert list(tmp_path.iterdir()) == []
+    assert base.execute('SELECT COUNT(*) FROM documento').fetchone()[0] == 0
+    assert base.execute('SELECT COUNT(*) FROM tarea_documento').fetchone()[0] == 0

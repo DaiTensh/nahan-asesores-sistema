@@ -4,7 +4,7 @@ from datetime import datetime
 from flask import Blueprint, request, jsonify
 from backend.config.db import get_connection
 from backend.routes.notificaciones_routes import crear_notificacion
-from backend.utils.auth import ROL_ADMINISTRADOR, login_required, obtener_usuario_actual
+from backend.utils.auth import ROL_ADMINISTRADOR, login_required, obtener_usuario_actual, roles_required
 
 tareas_bp = Blueprint("tareas", __name__)
 logger = logging.getLogger(__name__)
@@ -44,6 +44,14 @@ def crear_tarea():
     if any(area not in [1, 2] for area in areas):
         return jsonify({"error": "El área seleccionada no es válida"}), 400
 
+    if prioridad not in ("BAJA", "MEDIA", "ALTA", "URGENTE"):
+        return jsonify({"error": "Prioridad no válida"}), 400
+    if fecha_vencimiento:
+        try:
+            datetime.strptime(fecha_vencimiento, "%Y-%m-%d")
+        except ValueError:
+            return jsonify({"error": "La fecha de vencimiento no es válida"}), 400
+
     try:
         connection = get_connection()
         cursor = connection.cursor()
@@ -60,6 +68,10 @@ def crear_tarea():
 
         if not responsable or responsable[1] != "ACTIVO":
             return jsonify({"error": "El responsable seleccionado no es válido"}), 422
+
+        cursor.execute("SELECT id_cliente FROM cliente WHERE id_cliente = %s", (id_cliente,))
+        if not cursor.fetchone():
+            return jsonify({"error": "Cliente inexistente"}), 404
 
         sql = """
             INSERT INTO tarea (
@@ -100,6 +112,8 @@ def crear_tarea():
         }), 201
 
     except Exception:
+        if connection:
+            connection.rollback()
         logger.exception("Error al crear tarea")
         return jsonify({"error": "Error interno al crear tarea"}), 500
 
@@ -191,6 +205,8 @@ def listar_tareas_pendientes():
         return jsonify(tareas), 200
 
     except Exception:
+        if connection:
+            connection.rollback()
         logger.exception("Error al listar tareas pendientes")
         return jsonify({"error": "Error interno al listar tareas"}), 500
 
@@ -277,6 +293,8 @@ def obtener_tarea(id_tarea):
         return jsonify(tarea), 200
 
     except Exception:
+        if connection:
+            connection.rollback()
         logger.exception("Error al obtener detalle de tarea")
         return jsonify({"error": "Error interno al obtener la tarea"}), 500
 
@@ -451,13 +469,17 @@ def _reasignar_tarea(cursor, id_tarea, id_responsable):
     Devuelve (ok, error, status, id_responsable_anterior).
     """
     cursor.execute(
-        "SELECT id_responsable FROM tarea WHERE id_tarea = %s",
+        "SELECT id_responsable, estado FROM tarea WHERE id_tarea = %s",
         (id_tarea,)
     )
     tarea = cursor.fetchone()
 
     if not tarea:
         return False, "Tarea no encontrada", 404, None
+
+    # RF64/RF65: el cierre bloquea modificaciones también por la ruta masiva.
+    if tarea[1] in ESTADOS_FINALES:
+        return False, "No se puede reasignar una tarea COMPLETADA o CANCELADA", 409, None
 
     id_responsable_anterior = tarea[0]
 
@@ -606,6 +628,10 @@ def actualizar_estado_tarea(id_tarea):
             return jsonify({"error": "Tarea no encontrada"}), 404
 
         estado_anterior = tarea["estado"]
+        if estado_anterior == estado:
+            return jsonify({"message": "Estado actualizado correctamente"}), 200
+        if estado_anterior in ESTADOS_FINALES:
+            return jsonify({"error": "No se puede modificar una tarea COMPLETADA o CANCELADA"}), 409
 
         if estado == "COMPLETADA":
             # RF65 — Marcando Tarea como Completada: además de cerrar el
@@ -689,6 +715,13 @@ def actualizar_prioridad_tarea(id_tarea):
         connection = get_connection()
         cursor = connection.cursor()
 
+        cursor.execute("SELECT estado FROM tarea WHERE id_tarea = %s", (id_tarea,))
+        tarea = cursor.fetchone()
+        if not tarea:
+            return jsonify({"error": "Tarea no encontrada"}), 404
+        if tarea[0] in ESTADOS_FINALES:
+            return jsonify({"error": "No se puede editar una tarea COMPLETADA o CANCELADA"}), 409
+
         sql = """
             UPDATE tarea
             SET prioridad = %s
@@ -698,12 +731,11 @@ def actualizar_prioridad_tarea(id_tarea):
         cursor.execute(sql, (prioridad, id_tarea))
         connection.commit()
 
-        if cursor.rowcount == 0:
-            return jsonify({"error": "Tarea no encontrada"}), 404
-
         return jsonify({"message": "Prioridad actualizada correctamente"}), 200
 
     except Exception:
+        if connection:
+            connection.rollback()
         logger.exception("Error al actualizar prioridad de tarea")
         return jsonify({"error": "Error interno al actualizar prioridad"}), 500
 
@@ -715,7 +747,7 @@ def actualizar_prioridad_tarea(id_tarea):
 
 
 @tareas_bp.route("/tareas/carga", methods=["GET"])
-@login_required
+@roles_required(ROL_ADMINISTRADOR)
 def carga_trabajo():
     """Cantidad de tareas no finalizadas por responsable.
 
@@ -743,6 +775,13 @@ def carga_trabajo():
 
         marcadores = ", ".join(["%s"] * len(ids_usuario))
         cursor.execute(
+            f"SELECT id_usuario FROM usuario WHERE id_usuario IN ({marcadores})",
+            tuple(ids_usuario)
+        )
+        if len(cursor.fetchall()) != len(ids_usuario):
+            return jsonify({"error": "Uno o más usuarios no existen"}), 404
+
+        cursor.execute(
             f"""
             SELECT id_responsable, COUNT(*) AS total
             FROM tarea
@@ -759,6 +798,8 @@ def carga_trabajo():
         return jsonify(carga), 200
 
     except Exception:
+        if connection:
+            connection.rollback()
         logger.exception("Error al consultar la carga de trabajo")
         return jsonify({"error": "Error interno al consultar la carga de trabajo"}), 500
 
@@ -819,6 +860,8 @@ def tareas_vencidas():
         return jsonify(tareas), 200
 
     except Exception:
+        if connection:
+            connection.rollback()
         logger.exception("Error al listar tareas vencidas")
         return jsonify({"error": "Error interno al listar tareas vencidas"}), 500
 
@@ -891,6 +934,8 @@ def tareas_por_vencer():
         return jsonify(tareas), 200
 
     except Exception:
+        if connection:
+            connection.rollback()
         logger.exception("Error al listar tareas próximas a vencer")
         return jsonify({"error": "Error interno al listar tareas próximas a vencer"}), 500
 
@@ -943,6 +988,8 @@ def tareas_prioritarias():
         return jsonify(tareas), 200
 
     except Exception:
+        if connection:
+            connection.rollback()
         logger.exception("Error al listar tareas prioritarias")
         return jsonify({"error": "Error interno al listar tareas prioritarias"}), 500
 
@@ -995,6 +1042,8 @@ def resumen_tareas_dashboard():
         return jsonify(resumen), 200
 
     except Exception:
+        if connection:
+            connection.rollback()
         logger.exception("Error al generar resumen de tareas por estado")
         return jsonify({"error": "Error interno al generar el resumen"}), 500
 
@@ -1006,7 +1055,7 @@ def resumen_tareas_dashboard():
 
 
 @tareas_bp.route("/tareas/reasignar-masivo", methods=["PUT"])
-@login_required
+@roles_required(ROL_ADMINISTRADOR)
 def reasignar_tareas_masivo():
     """RF19 — Reasignando y Redistribuyendo Tareas.
 
