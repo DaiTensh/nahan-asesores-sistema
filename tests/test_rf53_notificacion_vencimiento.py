@@ -111,3 +111,10 @@ def test_dias_por_defecto_viene_de_la_variable_de_entorno(monkeypatch, fake_conn
         if "SELECT id_tarea, id_responsable, titulo, fecha_vencimiento FROM tarea" in normalize_sql(sql)
     ]
     assert seleccion[0][0] == 5
+
+
+def test_proceso_informa_fallo_si_mysql_no_responde(monkeypatch):
+    import pytest
+    monkeypatch.setattr(tareas_programadas, 'get_connection', lambda: None)
+    with pytest.raises(RuntimeError, match='MySQL'):
+        tareas_programadas.main()

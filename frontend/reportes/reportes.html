@@ -58,6 +58,15 @@
           </div>
 
           <div class="form-group">
+            <label class="form-label" for="atajoPeriodo">Período rápido</label>
+            <select id="atajoPeriodo" class="form-input">
+              <option value="">Personalizado</option>
+              <option value="semana">Última semana</option>
+              <option value="mes">Último mes</option>
+              <option value="anio">Año actual</option>
+            </select>
+          </div>
+          <div class="form-group">
             <label class="form-label" for="inputFechaInicio">Desde</label>
             <input type="date" id="inputFechaInicio" class="form-input" required>
           </div>
@@ -78,6 +87,7 @@
       <section class="reportes-section" id="resultadoReporte" hidden>
         <div class="reportes-resultado-header">
           <h2>Resultado</h2>
+          <button type="button" id="btnExportarPdf" class="btn btn-secondary" hidden>Exportar a PDF</button>
           <button type="button" id="btnExportarExcel" class="btn btn-secondary" hidden>Exportar a Excel</button>
         </div>
 

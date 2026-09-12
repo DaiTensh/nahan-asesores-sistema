@@ -1,5 +1,7 @@
 import logging
 
+from mysql.connector import IntegrityError
+
 from flask import Blueprint, request, jsonify
 from backend.config.db import get_connection
 from backend.utils.auth import ROL_ADMINISTRADOR, login_required, roles_required
@@ -89,7 +91,19 @@ def create_usuario():
 
         return jsonify({"message": "Usuario registrado correctamente"}), 201
     
+    except IntegrityError as error:
+        if connection:
+            connection.rollback()
+        if error.errno == 1062:
+            return jsonify({"error": "Ya existe un registro con esos datos únicos"}), 400
+        if error.errno == 1452:
+            return jsonify({"error": "Un rol o área indicada no existe"}), 422
+        logger.exception("Error de integridad al guardar datos")
+        return jsonify({"error": "Error interno al guardar datos"}), 500
+
     except Exception:
+        if connection:
+            connection.rollback()
         logger.exception("Error al registrar usuario")
         return jsonify({"error": "Error interno al registrar usuario"}), 500
     
@@ -98,6 +112,7 @@ def create_usuario():
             cursor.close()
         if connection:
             connection.close()
+
 
 
 #Lista de usuarios
@@ -134,6 +149,8 @@ def listar_usuarios():
         return jsonify(usuarios), 200
 
     except Exception:
+        if connection:
+            connection.rollback()
         logger.exception("Error al listar usuarios")
         return jsonify({"error": "Error interno al listar usuarios"}), 500
 
@@ -180,6 +197,8 @@ def obtener_usuario(id_usuario):
         return jsonify(usuario), 200
 
     except Exception:
+        if connection:
+            connection.rollback()
         logger.exception("Error al obtener usuario")
         return jsonify({"error": "Error interno al obtener usuario"}), 500
 
@@ -207,6 +226,9 @@ def actualizar_usuario(id_usuario):
         return jsonify({
             "error": "Todos los campos son obligatorios"
         }), 400
+
+    if estado not in ("ACTIVO", "INACTIVO"):
+        return jsonify({"error": "Estado no válido"}), 400
 
     id_rol, id_area, error = resolver_area_para_rol(id_rol, id_area)
 
@@ -241,15 +263,27 @@ def actualizar_usuario(id_usuario):
         connection.commit()
 
         if cursor.rowcount == 0:
-            return jsonify({
-                "error": "Usuario no encontrado"
-            }), 404
+            cursor.execute("SELECT id_usuario FROM usuario WHERE id_usuario = %s", (id_usuario,))
+            if not cursor.fetchone():
+                return jsonify({"error": "Usuario no encontrado"}), 404
 
         return jsonify({
             "message": "Usuario actualizado correctamente"
         }), 200
 
+    except IntegrityError as error:
+        if connection:
+            connection.rollback()
+        if error.errno == 1062:
+            return jsonify({"error": "Ya existe un registro con esos datos únicos"}), 400
+        if error.errno == 1452:
+            return jsonify({"error": "Un rol o área indicada no existe"}), 422
+        logger.exception("Error de integridad al guardar datos")
+        return jsonify({"error": "Error interno al guardar datos"}), 500
+
     except Exception:
+        if connection:
+            connection.rollback()
         logger.exception("Error al actualizar usuario")
         return jsonify({
             "error": "Error interno al actualizar usuario"
@@ -261,6 +295,7 @@ def actualizar_usuario(id_usuario):
 
         if connection:
             connection.close()
+
 
 
 #Desactivar usuario
@@ -284,13 +319,17 @@ def desactivar_usuario(id_usuario):
         connection.commit()
 
         if cursor.rowcount == 0:
-            return jsonify({"error": "Usuario no encontrado"}), 404
+            cursor.execute("SELECT id_usuario FROM usuario WHERE id_usuario = %s", (id_usuario,))
+            if not cursor.fetchone():
+                return jsonify({"error": "Usuario no encontrado"}), 404
 
         return jsonify({
             "message": "Usuario deshabilitado correctamente"
         }), 200
 
     except Exception:
+        if connection:
+            connection.rollback()
         logger.exception("Error al desactivar usuario")
         return jsonify({"error": "Error interno al desactivar usuario"}), 500
 
@@ -338,13 +377,17 @@ def asignar_rol_usuario(id_usuario):
         connection.commit()
 
         if cursor.rowcount == 0:
-            return jsonify({"error": "Usuario no encontrado"}), 404
+            cursor.execute("SELECT id_usuario FROM usuario WHERE id_usuario = %s", (id_usuario,))
+            if not cursor.fetchone():
+                return jsonify({"error": "Usuario no encontrado"}), 404
 
         return jsonify({
             "message": "Rol asignado correctamente"
         }), 200
 
     except Exception:
+        if connection:
+            connection.rollback()
         logger.exception("Error al asignar rol")
         return jsonify({"error": "Error interno al asignar rol"}), 500
 

@@ -25,3 +25,8 @@ uploads/
 # Node
 node_modules/
 
+# Herramientas de asistencia y análisis locales
+/graphify-out/
+
+# Logs temporales
+*.log

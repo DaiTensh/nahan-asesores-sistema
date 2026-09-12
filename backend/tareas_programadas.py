@@ -66,7 +66,7 @@ def notificar_vencimientos_proximos(dias=None):
 
         if connection is None:
             logger.error("No se pudo conectar a MySQL; se aborta esta pasada.")
-            return 0
+            raise RuntimeError("No se pudo conectar a MySQL")
 
         cursor = connection.cursor(dictionary=True)
 

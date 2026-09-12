@@ -8,14 +8,7 @@ que volver a cuadrar el informe y estas fichas contra él.
 
 ## Cómo empezar
 
-
-```
-hola, soy Renato
-```
-
-empieza a programar tus RF. Si prefieres ser explícito: `/soy renato`.
-
-Si algo del entorno falla y quieres verlo tú mismo:
+Consulta tu ficha en la tabla de responsabilidades y utiliza los scripts del proyecto:
 
 ```bash
 bash scripts/doctor.sh     # qué falta y cómo se arregla

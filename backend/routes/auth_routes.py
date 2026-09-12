@@ -351,12 +351,17 @@ def confirmar_restablecimiento():
             }), 400
 
         cursor.execute(
+            "UPDATE token_recuperacion SET utilizado = TRUE, fecha_uso = NOW() "
+            "WHERE id_token = %s AND utilizado = FALSE AND fecha_expiracion > NOW()",
+            (registro["id_token"],)
+        )
+        if cursor.rowcount != 1:
+            connection.rollback()
+            return jsonify({"error": "El enlace no es válido o ya caducó. Solicita uno nuevo."}), 400
+
+        cursor.execute(
             "UPDATE usuario SET password_hash = %s WHERE id_usuario = %s",
             (hash_password(password), registro["id_usuario"])
-        )
-        cursor.execute(
-            "UPDATE token_recuperacion SET utilizado = TRUE, fecha_uso = NOW() WHERE id_token = %s",
-            (registro["id_token"],)
         )
         # Cualquier otro enlace que siguiera vigente para ese usuario deja de servir.
         cursor.execute(

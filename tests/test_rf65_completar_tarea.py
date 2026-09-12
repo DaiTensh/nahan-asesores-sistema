@@ -188,3 +188,14 @@ def test_un_estado_operativo_no_registra_fecha_finalizacion_ni_auditoria(cliente
     assert fila["estado"] == "EN_REVISION"
     assert fila["fecha_finalizacion"] is None
     assert base.execute("SELECT COUNT(*) AS n FROM auditoria").fetchone()["n"] == 0
+
+
+@pytest.mark.parametrize('estado', ['COMPLETADA', 'CANCELADA'])
+def test_no_reabre_ni_edita_prioridad_de_tarea_final(cliente, base, estado):
+    _login(cliente, 'admin@nahan.local')
+    base.execute('UPDATE tarea SET estado = ? WHERE id_tarea = 1', (estado,))
+    base.commit()
+    assert cliente.put('/api/tareas/1/estado', json={'estado': 'PENDIENTE'}).status_code == 409
+    assert cliente.put('/api/tareas/1/prioridad', json={'prioridad': 'ALTA'}).status_code == 409
+    assert base.execute('SELECT estado FROM tarea WHERE id_tarea = 1').fetchone()[0] == estado
+    assert base.execute('SELECT COUNT(*) FROM auditoria').fetchone()[0] == 0
