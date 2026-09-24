@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Historial consolidado</title>
+
+  <link rel="stylesheet" href="../assets/css/variables.css">
+  <link rel="stylesheet" href="../assets/css/global.css">
+  <link rel="stylesheet" href="../assets/css/buttons.css">
+  <link rel="stylesheet" href="../assets/css/forms.css">
+  <link rel="stylesheet" href="../assets/css/cards.css">
+  <link rel="stylesheet" href="../assets/css/tables.css">
+  <link rel="stylesheet" href="../assets/css/badges.css">
+  <link rel="stylesheet" href="../assets/css/navigation.css">
+  <link rel="stylesheet" href="../assets/css/topbar.css">
+  <link rel="stylesheet" href="./reportes.css">
+  <link rel="stylesheet" href="../historial/historial.css">
+</head>
+<body>
+
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <div class="content-wrapper">
+    <header class="topbar" id="topbar"></header>
+
+    <main class="main-content">
+      <section class="reportes-header">
+        <div>
+          <h1>Historial consolidado</h1>
+          <p>Consolida las actividades de todos los módulos dentro de un período, para auditorías internas.</p>
+        </div>
+      </section>
+
+      <section class="reportes-section">
+        <h2>Criterios</h2>
+
+        <form id="formConsolidado" class="reportes-form">
+          <div class="form-group">
+            <label class="form-label" for="selectModulo">Tipo de actividad (módulo)</label>
+            <select id="selectModulo" class="form-input">
+              <option value="">Todos los módulos</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="selectUsuario">Usuario</label>
+            <select id="selectUsuario" class="form-input">
+              <option value="">Todos los usuarios</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="atajoPeriodo">Período rápido</label>
+            <select id="atajoPeriodo" class="form-input">
+              <option value="">Personalizado</option>
+              <option value="semana">Última semana</option>
+              <option value="mes">Último mes</option>
+              <option value="anio">Año actual</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="inputFechaInicio">Desde</label>
+            <input type="date" id="inputFechaInicio" class="form-input" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="inputFechaFin">Hasta</label>
+            <input type="date" id="inputFechaFin" class="form-input" required>
+          </div>
+
+          <div class="form-group reportes-form-actions">
+            <button type="submit" class="btn btn-primary">Generar</button>
+          </div>
+        </form>
+
+        <p id="mensajeConsolidado" class="mensaje" aria-live="polite"></p>
+      </section>
+
+      <section class="reportes-section" id="resultadoConsolidado" hidden>
+        <div class="reportes-resultado-header">
+          <h2>Resultado</h2>
+          <div class="historial-acciones">
+            <button type="button" id="btnExportarPdf" class="btn btn-secondary">Exportar a PDF</button>
+            <button type="button" id="btnExportarExcel" class="btn btn-secondary">Exportar a Excel</button>
+          </div>
+        </div>
+
+        <div class="reportes-meta">
+          <div>
+            <span class="detail-label">Período consultado</span>
+            <strong id="resultadoPeriodo">-</strong>
+          </div>
+          <div>
+            <span class="detail-label">Filtros</span>
+            <strong id="resultadoFiltros">-</strong>
+          </div>
+          <div>
+            <span class="detail-label">Fecha de generación</span>
+            <strong id="resultadoFechaGeneracion">-</strong>
+          </div>
+        </div>
+
+        <div class="historial-resumen" id="resumenModulos"></div>
+        <p id="avisoTruncado" class="historial-total" hidden></p>
+
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Fecha y hora</th>
+                <th>Usuario</th>
+                <th>Módulo</th>
+                <th>Acción</th>
+                <th>Detalle</th>
+              </tr>
+            </thead>
+            <tbody id="tablaConsolidado"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script src="../assets/js/api_config.js"></script>
+<script src="../auth/logout.js"></script>
+<script src="../assets/js/navigation.js"></script>
+<script src="../assets/js/topbar.js"></script>
+<script src="../assets/js/permissions.js"></script>
+<script src="./historial_consolidado.js"></script>
+
+<script>
+  protegerPagina(["ADMINISTRADOR"]);
+  cargarNavegacion("historial-consolidado");
+  cargarTopbar();
+</script>
+
+</body>
+</html>

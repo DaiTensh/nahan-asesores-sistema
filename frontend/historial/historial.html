@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Historial de actividad</title>
+
+  <link rel="stylesheet" href="../assets/css/variables.css">
+  <link rel="stylesheet" href="../assets/css/global.css">
+  <link rel="stylesheet" href="../assets/css/buttons.css">
+  <link rel="stylesheet" href="../assets/css/forms.css">
+  <link rel="stylesheet" href="../assets/css/cards.css">
+  <link rel="stylesheet" href="../assets/css/tables.css">
+  <link rel="stylesheet" href="../assets/css/badges.css">
+  <link rel="stylesheet" href="../assets/css/navigation.css">
+  <link rel="stylesheet" href="../assets/css/topbar.css">
+  <link rel="stylesheet" href="../reportes/reportes.css">
+  <link rel="stylesheet" href="./historial.css">
+</head>
+<body>
+
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <div class="content-wrapper">
+    <header class="topbar" id="topbar"></header>
+
+    <main class="main-content">
+      <section class="reportes-header">
+        <div>
+          <h1>Historial de actividad</h1>
+          <p>Registro global de las acciones realizadas en el sistema. Solo lectura.</p>
+        </div>
+      </section>
+
+      <section class="reportes-section">
+        <h2>Filtros</h2>
+
+        <form id="formHistorial" class="reportes-form">
+          <div class="form-group">
+            <label class="form-label" for="selectModulo">Módulo</label>
+            <select id="selectModulo" class="form-input">
+              <option value="">Todos los módulos</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="selectUsuario">Usuario</label>
+            <select id="selectUsuario" class="form-input">
+              <option value="">Todos los usuarios</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="inputFechaInicio">Desde</label>
+            <input type="date" id="inputFechaInicio" class="form-input">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="inputFechaFin">Hasta</label>
+            <input type="date" id="inputFechaFin" class="form-input">
+          </div>
+
+          <div class="form-group reportes-form-actions historial-acciones">
+            <button type="submit" class="btn btn-primary">Filtrar</button>
+            <button type="button" id="btnLimpiar" class="btn btn-secondary">Limpiar</button>
+          </div>
+        </form>
+
+        <p id="mensajeHistorial" class="mensaje" aria-live="polite"></p>
+      </section>
+
+      <section class="reportes-section">
+        <div class="reportes-resultado-header">
+          <h2>Eventos</h2>
+          <span id="totalEventos" class="historial-total"></span>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Fecha y hora</th>
+                <th>Usuario</th>
+                <th>Módulo</th>
+                <th>Acción</th>
+                <th>Detalle</th>
+              </tr>
+            </thead>
+            <tbody id="tablaHistorial"></tbody>
+          </table>
+        </div>
+
+        <div class="historial-paginacion">
+          <button type="button" id="btnAnterior" class="btn btn-secondary btn-sm">Anterior</button>
+          <span id="textoPagina">Página 1 de 1</span>
+          <button type="button" id="btnSiguiente" class="btn btn-secondary btn-sm">Siguiente</button>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script src="../assets/js/api_config.js"></script>
+<script src="../auth/logout.js"></script>
+<script src="../assets/js/navigation.js"></script>
+<script src="../assets/js/topbar.js"></script>
+<script src="../assets/js/permissions.js"></script>
+<script src="./historial.js"></script>
+
+<script>
+  protegerPagina(["ADMINISTRADOR"]);
+  cargarNavegacion("historial");
+  cargarTopbar();
+</script>
+
+</body>
+</html>

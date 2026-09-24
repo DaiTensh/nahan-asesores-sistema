@@ -5,7 +5,21 @@ import secrets
 
 from flask import Blueprint, request, jsonify, session
 from backend.config.db import get_connection
-from backend.utils.auth import login_required, obtener_usuario_actual
+from backend.utils.auditoria import registrar_auditoria
+from backend.utils.auth import (
+    AVISO_SEGUNDOS_RANGO,
+    INACTIVIDAD_MINUTOS_RANGO,
+    PARAMETRO_AVISO,
+    PARAMETRO_INACTIVIDAD,
+    ROL_ADMINISTRADOR,
+    invalidar_cache_config_sesion,
+    login_required,
+    marcar_actividad,
+    obtener_config_sesion,
+    obtener_usuario_actual,
+    roles_required,
+    segundos_restantes_sesion,
+)
 from backend.utils.correo import cuerpo_restablecimiento, enviar_correo
 from backend.utils.security import check_password, hash_password
 
@@ -73,6 +87,7 @@ def login():
         session["rol_id"] = usuario["id_rol"]
         session["area_id"] = usuario["id_area"]
         session["nombre"] = usuario["nombres"]
+        marcar_actividad()
 
         usuario.pop("password_hash")
 
@@ -115,6 +130,144 @@ def logout():
     return jsonify({
         "message": "Sesión cerrada correctamente"
     }), 200
+
+
+# ---------------------------------------------------------------------------
+# RF59 — Cerrando Automático por Inactividad
+# ---------------------------------------------------------------------------
+# El control del plazo vive en backend/utils/auth.py (obtener_usuario_actual).
+# Aquí están las rutas que usa el aviso del frontend y la configuración del
+# tiempo máximo, que solo puede cambiar un administrador.
+
+
+def _estado_sesion():
+    minutos, aviso = obtener_config_sesion()
+    return {
+        "segundos_restantes": segundos_restantes_sesion(),
+        "limite_minutos": minutos,
+        "aviso_segundos": aviso,
+    }
+
+
+@auth_bp.route("/auth/sesion", methods=["GET"])
+@login_required
+def estado_sesion():
+    """Tiempo restante de la sesión. El frontend la consulta periódicamente
+    con la cabecera `X-Actividad: pasiva`, así la consulta no renueva el plazo."""
+    return jsonify(_estado_sesion()), 200
+
+
+@auth_bp.route("/auth/sesion/extender", methods=["POST"])
+@login_required
+def extender_sesion():
+    marcar_actividad()
+    return jsonify(_estado_sesion()), 200
+
+
+@auth_bp.route("/parametros/sesion", methods=["GET"])
+@login_required
+def obtener_parametros_sesion():
+    minutos, aviso = obtener_config_sesion()
+    return jsonify({"limite_minutos": minutos, "aviso_segundos": aviso}), 200
+
+
+def _entero_en_rango(valor, minimo, maximo):
+    if isinstance(valor, bool):
+        return None
+    try:
+        numero = int(valor)
+    except (TypeError, ValueError):
+        return None
+    if str(numero) != str(valor).strip():
+        return None
+    return numero if minimo <= numero <= maximo else None
+
+
+def _guardar_parametro(cursor, nombre, valor, descripcion):
+    cursor.execute(
+        "SELECT valor_parametro FROM parametros_sistema WHERE nombre_parametro = %s",
+        (nombre,),
+    )
+    fila = cursor.fetchone()
+    if fila:
+        cursor.execute(
+            "UPDATE parametros_sistema SET valor_parametro = %s WHERE nombre_parametro = %s",
+            (str(valor), nombre),
+        )
+        return fila["valor_parametro"]
+
+    cursor.execute(
+        """
+        INSERT INTO parametros_sistema (nombre_parametro, valor_parametro, tipo_dato, descripcion)
+        VALUES (%s, %s, 'INT', %s)
+        """,
+        (nombre, str(valor), descripcion),
+    )
+    return None
+
+
+@auth_bp.route("/parametros/sesion", methods=["PUT"])
+@roles_required(ROL_ADMINISTRADOR)
+def actualizar_parametros_sesion():
+    data = request.get_json(silent=True) or {}
+    minutos = _entero_en_rango(data.get("limite_minutos"), *INACTIVIDAD_MINUTOS_RANGO)
+    aviso = _entero_en_rango(data.get("aviso_segundos"), *AVISO_SEGUNDOS_RANGO)
+
+    if minutos is None:
+        return jsonify({
+            "error": "El tiempo de inactividad debe ser un número entero entre "
+                     f"{INACTIVIDAD_MINUTOS_RANGO[0]} y {INACTIVIDAD_MINUTOS_RANGO[1]} minutos."
+        }), 400
+    if aviso is None:
+        return jsonify({
+            "error": "La anticipación del aviso debe ser un número entero entre "
+                     f"{AVISO_SEGUNDOS_RANGO[0]} y {AVISO_SEGUNDOS_RANGO[1]} segundos."
+        }), 400
+    if aviso >= minutos * 60:
+        return jsonify({"error": "El aviso debe mostrarse antes de que termine el tiempo de inactividad."}), 400
+
+    usuario = obtener_usuario_actual()
+    connection = None
+    cursor = None
+    try:
+        connection = get_connection()
+        if connection is None:
+            return jsonify({"error": "Error de conexión con la base de datos"}), 500
+
+        cursor = connection.cursor(dictionary=True)
+        minutos_antes = _guardar_parametro(
+            cursor, PARAMETRO_INACTIVIDAD, minutos,
+            "Minutos de inactividad antes de cerrar la sesión automáticamente",
+        )
+        aviso_antes = _guardar_parametro(
+            cursor, PARAMETRO_AVISO, aviso,
+            "Segundos de anticipación con que se avisa el cierre por inactividad",
+        )
+        registrar_auditoria(
+            cursor, usuario["id_usuario"], "parametros_sistema", "CONFIGURAR_SESION",
+            datos_anteriores=f"{PARAMETRO_INACTIVIDAD}={minutos_antes}, {PARAMETRO_AVISO}={aviso_antes}",
+            datos_nuevos=f"{PARAMETRO_INACTIVIDAD}={minutos}, {PARAMETRO_AVISO}={aviso}",
+        )
+        connection.commit()
+        invalidar_cache_config_sesion()
+
+        return jsonify({
+            "message": "Configuración de sesión actualizada",
+            "limite_minutos": minutos,
+            "aviso_segundos": aviso,
+        }), 200
+
+    except Exception:
+        if connection:
+            connection.rollback()
+        logger.exception("Error al actualizar la configuración de sesión")
+        return jsonify({"error": "Error interno al guardar la configuración"}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
 
 # ---------------------------------------------------------------------------

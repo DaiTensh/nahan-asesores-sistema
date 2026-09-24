@@ -7,6 +7,7 @@ from werkzeug.utils import secure_filename
 from werkzeug.security import safe_join
 
 from backend.config.db import get_connection
+from backend.utils.auditoria import registrar_auditoria
 from backend.utils.auth import (
     ROL_ADMINISTRADOR,
     ROLES_OPERATIVOS,
@@ -368,12 +369,10 @@ def descargar_documento(id_documento):
             logger.error("Adjunto id_documento=%s no existe en disco: %s", id_documento, ruta_absoluta)
             return jsonify({"error": "El archivo ya no está disponible"}), 404
 
-        cursor.execute(
-            """
-            INSERT INTO auditoria (id_usuario, tabla_afectada, accion, datos_nuevos)
-            VALUES (%s, 'documento', 'DESCARGA', %s)
-            """,
-            (usuario["id_usuario"], f"id_documento={id_documento}")
+        registrar_auditoria(
+            cursor, usuario["id_usuario"], "documento", "DESCARGA",
+            id_registro=id_documento,
+            datos_nuevos=f"id_documento={id_documento}",
         )
         connection.commit()
 

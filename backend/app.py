@@ -12,6 +12,7 @@ from backend.routes.auth_routes import auth_bp
 from backend.routes.clientes_routes import clientes_blueprint
 from backend.routes.control_horas_routes import control_horas_bp
 from backend.routes.documentos_routes import documentos_bp
+from backend.routes.historial_routes import historial_bp
 from backend.routes.reportes_routes import reportes_blueprint
 from backend.routes.tareas_routes import tareas_bp
 from backend.routes.usuarios_routes import usuarios_bp
@@ -168,6 +169,7 @@ def create_app():
     app.register_blueprint(control_horas_bp, url_prefix="/api")
     app.register_blueprint(documentos_bp, url_prefix="/api")
     app.register_blueprint(reportes_blueprint, url_prefix="/api")
+    app.register_blueprint(historial_bp, url_prefix="/api")
 
     @app.route("/")
     def home():

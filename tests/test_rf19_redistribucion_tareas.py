@@ -27,7 +27,7 @@ CREATE TABLE tarea (
     id_responsable INTEGER, id_creador INTEGER, titulo TEXT, estado TEXT DEFAULT 'PENDIENTE');
 CREATE TABLE auditoria (
     id_auditoria INTEGER PRIMARY KEY AUTOINCREMENT, id_usuario INTEGER,
-    tabla_afectada TEXT, accion TEXT, datos_anteriores TEXT, datos_nuevos TEXT,
+    tabla_afectada TEXT, id_registro INTEGER, accion TEXT, datos_anteriores TEXT, datos_nuevos TEXT,
     fecha DATETIME DEFAULT CURRENT_TIMESTAMP);
 
 INSERT INTO rol (nombre_rol) VALUES ('ADMINISTRADOR'), ('USUARIO_AREA_CONTABLE');

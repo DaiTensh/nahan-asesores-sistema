@@ -4,6 +4,12 @@ const loginForm = document.getElementById("loginForm");
 const mensaje = document.getElementById("mensaje");
 const botonLogin = loginForm.querySelector('button[type="submit"]');
 
+// RF59: aviso cuando se llega aquí por cierre automático de sesión.
+if (new URLSearchParams(window.location.search).get("motivo") === "inactividad") {
+  mensaje.textContent = "Tu sesión se cerró por inactividad. Vuelve a iniciar sesión.";
+  mensaje.className = "mensaje error";
+}
+
 loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
