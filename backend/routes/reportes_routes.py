@@ -13,6 +13,7 @@ from flask import Blueprint, request, jsonify, send_file
 from openpyxl import Workbook
 
 from backend.config.db import get_connection
+from backend.utils.auditoria import consultar_auditoria, modulos_disponibles, tablas_de_modulo
 from backend.utils.auth import ROL_ADMINISTRADOR, obtener_usuario_actual, roles_required
 
 reportes_blueprint = Blueprint('reportes_blueprint', __name__)
@@ -417,6 +418,134 @@ def reporte_tareas_por_responsable():
             conexion.close()
 
 
+# ==========================================================================
+# RF40 — Historiando Consolidadamente las Actividades.
+# Reporte del período sobre AUDITORIA (backend/utils/auditoria.py, RF56):
+# consolida la actividad de todos los módulos, filtrable por módulo (tipo de
+# actividad), usuario y rango de fechas, y se exporta a PDF/Excel con el
+# mismo mecanismo que el resto de los reportes (tabla REPORTE + id_reporte).
+# ==========================================================================
+
+LIMITE_HISTORIAL_CONSOLIDADO = 5000
+MENSAJE_SIN_ACTIVIDADES = "No se registran actividades para los criterios seleccionados"
+
+
+def _filtros_historial_consolidado(parametros):
+    """Traduce los parámetros guardados/recibidos a los de consultar_auditoria.
+
+    Devuelve (kwargs, error)."""
+    kwargs = {
+        "fecha_inicio": parametros.get("fecha_inicio"),
+        "fecha_fin": parametros.get("fecha_fin"),
+    }
+
+    modulo = (parametros.get("modulo") or "").strip()
+    if modulo:
+        if modulo not in modulos_disponibles():
+            return None, "El módulo indicado no existe."
+        kwargs["tablas"] = tablas_de_modulo(modulo)
+
+    id_usuario = parametros.get("id_usuario")
+    if id_usuario not in (None, ""):
+        if not str(id_usuario).isdigit():
+            return None, "El usuario indicado no es válido."
+        kwargs["id_usuario"] = int(id_usuario)
+
+    return kwargs, None
+
+
+def _consultar_historial_consolidado(cursor, parametros):
+    """Devuelve (eventos, total, resumen_por_modulo, resumen_por_accion)."""
+    kwargs, _ = _filtros_historial_consolidado(parametros)
+    eventos, total = consultar_auditoria(cursor, limite=LIMITE_HISTORIAL_CONSOLIDADO, **kwargs)
+
+    resumen_por_modulo = {}
+    resumen_por_accion = {}
+    for evento in eventos:
+        resumen_por_modulo[evento["modulo"]] = resumen_por_modulo.get(evento["modulo"], 0) + 1
+        resumen_por_accion[evento["accion"]] = resumen_por_accion.get(evento["accion"], 0) + 1
+
+    return eventos, total, resumen_por_modulo, resumen_por_accion
+
+
+@reportes_blueprint.route('/reportes/historial-consolidado', methods=['GET'])
+@roles_required(ROL_ADMINISTRADOR)
+def reporte_historial_consolidado():
+    conexion = None
+    try:
+        fecha_inicio, fecha_fin, error = _validar_periodo(request.args)
+        if error:
+            return jsonify({"error": error}), 400
+
+        parametros = {
+            "fecha_inicio": fecha_inicio,
+            "fecha_fin": fecha_fin,
+            "modulo": (request.args.get("modulo") or "").strip() or None,
+            "id_usuario": (request.args.get("id_usuario") or "").strip() or None,
+        }
+        _, error = _filtros_historial_consolidado(parametros)
+        if error:
+            return jsonify({"error": error}), 400
+        if parametros["id_usuario"]:
+            parametros["id_usuario"] = int(parametros["id_usuario"])
+
+        usuario_sesion = obtener_usuario_actual()
+
+        conexion = get_connection()
+        if conexion is None:
+            return jsonify({"error": "Fallo de conexión con MySQL."}), 500
+
+        with conexion.cursor(dictionary=True) as cursor:
+            usuario_filtrado = None
+            if parametros["id_usuario"]:
+                cursor.execute(
+                    "SELECT id_usuario, nombres FROM usuario WHERE id_usuario = %s",
+                    (parametros["id_usuario"],),
+                )
+                usuario_filtrado = cursor.fetchone()
+                if not usuario_filtrado:
+                    return jsonify({"error": "Usuario inexistente."}), 404
+
+            eventos, total, resumen_por_modulo, resumen_por_accion = _consultar_historial_consolidado(
+                cursor, parametros
+            )
+
+            respuesta = {
+                "periodo": {"fecha_inicio": fecha_inicio, "fecha_fin": fecha_fin},
+                "filtros": {"modulo": parametros["modulo"], "usuario": usuario_filtrado},
+                "total": total,
+                "truncado": total > len(eventos),
+                "eventos": eventos,
+                "resumen_por_modulo": resumen_por_modulo,
+                "resumen_por_accion": resumen_por_accion,
+                "id_reporte": None,
+                "fecha_generacion": None,
+            }
+
+            if not eventos:
+                respuesta["mensaje"] = MENSAJE_SIN_ACTIVIDADES
+                return jsonify(respuesta), 200
+
+            generado = _registrar_generacion(
+                cursor, usuario_sesion["id_usuario"], "HISTORIAL_CONSOLIDADO", parametros
+            )
+            conexion.commit()
+
+            respuesta["id_reporte"] = generado["id_reporte"]
+            respuesta["fecha_generacion"] = generado["fecha_generacion"]
+            return jsonify(respuesta), 200
+
+    except Exception:
+        if conexion:
+            conexion.rollback()
+        logger.exception("Error al generar el historial consolidado")
+        return jsonify({"error": "Ocurrió un error al generar el historial consolidado."}), 500
+
+    finally:
+        if conexion:
+            conexion.close()
+
+
 _CARACTERES_INVALIDOS_ARCHIVO = '\\/:*?"<>|'
 
 
@@ -498,6 +627,23 @@ def _datos_para_exportar(cursor, tipo_reporte, parametros):
         nombre = f"reporte_productividad_area_{id_area or 'todas'}_{fecha_inicio}_a_{fecha_fin}.xlsx"
         return nombre, encabezados, filas
 
+    if tipo_reporte == "HISTORIAL_CONSOLIDADO":
+        eventos, _, _, _ = _consultar_historial_consolidado(cursor, parametros)
+
+        encabezados = ["Fecha y hora", "Usuario", "Módulo", "Acción", "Registro", "Antes", "Después"]
+        filas = [
+            [
+                evento["fecha"], evento["usuario"] or "", evento["modulo"], evento["accion"],
+                f"{evento['tabla_afectada']} #{evento['id_registro']}" if evento["id_registro"] else evento["tabla_afectada"],
+                evento["datos_anteriores"] or "", evento["datos_nuevos"] or "",
+            ]
+            for evento in eventos
+        ]
+
+        modulo = parametros.get("modulo") or "todos_los_modulos"
+        nombre = f"{_nombre_archivo_seguro('historial_consolidado_' + modulo)}_{fecha_inicio}_a_{fecha_fin}.xlsx"
+        return nombre, encabezados, filas
+
     return None
 
 
@@ -545,7 +691,8 @@ def exportar_reporte_excel(id_reporte, formato="excel"):
                 "TAREAS_POR_CLIENTE": "Tareas por cliente",
                 "TAREAS_POR_RESPONSABLE": "Tareas por usuario responsable",
                 "PRODUCTIVIDAD_POR_USUARIO": "Productividad por usuario",
-            }[reporte["tipo_reporte"]]
+                "HISTORIAL_CONSOLIDADO": "Historial consolidado de actividades",
+            }.get(reporte["tipo_reporte"], "Reporte")
             documento = SimpleDocTemplate(buffer, pagesize=landscape(A4),
                                           rightMargin=24, leftMargin=24,
                                           topMargin=24, bottomMargin=24, title=titulo)
@@ -562,6 +709,13 @@ def exportar_reporte_excel(id_reporte, formato="excel"):
                 contenido.append(Paragraph(escape("Resumen por estado: " + ", ".join(
                     f"{estado}: {total}" for estado, total in resumen.items()
                 )), estilos["Normal"]))
+            if reporte["tipo_reporte"] == "HISTORIAL_CONSOLIDADO":
+                resumen = {}
+                for fila in filas:
+                    resumen[fila[2]] = resumen.get(fila[2], 0) + 1
+                contenido.append(Paragraph(escape("Actividades por módulo: " + ", ".join(
+                    f"{modulo}: {total}" for modulo, total in sorted(resumen.items())
+                )), estilos["Normal"]))
             datos = [[Paragraph(escape(str(valor)), estilos["BodyText"])
                       for valor in fila] for fila in [encabezados, *filas]]
             tabla = LongTable(datos, colWidths=[documento.width / len(encabezados)] * len(encabezados),
@@ -573,7 +727,9 @@ def exportar_reporte_excel(id_reporte, formato="excel"):
             ]))
             contenido.append(tabla)
             if not filas:
-                contenido.append(Paragraph(MENSAJE_SIN_TAREAS, estilos["Normal"]))
+                sin_datos = (MENSAJE_SIN_ACTIVIDADES if reporte["tipo_reporte"] == "HISTORIAL_CONSOLIDADO"
+                             else MENSAJE_SIN_TAREAS)
+                contenido.append(Paragraph(sin_datos, estilos["Normal"]))
             documento.build(contenido)
             buffer.seek(0)
             return send_file(buffer, mimetype="application/pdf", as_attachment=True,

@@ -47,6 +47,12 @@ const ADMIN_ITEMS = [
     href: "../historial/historial.html"
   },
   {
+    id: "historial-consolidado",
+    label: "Historial consolidado",
+    icon: "HC",
+    href: "../reportes/historial_consolidado.html"
+  },
+  {
     id: "registrar",
     label: "Registrar usuario",
     icon: "RU",
