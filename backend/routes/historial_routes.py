@@ -1,0 +1,128 @@
+"""RF56 — Historiando la Actividad.
+
+Historial global de actividad del sistema, de solo lectura y visible solo
+para administradores (Documento 0, Tabla 7.56). Se arma sobre la tabla
+AUDITORIA a través de backend/utils/auditoria.py; este módulo no expone
+rutas de escritura: el historial no se puede modificar ni eliminar.
+"""
+import logging
+
+from flask import Blueprint, jsonify, request
+
+from backend.config.db import get_connection
+from backend.routes.reportes_routes import _validar_periodo
+from backend.utils.auditoria import consultar_auditoria, modulos_disponibles, tablas_de_modulo
+from backend.utils.auth import ROL_ADMINISTRADOR, roles_required
+
+historial_bp = Blueprint("historial", __name__)
+logger = logging.getLogger(__name__)
+
+POR_PAGINA_DEFECTO = 25
+POR_PAGINA_MAXIMO = 100
+
+
+def _entero_positivo(valor, defecto):
+    try:
+        numero = int(valor)
+    except (TypeError, ValueError):
+        return defecto
+    return numero if numero > 0 else defecto
+
+
+def leer_filtros_historial(args):
+    """Valida los filtros comunes del historial (RF56 y RF40).
+
+    Devuelve (filtros, error). `filtros` trae las claves que acepta
+    consultar_auditoria(): tablas, id_usuario, fecha_inicio y fecha_fin.
+    """
+    filtros = {}
+
+    modulo = (args.get("modulo") or "").strip()
+    if modulo:
+        if modulo not in modulos_disponibles():
+            return None, "El módulo indicado no existe."
+        filtros["tablas"] = tablas_de_modulo(modulo)
+
+    id_usuario = (args.get("id_usuario") or "").strip()
+    if id_usuario:
+        if not id_usuario.isdigit():
+            return None, "El usuario indicado no es válido."
+        filtros["id_usuario"] = int(id_usuario)
+
+    if (args.get("fecha_inicio") or "").strip() or (args.get("fecha_fin") or "").strip():
+        fecha_inicio, fecha_fin, error = _validar_periodo(args)
+        if error:
+            return None, error
+        filtros["fecha_inicio"] = fecha_inicio
+        filtros["fecha_fin"] = fecha_fin
+
+    return filtros, None
+
+
+@historial_bp.route("/historial", methods=["GET"])
+@roles_required(ROL_ADMINISTRADOR)
+def listar_historial():
+    filtros, error = leer_filtros_historial(request.args)
+    if error:
+        return jsonify({"error": error}), 400
+
+    pagina = _entero_positivo(request.args.get("pagina"), 1)
+    por_pagina = min(_entero_positivo(request.args.get("por_pagina"), POR_PAGINA_DEFECTO), POR_PAGINA_MAXIMO)
+
+    connection = None
+    cursor = None
+    try:
+        connection = get_connection()
+        if connection is None:
+            return jsonify({"error": "Error de conexión con la base de datos"}), 500
+
+        cursor = connection.cursor(dictionary=True)
+        eventos, total = consultar_auditoria(
+            cursor, limite=por_pagina, offset=(pagina - 1) * por_pagina, **filtros
+        )
+
+        return jsonify({
+            "eventos": eventos,
+            "total": total,
+            "pagina": pagina,
+            "por_pagina": por_pagina,
+            "total_paginas": max(1, -(-total // por_pagina)),
+        }), 200
+
+    except Exception:
+        logger.exception("Error al consultar el historial de actividad")
+        return jsonify({"error": "Error interno al consultar el historial"}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
+@historial_bp.route("/historial/filtros", methods=["GET"])
+@roles_required(ROL_ADMINISTRADOR)
+def opciones_filtros_historial():
+    """Opciones para los selectores de la vista: módulos y usuarios."""
+    connection = None
+    cursor = None
+    try:
+        connection = get_connection()
+        if connection is None:
+            return jsonify({"error": "Error de conexión con la base de datos"}), 500
+
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT id_usuario, nombres FROM usuario ORDER BY nombres")
+        usuarios = cursor.fetchall()
+
+        return jsonify({"modulos": modulos_disponibles(), "usuarios": usuarios}), 200
+
+    except Exception:
+        logger.exception("Error al consultar los filtros del historial")
+        return jsonify({"error": "Error interno al consultar los filtros"}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()

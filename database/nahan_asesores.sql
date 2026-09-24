@@ -302,6 +302,8 @@ CREATE TABLE auditoria (
     id_auditoria INT AUTO_INCREMENT PRIMARY KEY,
     id_usuario INT NOT NULL,
     tabla_afectada VARCHAR(100) NOT NULL,
+    -- RF56: id del registro afectado dentro de tabla_afectada (migración 005)
+    id_registro INT NULL,
     accion VARCHAR(50) NOT NULL,
     datos_anteriores TEXT,
     datos_nuevos TEXT,
@@ -338,6 +340,9 @@ CREATE TABLE token_recuperacion (
 
 CREATE INDEX idx_cliente_rut ON cliente(rut);
 CREATE INDEX idx_tarea_estado ON tarea(estado);
+CREATE INDEX idx_auditoria_tabla_registro ON auditoria (tabla_afectada, id_registro);
+CREATE INDEX idx_auditoria_usuario_fecha ON auditoria (id_usuario, fecha);
+CREATE INDEX idx_auditoria_fecha ON auditoria (fecha);
 CREATE INDEX idx_tarea_responsable ON tarea(id_responsable);
 CREATE INDEX idx_tarea_cliente ON tarea(id_cliente);
 CREATE INDEX idx_documento_cliente ON documento(id_cliente);

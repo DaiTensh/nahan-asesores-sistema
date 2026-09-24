@@ -1,0 +1,28 @@
+.historial-acciones {
+  gap: 8px;
+}
+
+.historial-total {
+  color: var(--color-text-light);
+  font-size: 14px;
+}
+
+.historial-detalle {
+  font-size: 13px;
+  color: var(--color-text-light);
+  max-width: 420px;
+  word-break: break-word;
+}
+
+.historial-detalle strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.historial-paginacion {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}

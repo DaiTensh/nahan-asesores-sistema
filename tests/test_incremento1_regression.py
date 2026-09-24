@@ -669,7 +669,9 @@ def test_administrador_deshabilita_cliente_y_auditoria_usa_sesion(
 
     assert response.status_code == 200
     assert data == {"message": "Cliente deshabilitado y registrado en auditoría."}
-    assert auditorias == [(7,)]
+    # El usuario de la auditoría sale de la sesión (7), nunca del cuerpo (999).
+    assert [params[0] for params in auditorias] == [7]
+    assert auditorias[0][1:4] == ("cliente", 10, "DESHABILITAR")
     assert connection.commits == 1
 
 

@@ -4,6 +4,7 @@ from datetime import datetime
 from flask import Blueprint, request, jsonify
 from backend.config.db import get_connection
 from backend.routes.notificaciones_routes import crear_notificacion
+from backend.utils.auditoria import registrar_auditoria
 from backend.utils.auth import ROL_ADMINISTRADOR, login_required, obtener_usuario_actual, roles_required
 
 tareas_bp = Blueprint("tareas", __name__)
@@ -430,16 +431,11 @@ def editar_tarea(id_tarea):
             if valor_anterior == valor_nuevo:
                 continue
 
-            cursor.execute(
-                """
-                INSERT INTO auditoria (id_usuario, tabla_afectada, accion, datos_anteriores, datos_nuevos)
-                VALUES (%s, 'tarea', 'EDICION', %s, %s)
-                """,
-                (
-                    usuario["id_usuario"],
-                    f"id_tarea={id_tarea}, {campo}={valor_anterior}",
-                    f"id_tarea={id_tarea}, {campo}={valor_nuevo}"
-                )
+            registrar_auditoria(
+                cursor, usuario["id_usuario"], "tarea", "EDICION",
+                id_registro=id_tarea,
+                datos_anteriores=f"id_tarea={id_tarea}, {campo}={valor_anterior}",
+                datos_nuevos=f"id_tarea={id_tarea}, {campo}={valor_nuevo}",
             )
 
         connection.commit()
@@ -551,16 +547,11 @@ def asignar_tarea(id_tarea):
 
         # El cambio queda en auditoria con responsable anterior, nuevo y
         # fecha (columna con default en la propia tabla).
-        cursor.execute(
-            """
-            INSERT INTO auditoria (id_usuario, tabla_afectada, accion, datos_anteriores, datos_nuevos)
-            VALUES (%s, 'tarea', 'REASIGNACION', %s, %s)
-            """,
-            (
-                usuario["id_usuario"],
-                f"id_tarea={id_tarea}, id_responsable={id_responsable_anterior}",
-                f"id_tarea={id_tarea}, id_responsable={id_responsable}"
-            )
+        registrar_auditoria(
+            cursor, usuario["id_usuario"], "tarea", "REASIGNACION",
+            id_registro=id_tarea,
+            datos_anteriores=f"id_tarea={id_tarea}, id_responsable={id_responsable_anterior}",
+            datos_nuevos=f"id_tarea={id_tarea}, id_responsable={id_responsable}",
         )
 
         # El nuevo responsable recibe una notificación (RF52), salvo que se
@@ -646,16 +637,11 @@ def actualizar_estado_tarea(id_tarea):
                 """,
                 (estado, id_tarea)
             )
-            cursor.execute(
-                """
-                INSERT INTO auditoria (id_usuario, tabla_afectada, accion, datos_anteriores, datos_nuevos)
-                VALUES (%s, 'tarea', 'COMPLETAR_TAREA', %s, %s)
-                """,
-                (
-                    usuario["id_usuario"],
-                    f"id_tarea={id_tarea}, estado={estado_anterior}",
-                    f"id_tarea={id_tarea}, estado=COMPLETADA"
-                )
+            registrar_auditoria(
+                cursor, usuario["id_usuario"], "tarea", "COMPLETAR_TAREA",
+                id_registro=id_tarea,
+                datos_anteriores=f"id_tarea={id_tarea}, estado={estado_anterior}",
+                datos_nuevos=f"id_tarea={id_tarea}, estado=COMPLETADA",
             )
         else:
             cursor.execute(
@@ -1099,16 +1085,11 @@ def reasignar_tareas_masivo():
                     "error": f"Tarea {id_tarea}: {error}"
                 }), status
 
-            cursor.execute(
-                """
-                INSERT INTO auditoria (id_usuario, tabla_afectada, accion, datos_anteriores, datos_nuevos)
-                VALUES (%s, 'tarea', 'REASIGNACION_MASIVA', %s, %s)
-                """,
-                (
-                    usuario["id_usuario"],
-                    f"id_tarea={id_tarea}, id_responsable={id_responsable_anterior}",
-                    f"id_tarea={id_tarea}, id_responsable={id_responsable}"
-                )
+            registrar_auditoria(
+                cursor, usuario["id_usuario"], "tarea", "REASIGNACION_MASIVA",
+                id_registro=id_tarea,
+                datos_anteriores=f"id_tarea={id_tarea}, id_responsable={id_responsable_anterior}",
+                datos_nuevos=f"id_tarea={id_tarea}, id_responsable={id_responsable}",
             )
             reasignadas += 1
 

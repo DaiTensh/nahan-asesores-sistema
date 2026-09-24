@@ -5,6 +5,7 @@ from mysql.connector import IntegrityError
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 from backend.config.db import get_connection
+from backend.utils.auditoria import registrar_auditoria
 from backend.utils.auth import ROL_ADMINISTRADOR, ROLES_OPERATIVOS, obtener_usuario_actual, roles_required
 
 clientes_blueprint = Blueprint('clientes_blueprint', __name__)
@@ -276,11 +277,12 @@ def deshabilitar_cliente_rf3(id_cliente):
                 return jsonify({"error": "Cliente inexistente."}), 404
 
             # Grabar en historial (Tabla Auditoria de tu base de datos)
-            query_auditoria = """
-                INSERT INTO auditoria (id_usuario, tabla_afectada, accion, datos_anteriores, datos_nuevos)
-                VALUES (%s, 'cliente', 'DESHABILITAR', 'estado: ACTIVO', 'estado: INACTIVO')
-            """
-            cursor.execute(query_auditoria, (id_usuario,))
+            registrar_auditoria(
+                cursor, id_usuario, "cliente", "DESHABILITAR",
+                id_registro=id_cliente,
+                datos_anteriores="estado: ACTIVO",
+                datos_nuevos="estado: INACTIVO",
+            )
             conexion.commit()
 
         return jsonify({"message": "Cliente deshabilitado y registrado en auditoría."}), 200
@@ -326,11 +328,12 @@ def eliminar_definitivo_cliente(id_cliente):
             cursor.execute("DELETE FROM cliente WHERE id_cliente = %s", (id_cliente,))
 
             # 3. Grabar en historial de auditoría
-            query_auditoria = """
-                INSERT INTO auditoria (id_usuario, tabla_afectada, accion, datos_anteriores, datos_nuevos)
-                VALUES (%s, 'cliente', 'ELIMINACION_DEFINITIVA', %s, 'REMOVIDO_COMPLETAMENTE')
-            """
-            cursor.execute(query_auditoria, (id_usuario, log_anterior))
+            registrar_auditoria(
+                cursor, id_usuario, "cliente", "ELIMINACION_DEFINITIVA",
+                id_registro=id_cliente,
+                datos_anteriores=log_anterior,
+                datos_nuevos="REMOVIDO_COMPLETAMENTE",
+            )
             conexion.commit()
 
         return jsonify({"message": "Cliente eliminado físicamente y registrado en auditoría."}), 200
@@ -522,11 +525,12 @@ def cambiar_estado_cliente_rf10(id_cliente):
             log_anterior = f"estado: {estado_anterior}"
             log_nuevo = f"estado: {nuevo_estado}"
             
-            query_auditoria = """
-                INSERT INTO auditoria (id_usuario, tabla_afectada, accion, datos_anteriores, datos_nuevos)
-                VALUES (%s, 'cliente', 'CAMBIO_ESTADO', %s, %s)
-            """
-            cursor.execute(query_auditoria, (id_usuario, log_anterior, log_nuevo))
+            registrar_auditoria(
+                cursor, id_usuario, "cliente", "CAMBIO_ESTADO",
+                id_registro=id_cliente,
+                datos_anteriores=log_anterior,
+                datos_nuevos=log_nuevo,
+            )
             
             conexion.commit()
 

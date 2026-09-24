@@ -41,6 +41,12 @@ const ADMIN_ITEMS = [
     href: "../reportes/productividad.html"
   },
   {
+    id: "historial",
+    label: "Historial de actividad",
+    icon: "HA",
+    href: "../historial/historial.html"
+  },
+  {
     id: "registrar",
     label: "Registrar usuario",
     icon: "RU",
