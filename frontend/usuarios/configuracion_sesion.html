@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Configuración de sesión</title>
+
+  <link rel="stylesheet" href="../assets/css/variables.css">
+  <link rel="stylesheet" href="../assets/css/global.css">
+  <link rel="stylesheet" href="../assets/css/buttons.css">
+  <link rel="stylesheet" href="../assets/css/forms.css">
+  <link rel="stylesheet" href="../assets/css/cards.css">
+  <link rel="stylesheet" href="../assets/css/navigation.css">
+  <link rel="stylesheet" href="../assets/css/topbar.css">
+  <link rel="stylesheet" href="../reportes/reportes.css">
+</head>
+<body>
+
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <div class="content-wrapper">
+    <header class="topbar" id="topbar"></header>
+
+    <main class="main-content">
+      <section class="reportes-header">
+        <div>
+          <h1>Configuración de sesión</h1>
+          <p>Define cuánto tiempo sin actividad se permite antes de cerrar la sesión automáticamente.</p>
+        </div>
+      </section>
+
+      <section class="reportes-section">
+        <h2>Cierre automático por inactividad</h2>
+
+        <form id="formSesion" class="reportes-form">
+          <div class="form-group">
+            <label class="form-label" for="inputMinutos">Tiempo de inactividad (minutos)</label>
+            <input type="number" id="inputMinutos" class="form-input" min="5" max="240" step="1" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="inputAviso">Aviso previo (segundos)</label>
+            <input type="number" id="inputAviso" class="form-input" min="15" max="600" step="1" required>
+          </div>
+
+          <div class="form-group reportes-form-actions">
+            <button type="submit" class="btn btn-primary">Guardar</button>
+          </div>
+        </form>
+
+        <p id="mensajeSesion" class="mensaje" aria-live="polite"></p>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script src="../assets/js/api_config.js"></script>
+<script src="../auth/logout.js"></script>
+<script src="../assets/js/navigation.js"></script>
+<script src="../assets/js/topbar.js"></script>
+<script src="../assets/js/permissions.js"></script>
+<script src="./configuracion_sesion.js"></script>
+
+<script>
+  protegerPagina(["ADMINISTRADOR"]);
+  cargarNavegacion("configuracion-sesion");
+  cargarTopbar();
+</script>
+
+</body>
+</html>

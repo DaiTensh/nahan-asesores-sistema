@@ -1,0 +1,36 @@
+.inactividad-fondo {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.inactividad-fondo[hidden] {
+  display: none;
+}
+
+.inactividad-caja {
+  background: var(--color-surface, #fff);
+  border-radius: 12px;
+  padding: 28px;
+  width: min(420px, calc(100% - 32px));
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.25);
+}
+
+.inactividad-caja h2 {
+  margin-bottom: 10px;
+}
+
+.inactividad-caja p {
+  color: var(--color-text-light, #475569);
+  margin-bottom: 20px;
+}
+
+.inactividad-acciones {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}

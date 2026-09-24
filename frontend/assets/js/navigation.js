@@ -75,6 +75,12 @@ const ADMIN_ITEMS = [
     label: "Asignar rol",
     icon: "AR",
     href: "../usuarios/asignar_rol.html"
+  },
+  {
+    id: "configuracion-sesion",
+    label: "Configuración de sesión",
+    icon: "CS",
+    href: "../usuarios/configuracion_sesion.html"
   }
 ];
 
