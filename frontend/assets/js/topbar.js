@@ -98,13 +98,6 @@ async function cargarTopbar() {
   fecha.className = "topbar-date";
   fecha.textContent = fechaActualEnEspanol();
 
-  const notificaciones = document.createElement("button");
-  notificaciones.type = "button";
-  notificaciones.className = "topbar-icon-button";
-  notificaciones.title = "Sin notificaciones";
-  notificaciones.setAttribute("aria-label", "Sin notificaciones");
-  notificaciones.textContent = "SN";
-
   const menuSesion = document.createElement("details");
   menuSesion.className = "topbar-user";
 
@@ -150,11 +143,11 @@ async function cargarTopbar() {
   menuSesion.appendChild(panel);
 
   acciones.appendChild(fecha);
-  acciones.appendChild(notificaciones);
   acciones.appendChild(menuSesion);
 
   topbar.appendChild(contexto);
   topbar.appendChild(acciones);
 
   montarModuloTopbar("inactividad"); // RF59
+  montarModuloTopbar("notificaciones"); // RF51, RF52, RF53
 }

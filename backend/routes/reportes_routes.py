@@ -20,6 +20,7 @@ reportes_blueprint = Blueprint('reportes_blueprint', __name__)
 logger = logging.getLogger(__name__)
 
 MENSAJE_SIN_TAREAS = "No se registran tareas para los criterios seleccionados"
+MENSAJE_SIN_COMPLETADAS = "No se registran tareas completadas en el período seleccionado"
 
 # ==========================================================================
 # Contrato de respuesta del módulo de reportes (RF31 / RF32).
@@ -64,6 +65,47 @@ def _validar_periodo(args):
         return None, None, "fecha_inicio no puede ser posterior a fecha_fin."
 
     return fecha_inicio, fecha_fin, None
+
+
+# RF38 — atajos de período. La clave llega desde el selector «Período rápido»
+# del frontend y se guarda en `reporte.parametros` junto con las fechas, para
+# que el PDF y el Excel digan qué período se aplicó sin depender del nombre
+# del archivo. Solo se aceptan estas claves.
+ETIQUETAS_PERIODO = {
+    "semana": "Última semana",
+    "mes": "Último mes",
+    "anio": "Año actual",
+}
+
+
+def _etiqueta_periodo(args):
+    """Devuelve (clave, error). La clave es None cuando el período fue
+    elegido a mano."""
+    clave = (args.get("periodo_etiqueta") or "").strip()
+    if not clave:
+        return None, None
+    if clave not in ETIQUETAS_PERIODO:
+        return None, "periodo_etiqueta no es válido."
+    return clave, None
+
+
+def _texto_periodo(parametros):
+    texto = f"{parametros.get('fecha_inicio')} a {parametros.get('fecha_fin')}"
+    etiqueta = ETIQUETAS_PERIODO.get(parametros.get("periodo_etiqueta"))
+    return f"{texto} ({etiqueta})" if etiqueta else texto
+
+
+def _periodo_respuesta(fecha_inicio, fecha_fin, periodo_etiqueta):
+    periodo = {"fecha_inicio": fecha_inicio, "fecha_fin": fecha_fin}
+    if periodo_etiqueta:
+        periodo["etiqueta"] = ETIQUETAS_PERIODO[periodo_etiqueta]
+    return periodo
+
+
+def _parametros_con_etiqueta(parametros, periodo_etiqueta):
+    if periodo_etiqueta:
+        parametros["periodo_etiqueta"] = periodo_etiqueta
+    return parametros
 
 
 def _consultar_tareas_periodo(cursor, fecha_inicio, fecha_fin, id_cliente=None, id_responsable=None):
@@ -142,6 +184,9 @@ def reporte_tareas_por_cliente():
         fecha_inicio, fecha_fin, error = _validar_periodo(request.args)
         if error:
             return jsonify({"error": error}), 400
+        periodo_etiqueta, error = _etiqueta_periodo(request.args)
+        if error:
+            return jsonify({"error": error}), 400
 
         conexion = get_connection()
         if conexion is None:
@@ -162,7 +207,7 @@ def reporte_tareas_por_cliente():
 
             respuesta = {
                 "cliente": cliente,
-                "periodo": {"fecha_inicio": fecha_inicio, "fecha_fin": fecha_fin},
+                "periodo": _periodo_respuesta(fecha_inicio, fecha_fin, periodo_etiqueta),
                 "fecha_generacion": None,
                 "tareas": tareas,
                 "resumen_por_estado": resumen_por_estado,
@@ -177,7 +222,10 @@ def reporte_tareas_por_cliente():
                 cursor,
                 usuario_actual["id_usuario"],
                 "TAREAS_POR_CLIENTE",
-                {"id_cliente": int(id_cliente), "fecha_inicio": fecha_inicio, "fecha_fin": fecha_fin},
+                _parametros_con_etiqueta(
+                    {"id_cliente": int(id_cliente), "fecha_inicio": fecha_inicio, "fecha_fin": fecha_fin},
+                    periodo_etiqueta,
+                ),
             )
             respuesta["id_reporte"] = generacion["id_reporte"]
             respuesta["fecha_generacion"] = generacion["fecha_generacion"]
@@ -205,11 +253,59 @@ def _a_datetime(valor):
     return valor
 
 
+ACCIONES_DE_ASIGNACION = ("REASIGNACION", "REASIGNACION_MASIVA", "EDICION")
+
+
+def _fechas_de_asignacion(cursor, completadas):
+    """Fecha en que cada tarea completada pasó a su responsable final.
+
+    CU-48 fija que el tiempo de resolución va «entre la asignación y el
+    cierre». La tarea no guarda esa fecha: se toma de AUDITORIA el último
+    cambio de responsable hacia el responsable que la cerró (RF16, RF19 o la
+    edición de RF64), anterior al cierre. Si no hubo reasignación, la
+    asignación es la creación de la tarea y la tarea no aparece aquí.
+    """
+    ids_tarea = [fila["id_tarea"] for fila in completadas if fila.get("id_tarea") is not None]
+    if not ids_tarea:
+        return {}
+
+    marcadores = ", ".join(["%s"] * len(ids_tarea))
+    marcadores_acciones = ", ".join(["%s"] * len(ACCIONES_DE_ASIGNACION))
+    cursor.execute(
+        f"""
+        SELECT id_registro, datos_nuevos, fecha
+        FROM auditoria
+        WHERE tabla_afectada = 'tarea'
+          AND accion IN ({marcadores_acciones})
+          AND id_registro IN ({marcadores})
+        """,
+        (*ACCIONES_DE_ASIGNACION, *ids_tarea)
+    )
+    eventos = cursor.fetchall()
+
+    por_tarea = {fila["id_tarea"]: fila for fila in completadas if fila.get("id_tarea") is not None}
+    asignaciones = {}
+    for evento in eventos:
+        tarea = por_tarea.get(evento["id_registro"])
+        if not tarea:
+            continue
+        esperado = f"id_tarea={tarea['id_tarea']}, id_responsable={tarea['id_responsable']}"
+        fecha_evento = _a_datetime(evento["fecha"])
+        if evento["datos_nuevos"] != esperado or fecha_evento > _a_datetime(tarea["fecha_finalizacion"]):
+            continue
+        anterior = asignaciones.get(tarea["id_tarea"])
+        if anterior is None or fecha_evento > anterior:
+            asignaciones[tarea["id_tarea"]] = fecha_evento
+
+    return asignaciones
+
+
 def _calcular_productividad(cursor, fecha_inicio, fecha_fin, id_area=None):
     """Consulta compartida de RF39, reutilizada tal cual por la exportación a
     Excel de RF35: por cada usuario activo (filtrable por área), tareas
-    completadas dentro del período, tiempo promedio de resolución y carga
-    vigente. Devuelve la lista ya ordenada por tareas completadas."""
+    completadas dentro del período, tiempo promedio de resolución (desde la
+    asignación hasta el cierre) y carga vigente. Devuelve la lista ya
+    ordenada por tareas completadas."""
     query_usuarios = "SELECT id_usuario, nombres, id_area FROM usuario WHERE estado = 'ACTIVO'"
     parametros_usuarios = []
     if id_area:
@@ -232,7 +328,7 @@ def _calcular_productividad(cursor, fecha_inicio, fecha_fin, id_area=None):
 
         cursor.execute(
             f"""
-            SELECT id_responsable, fecha_creacion, fecha_finalizacion
+            SELECT id_tarea, id_responsable, fecha_creacion, fecha_finalizacion
             FROM tarea
             WHERE estado = 'COMPLETADA'
               AND id_responsable IN ({marcadores})
@@ -241,12 +337,15 @@ def _calcular_productividad(cursor, fecha_inicio, fecha_fin, id_area=None):
             """,
             (*ids_usuario, fecha_inicio, fecha_fin)
         )
+        completadas = cursor.fetchall()
+        asignaciones = _fechas_de_asignacion(cursor, completadas)
 
-        for fila in cursor.fetchall():
+        for fila in completadas:
             datos = acumulado[fila["id_responsable"]]
             datos["completadas"] += 1
-            duracion = _a_datetime(fila["fecha_finalizacion"]) - _a_datetime(fila["fecha_creacion"])
-            datos["segundos_totales"] += duracion.total_seconds()
+            inicio = asignaciones.get(fila.get("id_tarea")) or _a_datetime(fila["fecha_creacion"])
+            duracion = _a_datetime(fila["fecha_finalizacion"]) - inicio
+            datos["segundos_totales"] += max(duracion.total_seconds(), 0)
 
         cursor.execute(
             f"""
@@ -287,15 +386,18 @@ def reporte_productividad_por_usuario():
     """RF39 — Visualizando la Productividad por Usuario.
 
     Por cada usuario activo (filtrable por área): tareas completadas dentro
-    del período, tiempo promedio de resolución (entre fecha_creacion y
-    fecha_finalizacion; el modelo no guarda una fecha de asignación explícita).
-    Este criterio requiere contraste con CU-48, no disponible en el repositorio.
-    También informa carga vigente (PENDIENTE o
+    del período, tiempo promedio de resolución entre la asignación y el
+    cierre (CU-48; ver _fechas_de_asignacion) y carga vigente (PENDIENTE o
     EN_PROCESO, sin filtrar por período: es una fotografía del momento).
+    Si nadie completó tareas en el período se informa la excepción de CU-48
+    y, como en RF31, no se registra la generación.
     """
     conexion = None
     try:
         fecha_inicio, fecha_fin, error = _validar_periodo(request.args)
+        if error:
+            return jsonify({"error": error}), 400
+        periodo_etiqueta, error = _etiqueta_periodo(request.args)
         if error:
             return jsonify({"error": error}), 400
 
@@ -316,7 +418,7 @@ def reporte_productividad_por_usuario():
             resultado = _calcular_productividad(cursor, fecha_inicio, fecha_fin, id_area)
 
             respuesta = {
-                "periodo": {"fecha_inicio": fecha_inicio, "fecha_fin": fecha_fin},
+                "periodo": _periodo_respuesta(fecha_inicio, fecha_fin, periodo_etiqueta),
                 "usuarios": resultado,
             }
 
@@ -324,12 +426,19 @@ def reporte_productividad_por_usuario():
                 respuesta["mensaje"] = "No hay usuarios activos para los criterios seleccionados"
                 return jsonify(respuesta), 200
 
+            if not any(fila["tareas_completadas"] for fila in resultado):
+                respuesta["mensaje"] = MENSAJE_SIN_COMPLETADAS
+                return jsonify(respuesta), 200
+
             usuario_actual = obtener_usuario_actual()
             generacion = _registrar_generacion(
                 cursor,
                 usuario_actual["id_usuario"],
                 "PRODUCTIVIDAD_POR_USUARIO",
-                {"fecha_inicio": fecha_inicio, "fecha_fin": fecha_fin, "id_area": id_area or None},
+                _parametros_con_etiqueta(
+                    {"fecha_inicio": fecha_inicio, "fecha_fin": fecha_fin, "id_area": id_area or None},
+                    periodo_etiqueta,
+                ),
             )
             respuesta["id_reporte"] = generacion["id_reporte"]
             respuesta["fecha_generacion"] = generacion["fecha_generacion"]
@@ -362,6 +471,9 @@ def reporte_tareas_por_responsable():
         fecha_inicio, fecha_fin, error = _validar_periodo(request.args)
         if error:
             return jsonify({"error": error}), 400
+        periodo_etiqueta, error = _etiqueta_periodo(request.args)
+        if error:
+            return jsonify({"error": error}), 400
 
         conexion = get_connection()
         if conexion is None:
@@ -384,7 +496,7 @@ def reporte_tareas_por_responsable():
 
             respuesta = {
                 "responsable": responsable,
-                "periodo": {"fecha_inicio": fecha_inicio, "fecha_fin": fecha_fin},
+                "periodo": _periodo_respuesta(fecha_inicio, fecha_fin, periodo_etiqueta),
                 "fecha_generacion": None,
                 "tareas": tareas,
                 "resumen_por_estado": resumen_por_estado,
@@ -399,7 +511,10 @@ def reporte_tareas_por_responsable():
                 cursor,
                 usuario_actual["id_usuario"],
                 "TAREAS_POR_RESPONSABLE",
-                {"id_responsable": int(id_responsable), "fecha_inicio": fecha_inicio, "fecha_fin": fecha_fin},
+                _parametros_con_etiqueta(
+                    {"id_responsable": int(id_responsable), "fecha_inicio": fecha_inicio, "fecha_fin": fecha_fin},
+                    periodo_etiqueta,
+                ),
             )
             respuesta["id_reporte"] = generacion["id_reporte"]
             respuesta["fecha_generacion"] = generacion["fecha_generacion"]
@@ -647,6 +762,45 @@ def _datos_para_exportar(cursor, tipo_reporte, parametros):
     return None
 
 
+def _filtros_para_exportar(cursor, tipo_reporte, parametros):
+    """Filtros del reporte guardado, en texto, para el encabezado del PDF y
+    la hoja «Parámetros» del Excel: el archivo debe decir por sí mismo qué
+    consulta representa, no solo su nombre."""
+    filtros = []
+
+    if tipo_reporte == "TAREAS_POR_CLIENTE":
+        cursor.execute("SELECT razon_social FROM cliente WHERE id_cliente = %s", (parametros.get("id_cliente"),))
+        entidad = cursor.fetchone()
+        filtros.append(("Cliente", entidad["razon_social"] if entidad else str(parametros.get("id_cliente"))))
+    elif tipo_reporte == "TAREAS_POR_RESPONSABLE":
+        cursor.execute("SELECT nombres FROM usuario WHERE id_usuario = %s", (parametros.get("id_responsable"),))
+        entidad = cursor.fetchone()
+        filtros.append(("Usuario responsable", entidad["nombres"] if entidad else str(parametros.get("id_responsable"))))
+    elif tipo_reporte == "PRODUCTIVIDAD_POR_USUARIO":
+        area = "Todas las áreas"
+        if parametros.get("id_area"):
+            cursor.execute("SELECT nombre_area FROM area WHERE id_area = %s", (parametros.get("id_area"),))
+            entidad = cursor.fetchone()
+            area = entidad["nombre_area"] if entidad else str(parametros.get("id_area"))
+        filtros.append(("Área", area))
+    elif tipo_reporte == "HISTORIAL_CONSOLIDADO":
+        filtros.append(("Módulo", parametros.get("modulo") or "Todos los módulos"))
+        usuario = "Todos los usuarios"
+        if parametros.get("id_usuario"):
+            cursor.execute("SELECT nombres FROM usuario WHERE id_usuario = %s", (parametros.get("id_usuario"),))
+            entidad = cursor.fetchone()
+            usuario = entidad["nombres"] if entidad else str(parametros.get("id_usuario"))
+        filtros.append(("Usuario", usuario))
+
+    return filtros
+
+
+def _texto_fecha_generacion(valor):
+    if isinstance(valor, datetime):
+        return f"{valor:%d-%m-%Y %H:%M}"
+    return str(valor) if valor else None
+
+
 @reportes_blueprint.route('/reportes/<int:id_reporte>/pdf', methods=['GET'], defaults={'formato': 'pdf'})
 @reportes_blueprint.route('/reportes/<int:id_reporte>/excel', methods=['GET'])
 @roles_required(ROL_ADMINISTRADOR)
@@ -665,7 +819,7 @@ def exportar_reporte_excel(id_reporte, formato="excel"):
 
         with conexion.cursor(dictionary=True) as cursor:
             cursor.execute(
-                "SELECT id_reporte, tipo_reporte, parametros FROM reporte WHERE id_reporte = %s",
+                "SELECT id_reporte, tipo_reporte, parametros, fecha_generacion FROM reporte WHERE id_reporte = %s",
                 (id_reporte,),
             )
             reporte = cursor.fetchone()
@@ -681,25 +835,31 @@ def exportar_reporte_excel(id_reporte, formato="excel"):
                 return jsonify({"error": "Este tipo de reporte no se puede exportar a Excel."}), 400
 
             nombre_archivo, encabezados, filas = resultado
+            filtros = _filtros_para_exportar(cursor, reporte["tipo_reporte"], parametros)
+
+        titulo = {
+            "TAREAS_POR_CLIENTE": "Tareas por cliente",
+            "TAREAS_POR_RESPONSABLE": "Tareas por usuario responsable",
+            "PRODUCTIVIDAD_POR_USUARIO": "Productividad por usuario",
+            "HISTORIAL_CONSOLIDADO": "Historial consolidado de actividades",
+        }.get(reporte["tipo_reporte"], "Reporte")
+        fecha_exportacion = f"{datetime.now():%d-%m-%Y %H:%M}"
+        fecha_generacion = _texto_fecha_generacion(reporte.get("fecha_generacion")) or fecha_exportacion
 
         if formato == "pdf":
             buffer = io.BytesIO()
             estilos = getSampleStyleSheet()
             estilos["BodyText"].fontSize = 8
             estilos["BodyText"].leading = 10
-            titulo = {
-                "TAREAS_POR_CLIENTE": "Tareas por cliente",
-                "TAREAS_POR_RESPONSABLE": "Tareas por usuario responsable",
-                "PRODUCTIVIDAD_POR_USUARIO": "Productividad por usuario",
-                "HISTORIAL_CONSOLIDADO": "Historial consolidado de actividades",
-            }.get(reporte["tipo_reporte"], "Reporte")
             documento = SimpleDocTemplate(buffer, pagesize=landscape(A4),
                                           rightMargin=24, leftMargin=24,
                                           topMargin=24, bottomMargin=24, title=titulo)
             contenido = [
                 Paragraph(escape(titulo), estilos["Title"]),
-                Paragraph(escape(f"Período: {parametros['fecha_inicio']} a {parametros['fecha_fin']}"), estilos["Normal"]),
-                Paragraph(f"Fecha de generación: {datetime.now():%d-%m-%Y %H:%M}", estilos["Normal"]),
+                Paragraph(escape(f"Período: {_texto_periodo(parametros)}"), estilos["Normal"]),
+                *[Paragraph(escape(f"{etiqueta}: {valor}"), estilos["Normal"]) for etiqueta, valor in filtros],
+                Paragraph(escape(f"Fecha de generación: {fecha_generacion} · Exportado: {fecha_exportacion}"),
+                          estilos["Normal"]),
                 Spacer(1, 12),
             ]
             if reporte["tipo_reporte"].startswith("TAREAS_"):
@@ -743,6 +903,23 @@ def exportar_reporte_excel(id_reporte, formato="excel"):
             hoja.append(fila)
             # Los textos del usuario son datos, nunca fórmulas ejecutables.
             for celda in hoja[hoja.max_row]:
+                if celda.data_type == "f":
+                    celda.data_type = "s"
+
+        # Segunda hoja con los parámetros del reporte: la primera conserva una
+        # fila por elemento y los encabezados (criterio de RF35), y esta deja
+        # el período y los filtros dentro del propio archivo (RF38).
+        hoja_parametros = libro.create_sheet("Parámetros")
+        for fila in [
+            ("Reporte", titulo),
+            ("Período", _texto_periodo(parametros)),
+            *filtros,
+            ("Fecha de generación", fecha_generacion),
+            ("Fecha de exportación", fecha_exportacion),
+            ("Identificador del reporte", reporte["id_reporte"]),
+        ]:
+            hoja_parametros.append(fila)
+            for celda in hoja_parametros[hoja_parametros.max_row]:
                 if celda.data_type == "f":
                     celda.data_type = "s"
 

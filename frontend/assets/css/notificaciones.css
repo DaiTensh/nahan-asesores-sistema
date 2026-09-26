@@ -1,0 +1,119 @@
+/* RF51, RF52, RF53 — Bandeja de notificaciones de la barra superior. */
+
+.topbar-notificaciones {
+  position: relative;
+}
+
+.notificaciones-boton {
+  position: relative;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.notificaciones-insignia {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--color-danger);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.notificaciones-insignia[hidden],
+.notificaciones-panel[hidden] {
+  display: none;
+}
+
+.notificaciones-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: min(360px, calc(100vw - 32px));
+  max-height: 420px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
+  z-index: 20;
+}
+
+.notificaciones-encabezado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3);
+  border-bottom: 1px solid var(--color-border);
+  font-size: 14px;
+}
+
+.notificaciones-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.notificacion-item {
+  padding: var(--spacing-3);
+  border-bottom: 1px solid var(--color-border);
+  font-size: 13px;
+}
+
+.notificacion-item.no-leida {
+  background: var(--color-primary-soft);
+  border-left: 3px solid var(--color-primary);
+}
+
+.notificacion-tipo {
+  display: block;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.notificacion-mensaje {
+  display: block;
+  margin: var(--spacing-1) 0;
+  color: var(--color-text-primary);
+  text-decoration: none;
+}
+
+a.notificacion-mensaje:hover {
+  text-decoration: underline;
+}
+
+.notificacion-pie {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.notificacion-marcar {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.notificaciones-vacio {
+  padding: var(--spacing-4);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  text-align: center;
+}

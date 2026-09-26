@@ -1105,9 +1105,11 @@ def test_usuario_juridico_puede_usar_estado_operativo(
 ):
     iniciar_sesion(usuario_id=2, rol_id=2, area_id=1)
 
+    # La tarea es del propio usuario: un rol operativo solo cambia el estado
+    # de sus tareas (ver test_rf16_autorizacion_tareas.py para el caso ajeno).
     def handler(sql, params, cursor):
         if "SELECT estado, id_responsable, titulo FROM tarea" in normalize_sql(sql):
-            return [{"estado": "PENDIENTE", "id_responsable": 99, "titulo": "Tarea de prueba"}]
+            return [{"estado": "PENDIENTE", "id_responsable": 2, "titulo": "Tarea de prueba"}]
         return []
 
     connection = fake_connection_factory(handler)
@@ -1127,9 +1129,11 @@ def test_usuario_contable_puede_usar_estado_operativo(
 ):
     iniciar_sesion(usuario_id=3, rol_id=3, area_id=2)
 
+    # Tarea propia; el caso de una tarea ajena está en
+    # test_rf16_autorizacion_tareas.py.
     def handler(sql, params, cursor):
         if "SELECT estado, id_responsable, titulo FROM tarea" in normalize_sql(sql):
-            return [{"estado": "PENDIENTE", "id_responsable": 99, "titulo": "Tarea de prueba"}]
+            return [{"estado": "PENDIENTE", "id_responsable": 3, "titulo": "Tarea de prueba"}]
         return []
 
     connection = fake_connection_factory(handler)

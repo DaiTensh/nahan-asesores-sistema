@@ -26,6 +26,11 @@ document.addEventListener("DOMContentLoaded", () => {
     inputFechaInicio.value = fechaLocal(inicio);
     inputFechaFin.value = fechaLocal(fin);
   });
+  // RF38 — si el usuario corrige las fechas a mano, el período deja de ser
+  // el del atajo y no se debe informar como tal.
+  [inputFechaInicio, inputFechaFin].forEach(input => input.addEventListener("input", () => {
+    document.getElementById("atajoPeriodo").value = "";
+  }));
   const mensaje = document.getElementById("mensajeProductividad");
   const resultado = document.getElementById("resultadoProductividad");
   const resultadoPeriodo = document.getElementById("resultadoPeriodo");
@@ -124,6 +129,8 @@ document.addEventListener("DOMContentLoaded", () => {
       if (selectArea.value) {
         params.set("id_area", selectArea.value);
       }
+      const atajo = document.getElementById("atajoPeriodo").value;
+      if (atajo) params.set("periodo_etiqueta", atajo);
 
       const response = await fetch(`${API_URL}/reportes/productividad?${params.toString()}`, {
         credentials: window.API_CONFIG.credentials
@@ -137,7 +144,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (data.mensaje) {
         mostrarMensaje(data.mensaje, "info");
-        return;
+        // CU-48: sin tareas completadas se informa, pero la carga vigente
+        // de cada usuario sigue siendo útil; no hay reporte que exportar.
+        if (!(data.usuarios || []).length) return;
       }
 
       renderizarResultado(data);
@@ -149,7 +158,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderizarResultado(data) {
     idReporteActual = data.id_reporte || null;
-    resultadoPeriodo.textContent = `${formatearFecha(data.periodo.fecha_inicio)} — ${formatearFecha(data.periodo.fecha_fin)}`;
+    btnExportarExcel.hidden = !idReporteActual;
+    document.getElementById("btnExportarPdf").hidden = !idReporteActual;
+    resultadoPeriodo.textContent = `${formatearFecha(data.periodo.fecha_inicio)} — ${formatearFecha(data.periodo.fecha_fin)}`
+      + (data.periodo.etiqueta ? ` (${data.periodo.etiqueta})` : "");
     resultadoFechaGeneracion.textContent = data.fecha_generacion || "-";
 
     renderizarTabla(data.usuarios || []);

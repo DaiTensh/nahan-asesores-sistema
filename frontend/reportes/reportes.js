@@ -30,6 +30,11 @@ document.addEventListener("DOMContentLoaded", () => {
     inputFechaInicio.value = fechaLocal(inicio);
     inputFechaFin.value = fechaLocal(fin);
   });
+  // RF38 — si el usuario corrige las fechas a mano, el período deja de ser
+  // el del atajo y no se debe informar como tal.
+  [inputFechaInicio, inputFechaFin].forEach(input => input.addEventListener("input", () => {
+    document.getElementById("atajoPeriodo").value = "";
+  }));
   const mensaje = document.getElementById("mensajeReporte");
   const resultado = document.getElementById("resultadoReporte");
   const resultadoEntidadLabel = document.getElementById("resultadoEntidadLabel");
@@ -148,6 +153,8 @@ document.addEventListener("DOMContentLoaded", () => {
         fecha_inicio: fechaInicio,
         fecha_fin: fechaFin
       });
+      const atajo = document.getElementById("atajoPeriodo").value;
+      if (atajo) params.set("periodo_etiqueta", atajo);
 
       const response = await fetch(`${API_URL}/reportes/${endpoint}?${params.toString()}`, {
         credentials: window.API_CONFIG.credentials
@@ -177,7 +184,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     resultadoEntidadLabel.textContent = esPorResponsable ? "Usuario responsable" : "Cliente";
     resultadoEntidad.textContent = `${esPorResponsable ? entidad.nombres : entidad.razon_social} (${detalleEntidad})`;
-    resultadoPeriodo.textContent = `${formatearFecha(data.periodo.fecha_inicio)} — ${formatearFecha(data.periodo.fecha_fin)}`;
+    resultadoPeriodo.textContent = `${formatearFecha(data.periodo.fecha_inicio)} — ${formatearFecha(data.periodo.fecha_fin)}`
+      + (data.periodo.etiqueta ? ` (${data.periodo.etiqueta})` : "");
     resultadoFechaGeneracion.textContent = data.fecha_generacion || "-";
 
     renderizarResumenEstado(data.resumen_por_estado || {});

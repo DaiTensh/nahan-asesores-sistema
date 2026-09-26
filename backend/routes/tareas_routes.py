@@ -14,6 +14,21 @@ ESTADOS_FINALES = {"COMPLETADA", "CANCELADA"}
 ESTADOS_VALIDOS = ["PENDIENTE", "EN_PROCESO", "EN_REVISION", "COMPLETADA", "CANCELADA"]
 
 
+def _url_detalle_tarea(id_tarea):
+    return f"/frontend/tareas/detalle_tarea.html?id={id_tarea}"
+
+
+def _puede_operar_tarea(usuario, id_responsable):
+    """Mismo criterio de acceso que el detalle (RF63) y la edición (RF64):
+    un ADMINISTRADOR opera sobre cualquier tarea; el resto, solo sobre las
+    tareas de las que es responsable. Se aplica en el servidor para que no
+    dependa de qué botones muestra el listado."""
+    return (
+        usuario["nombre_rol"] == ROL_ADMINISTRADOR
+        or usuario["id_usuario"] == id_responsable
+    )
+
+
 @tareas_bp.route("/tareas", methods=["POST"])
 @login_required
 def crear_tarea():
@@ -101,6 +116,17 @@ def crear_tarea():
             )
 
             cursor.execute(sql, values)
+
+            # RF52 — la asignación inicial también es una nueva asignación:
+            # se avisa al responsable, salvo que se haya asignado a sí mismo.
+            crear_notificacion(
+                cursor,
+                int(id_responsable),
+                "ASIGNACION_TAREA",
+                f"Se te asignó la nueva tarea \"{titulo}\"",
+                _url_detalle_tarea(cursor.lastrowid),
+                id_usuario_actor=id_creador,
+            )
 
         connection.commit()
 
@@ -438,6 +464,18 @@ def editar_tarea(id_tarea):
                 datos_nuevos=f"id_tarea={id_tarea}, {campo}={valor_nuevo}",
             )
 
+        # RF52 — cambiar el responsable desde la edición también es una
+        # reasignación: el nuevo responsable recibe el aviso.
+        if id_responsable != tarea["id_responsable"]:
+            crear_notificacion(
+                cursor,
+                id_responsable,
+                "REASIGNACION_TAREA",
+                f"Se te asignó la tarea \"{titulo}\"",
+                _url_detalle_tarea(id_tarea),
+                id_usuario_actor=usuario["id_usuario"],
+            )
+
         connection.commit()
 
         return jsonify({"message": "Tarea actualizada correctamente"}), 200
@@ -519,11 +557,16 @@ def asignar_tarea(id_tarea):
         return jsonify({"error": "Debe seleccionar un responsable"}), 400
 
     try:
+        id_responsable = int(id_responsable)
+    except (TypeError, ValueError):
+        return jsonify({"error": "El responsable seleccionado no es válido"}), 400
+
+    try:
         connection = get_connection()
         cursor = connection.cursor()
 
         cursor.execute(
-            "SELECT estado, titulo FROM tarea WHERE id_tarea = %s",
+            "SELECT estado, titulo, id_responsable FROM tarea WHERE id_tarea = %s",
             (id_tarea,)
         )
         tarea = cursor.fetchone()
@@ -531,7 +574,12 @@ def asignar_tarea(id_tarea):
         if not tarea:
             return jsonify({"error": "Tarea no encontrada"}), 404
 
-        estado_actual, titulo_tarea = tarea
+        estado_actual, titulo_tarea, id_responsable_actual = tarea
+
+        # Antes cualquier usuario autenticado podía reasignar cualquier tarea
+        # cambiando el id en la URL. Se exige el mismo acceso que RF63/RF64.
+        if not _puede_operar_tarea(usuario, id_responsable_actual):
+            return jsonify({"error": "No tiene acceso a esta tarea"}), 403
 
         if estado_actual in ESTADOS_FINALES:
             return jsonify({
@@ -561,7 +609,7 @@ def asignar_tarea(id_tarea):
             id_responsable,
             "REASIGNACION_TAREA",
             f"Se te asignó la tarea \"{titulo_tarea}\"",
-            f"/frontend/tareas/detalle_tarea.html?id={id_tarea}",
+            _url_detalle_tarea(id_tarea),
             id_usuario_actor=usuario["id_usuario"],
         )
 
@@ -618,6 +666,11 @@ def actualizar_estado_tarea(id_tarea):
         if not tarea:
             return jsonify({"error": "Tarea no encontrada"}), 404
 
+        # Quien no es ADMINISTRADOR solo cambia el estado de sus propias
+        # tareas: el listado solo le muestra esas, y el servidor lo exige.
+        if not _puede_operar_tarea(usuario, tarea["id_responsable"]):
+            return jsonify({"error": "No tiene acceso a esta tarea"}), 403
+
         estado_anterior = tarea["estado"]
         if estado_anterior == estado:
             return jsonify({"message": "Estado actualizado correctamente"}), 200
@@ -648,6 +701,15 @@ def actualizar_estado_tarea(id_tarea):
                 "UPDATE tarea SET estado = %s WHERE id_tarea = %s",
                 (estado, id_tarea)
             )
+            # La cancelación también cierra la tarea (bloquea la edición,
+            # igual que RF65): queda en el historial quién la canceló.
+            if estado == "CANCELADA":
+                registrar_auditoria(
+                    cursor, usuario["id_usuario"], "tarea", "CANCELAR_TAREA",
+                    id_registro=id_tarea,
+                    datos_anteriores=f"id_tarea={id_tarea}, estado={estado_anterior}",
+                    datos_nuevos=f"id_tarea={id_tarea}, estado=CANCELADA",
+                )
 
         # RF51 — el responsable se entera del cambio de estado, salvo que lo
         # haya hecho él mismo o que el estado no haya cambiado realmente.
@@ -657,7 +719,7 @@ def actualizar_estado_tarea(id_tarea):
                 tarea["id_responsable"],
                 "CAMBIO_ESTADO_TAREA",
                 f"La tarea \"{tarea['titulo']}\" cambió de {estado_anterior} a {estado}",
-                f"/frontend/tareas/detalle_tarea.html?id={id_tarea}",
+                _url_detalle_tarea(id_tarea),
                 id_usuario_actor=usuario["id_usuario"],
             )
 
@@ -684,6 +746,7 @@ def actualizar_prioridad_tarea(id_tarea):
     connection = None
     cursor = None
     data = request.get_json()
+    usuario = obtener_usuario_actual()
 
     prioridad = data.get("prioridad")
 
@@ -701,10 +764,12 @@ def actualizar_prioridad_tarea(id_tarea):
         connection = get_connection()
         cursor = connection.cursor()
 
-        cursor.execute("SELECT estado FROM tarea WHERE id_tarea = %s", (id_tarea,))
+        cursor.execute("SELECT estado, id_responsable, prioridad FROM tarea WHERE id_tarea = %s", (id_tarea,))
         tarea = cursor.fetchone()
         if not tarea:
             return jsonify({"error": "Tarea no encontrada"}), 404
+        if not _puede_operar_tarea(usuario, tarea[1]):
+            return jsonify({"error": "No tiene acceso a esta tarea"}), 403
         if tarea[0] in ESTADOS_FINALES:
             return jsonify({"error": "No se puede editar una tarea COMPLETADA o CANCELADA"}), 409
 
@@ -715,6 +780,17 @@ def actualizar_prioridad_tarea(id_tarea):
         """
 
         cursor.execute(sql, (prioridad, id_tarea))
+
+        # Mismo registro que deja la edición (RF64) cuando cambia la
+        # prioridad, para que el historial del detalle (RF63) lo muestre.
+        if tarea[2] != prioridad:
+            registrar_auditoria(
+                cursor, usuario["id_usuario"], "tarea", "EDICION",
+                id_registro=id_tarea,
+                datos_anteriores=f"id_tarea={id_tarea}, prioridad={tarea[2]}",
+                datos_nuevos=f"id_tarea={id_tarea}, prioridad={prioridad}",
+            )
+
         connection.commit()
 
         return jsonify({"message": "Prioridad actualizada correctamente"}), 200
@@ -1065,6 +1141,7 @@ def reasignar_tareas_masivo():
 
     try:
         ids_tarea = list(dict.fromkeys(int(id_tarea) for id_tarea in ids_tarea))
+        id_responsable = int(id_responsable)
     except (TypeError, ValueError):
         return jsonify({"error": "La lista de tareas no es válida"}), 400
 
@@ -1091,6 +1168,20 @@ def reasignar_tareas_masivo():
                 datos_anteriores=f"id_tarea={id_tarea}, id_responsable={id_responsable_anterior}",
                 datos_nuevos=f"id_tarea={id_tarea}, id_responsable={id_responsable}",
             )
+
+            # RF52 — cada tarea que cambia de manos se avisa al nuevo
+            # responsable, igual que en la reasignación individual (RF16).
+            if id_responsable_anterior != id_responsable:
+                cursor.execute("SELECT titulo FROM tarea WHERE id_tarea = %s", (id_tarea,))
+                fila_titulo = cursor.fetchone()
+                crear_notificacion(
+                    cursor,
+                    id_responsable,
+                    "REASIGNACION_TAREA",
+                    f"Se te asignó la tarea \"{fila_titulo[0] if fila_titulo else id_tarea}\"",
+                    _url_detalle_tarea(id_tarea),
+                    id_usuario_actor=usuario["id_usuario"],
+                )
             reasignadas += 1
 
         connection.commit()

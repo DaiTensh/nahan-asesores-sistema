@@ -20,6 +20,11 @@ let filtroEstadoActual = "";
 let filtroResponsableActual = "";
 let filtroResponsableConfigurado = false;
 const tareasSeleccionadas = new Set();
+// Cada recarga del listado recibe un número; solo se pinta la respuesta de
+// la última pedida. Sin esto, dos recargas seguidas (p. ej. «Ver todos» y
+// un cambio de filtro) podían dejar en pantalla la respuesta más lenta,
+// que no correspondía al filtro visible.
+let ultimaCargaTareas = 0;
 
 document.addEventListener("DOMContentLoaded", () => {
   ClientesAutocomplete.configurarSelectorCliente({
@@ -142,6 +147,7 @@ function mostrarMensaje(texto, tipo) {
 }
 
 async function cargarTareasPendientes() {
+  const numeroCarga = ++ultimaCargaTareas;
   const usuario = await obtenerUsuarioActual();
 
   if (!usuario) {
@@ -161,6 +167,8 @@ async function cargarTareasPendientes() {
       credentials: window.API_CONFIG.credentials
     });
     let tareas = await response.json();
+
+    if (numeroCarga !== ultimaCargaTareas) return;
 
     if (!response.ok) {
       console.error(tareas.error || "Error al cargar tareas");
@@ -338,6 +346,18 @@ function accionesTarea(tarea, usuario) {
   enlaceDetalle.href = `detalle_tarea.html?id=${tarea.id_tarea}`;
   contenedor.appendChild(enlaceDetalle);
 
+  // RF65 — una tarea cerrada queda bloqueada también en la interfaz: al
+  // filtrar por COMPLETADA o CANCELADA solo se ofrecen el detalle y los
+  // adjuntos, no los controles de asignación, estado ni prioridad.
+  if (ESTADOS_FINALES.some(([valor]) => valor === tarea.estado)) {
+    const bloqueo = document.createElement("span");
+    bloqueo.className = "badge badge-pending";
+    bloqueo.textContent = "Cerrada: sin edición";
+    contenedor.appendChild(bloqueo);
+    contenedor.appendChild(crearBotonAdjuntos(tarea.id_tarea));
+    return contenedor;
+  }
+
   if (puedeAdministrar) {
     const responsable = document.createElement("input");
     responsable.type = "text";
@@ -390,13 +410,17 @@ function accionesTarea(tarea, usuario) {
   botonPrioridad.addEventListener("click", () => actualizarPrioridad(tarea.id_tarea));
   contenedor.appendChild(botonPrioridad);
 
+  contenedor.appendChild(crearBotonAdjuntos(tarea.id_tarea));
+
+  return contenedor;
+}
+
+function crearBotonAdjuntos(idTarea) {
   const botonAdjuntos = document.createElement("button");
   botonAdjuntos.className = "btn btn-secondary btn-small";
   botonAdjuntos.textContent = "Adjuntos";
-  botonAdjuntos.addEventListener("click", () => alternarPanelAdjuntos(tarea.id_tarea));
-  contenedor.appendChild(botonAdjuntos);
-
-  return contenedor;
+  botonAdjuntos.addEventListener("click", () => alternarPanelAdjuntos(idTarea));
+  return botonAdjuntos;
 }
 
 function agregarOpciones(selector, opciones) {
@@ -554,12 +578,16 @@ function formatearPrioridad(prioridad) {
   return prioridades[prioridad] || prioridad;
 }
 
+// La API entrega DATE y DATETIME de MySQL (hora local del servidor, sin
+// zona) serializados como "... GMT". Se muestran en UTC para conservar el
+// valor guardado: convertirlos a la zona del navegador restaba un día a los
+// vencimientos y 3 horas a las fechas con hora.
 function formatearFecha(fecha) {
   if (!fecha) {
     return "Sin fecha";
   }
 
-  return new Date(fecha).toLocaleDateString("es-CL");
+  return new Date(fecha).toLocaleDateString("es-CL", { timeZone: "UTC" });
 }
 
 // --- RF54/RF55 — Adjuntos de tarea ---------------------------------------

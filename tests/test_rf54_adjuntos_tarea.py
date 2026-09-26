@@ -286,3 +286,41 @@ def test_fallo_de_subida_revierte_archivo_y_bd(cliente, base, tmp_path, monkeypa
     assert list(tmp_path.iterdir()) == []
     assert base.execute('SELECT COUNT(*) FROM documento').fetchone()[0] == 0
     assert base.execute('SELECT COUNT(*) FROM tarea_documento').fetchone()[0] == 0
+
+
+def test_una_solicitud_sobre_el_techo_de_infraestructura_responde_413_json(
+    cliente, base, tmp_path, monkeypatch
+):
+    """Además del límite por archivo (parametros_sistema), Flask aplica
+    MAX_CONTENT_LENGTH como techo del cuerpo completo, igual que
+    client_max_body_size en deploy/nginx/nahan.conf. Por encima del techo la
+    solicitud se corta con 413 y un error JSON, sin persistir nada."""
+    _login(cliente, "ivan@nahan.local")
+    monkeypatch.setitem(flask_app.config, "MAX_CONTENT_LENGTH", 2 * 1024 * 1024)
+
+    respuesta = _subir(cliente, 1, "enorme.pdf", b"x" * (3 * 1024 * 1024))
+
+    assert respuesta.status_code == 413
+    assert "tamaño máximo admitido por el servidor (2 MB)" in respuesta.get_json()["error"]
+    assert base.execute("SELECT COUNT(*) AS n FROM documento").fetchone()["n"] == 0
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_el_techo_por_defecto_supera_el_limite_por_archivo():
+    """El techo de infraestructura (64 MB por defecto) debe quedar por encima
+    del límite funcional por defecto de RF54 (10 MB)."""
+    assert flask_app.config["MAX_CONTENT_LENGTH"] > documentos_routes.TAMANO_MAXIMO_MB_DEFAULT * 1024 * 1024
+
+
+@pytest.mark.parametrize("nombre", ["../../etc/passwd.pdf", "..\\..\\secreto.pdf", "/abs/ruta.pdf"])
+def test_un_nombre_con_ruta_no_escapa_del_directorio_de_adjuntos(cliente, base, tmp_path, nombre):
+    _login(cliente, "ivan@nahan.local")
+
+    respuesta = _subir(cliente, 1, nombre)
+
+    assert respuesta.status_code == 201
+    guardados = list(tmp_path.iterdir())
+    assert len(guardados) == 1 and guardados[0].parent == tmp_path
+    fila = base.execute("SELECT nombre_documento, url_archivo FROM documento").fetchone()
+    assert "/" not in fila["nombre_documento"] and ".." not in fila["nombre_documento"]
+    assert "/" not in fila["url_archivo"] and ".." not in fila["url_archivo"]

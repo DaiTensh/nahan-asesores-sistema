@@ -207,12 +207,16 @@ function mostrarMensaje(texto, tipo) {
   mensaje.className = tipo ? `mensaje ${tipo}` : "mensaje";
 }
 
+// La API entrega DATE y DATETIME de MySQL (hora local del servidor, sin
+// zona) serializados como "... GMT". Se muestran en UTC para conservar el
+// valor guardado: convertirlos a la zona del navegador restaba un día a los
+// vencimientos y 3 horas a las fechas con hora.
 function formatearFecha(fecha) {
   if (!fecha) {
     return "Sin fecha";
   }
 
-  return new Date(fecha).toLocaleDateString("es-CL");
+  return new Date(fecha).toLocaleDateString("es-CL", { timeZone: "UTC" });
 }
 
 function formatearFechaHora(fecha) {
@@ -220,5 +224,5 @@ function formatearFechaHora(fecha) {
     return "Sin registrar";
   }
 
-  return new Date(fecha).toLocaleString("es-CL");
+  return new Date(fecha).toLocaleString("es-CL", { timeZone: "UTC" });
 }

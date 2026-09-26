@@ -8,6 +8,14 @@ html{
   min-width:320px;
 }
 
+/* El atributo hidden debe ganar a cualquier clase con display propio
+   (.btn usa inline-flex): sin esto, «Editar tarea» seguía visible en una
+   tarea COMPLETADA (RF65) y los botones de exportar antes de generar el
+   reporte (RF34, RF35). */
+[hidden]{
+  display:none !important;
+}
+
 body{
   background:var(--color-background);
   color:var(--color-text-primary);

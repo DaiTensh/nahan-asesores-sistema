@@ -177,28 +177,28 @@ parametro, el backend utiliza 10 MB. Las extensiones se separan por comas.
 Flask mide los bytes del archivo, acepta el limite exacto y devuelve HTTP 400
 con un error JSON si lo supera, antes de guardar en `ADJUNTOS_DIR` o insertar
 el documento y su asociacion con la tarea. Los permisos y las extensiones
-tambien se validan en backend. No se establece `MAX_CONTENT_LENGTH`: ese
-limite afecta al cuerpo completo de la solicitud, incluido el envoltorio
-multipart, y no equivale al tamaño del archivo.
+tambien se validan en backend.
 
-La plantilla Nginx conserva el limite general y usa `client_max_body_size 0`
-solo en la ruta de documentos de tareas. Esto desactiva el techo de Nginx en
-esa ruta y permite que MySQL siga siendo la unica fuente del limite de RF54,
-sin sincronizar Nginx con la BD. Nginx no consulta estos parametros en tiempo
-de ejecucion. Consulte la [directiva de Nginx](https://nginx.org/en/docs/http/ngx_http_core_module.html#client_max_body_size).
+Ademas del limite funcional existe un **techo de infraestructura**, igual en
+Flask y en Nginx, para no aceptar cuerpos de tamaño ilimitado:
 
-Esta decision no limita el volumen recibido antes de la validacion: Nginx y
-Werkzeug pueden almacenar temporalmente el cuerpo de la carga. Dimensionar y
-vigilar el disco temporal, el volumen de adjuntos y los tiempos de espera de
-Nginx/Gunicorn segun los tamaños y la concurrencia esperados. El rechazo por
-tamaño garantiza que no quede un adjunto persistente ni un vinculo en BD;
-no evita el uso transitorio de disco durante la recepcion.
+| Capa | Parametro | Valor por defecto |
+|---|---|---|
+| Flask | `MAX_CONTENT_LENGTH_MB` en `.env` (se aplica a `MAX_CONTENT_LENGTH`) | 64 MB |
+| Nginx | `client_max_body_size` en la ruta `/api/tareas/<id>/documentos` | `64m` |
+| Nginx | `client_max_body_size` general | `15m` |
+| MySQL | `ADJUNTOS_TAMANO_MAXIMO_MB` (limite por archivo, RF54) | 10 MB |
 
-Si se incorpora otro proxy o un limite finito de infraestructura, debe admitir
-mas que `ADJUNTOS_TAMANO_MAXIMO_MB * 1024 * 1024` bytes para dejar espacio al
-multipart. Antes de aumentar el parametro, ajustar ese techo y comprobar una
-carga en el limite a traves del proxy. No fijar ambos limites al mismo numero
-de bytes ni configurar en MySQL un valor que la infraestructura no admita.
+Una solicitud por encima del techo recibe HTTP 413 (de Nginx o, si llega, de
+Flask con un error JSON). El limite por archivo de MySQL debe quedar **por
+debajo** del techo para dejar espacio al envoltorio multipart. Para admitir
+archivos mas grandes: subir primero `MAX_CONTENT_LENGTH_MB` y el
+`client_max_body_size` de la ruta de adjuntos al mismo valor, recargar ambos
+servicios y solo despues aumentar `ADJUNTOS_TAMANO_MAXIMO_MB`.
+
+Nginx y Werkzeug pueden almacenar temporalmente el cuerpo durante la
+recepcion; el techo acota ese uso transitorio de disco. El rechazo por tamaño
+garantiza que no quede un adjunto persistente ni un vinculo en BD.
 
 Para aplicar cambios a esta plantilla en una instalacion existente, volver a
 copiarla y validarla antes de recargar (un `git pull` no actualiza la copia activa):

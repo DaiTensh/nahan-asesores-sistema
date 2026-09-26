@@ -10,6 +10,16 @@ function escapeHtml(valor) {
   }[caracter]));
 }
 
+// La API entrega DATE y DATETIME de MySQL (hora local del servidor, sin
+// zona) serializados como "... GMT". Se muestran en UTC para conservar el
+// valor guardado: convertirlos a la zona del navegador restaba un día a los
+// vencimientos y 3 horas a las fechas con hora.
+function formatearFecha(fecha) {
+  if (!fecha) return "Sin fecha";
+  const valor = new Date(fecha);
+  return Number.isNaN(valor.getTime()) ? String(fecha) : valor.toLocaleDateString("es-CL", { timeZone: "UTC" });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   cargarDatosUsuario();
   cargarResumenUsuarios();
@@ -240,7 +250,7 @@ function cargarTablaTareasVencidas(tareas) {
           ${escapeHtml(tarea.prioridad)}
         </span>
       </td>
-      <td>${escapeHtml(tarea.fecha_vencimiento)}</td>
+      <td>${escapeHtml(formatearFecha(tarea.fecha_vencimiento))}</td>
       <td>${escapeHtml(tarea.dias_retraso)}</td>
     `;
 
@@ -291,7 +301,7 @@ function cargarTablaTareasPorVencer(tareas) {
           ${escapeHtml(tarea.prioridad)}
         </span>
       </td>
-      <td>${escapeHtml(tarea.fecha_vencimiento)}</td>
+      <td>${escapeHtml(formatearFecha(tarea.fecha_vencimiento))}</td>
       <td>${escapeHtml(tarea.dias_restantes)}</td>
     `;
 
@@ -346,7 +356,7 @@ function cargarTablaTareasPrioritarias(tareas) {
           ${escapeHtml(tarea.estado)}
         </span>
       </td>
-      <td>${escapeHtml(tarea.fecha_vencimiento || "Sin fecha")}</td>
+      <td>${escapeHtml(formatearFecha(tarea.fecha_vencimiento))}</td>
     `;
 
     tabla.appendChild(fila);
