@@ -33,6 +33,10 @@ CREATE TABLE auditoria (
     id_auditoria INTEGER PRIMARY KEY AUTOINCREMENT, id_usuario INTEGER,
     tabla_afectada TEXT, id_registro INTEGER, accion TEXT, datos_anteriores TEXT, datos_nuevos TEXT,
     fecha DATETIME DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE notificacion (
+    id_notificacion INTEGER PRIMARY KEY AUTOINCREMENT, id_usuario INTEGER,
+    tipo TEXT, mensaje TEXT, url_destino TEXT, fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
+    leida INTEGER DEFAULT 0);
 
 INSERT INTO rol (nombre_rol) VALUES ('ADMINISTRADOR'), ('USUARIO_AREA_CONTABLE');
 INSERT INTO area (nombre_area) VALUES ('ADMINISTRACION'), ('CONTABLE');

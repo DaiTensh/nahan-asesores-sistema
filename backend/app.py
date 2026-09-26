@@ -4,7 +4,7 @@ import time
 from datetime import timedelta
 
 from flask import Flask, jsonify, request
-from werkzeug.exceptions import HTTPException
+from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -13,6 +13,7 @@ from backend.routes.clientes_routes import clientes_blueprint
 from backend.routes.control_horas_routes import control_horas_bp
 from backend.routes.documentos_routes import documentos_bp
 from backend.routes.historial_routes import historial_bp
+from backend.routes.notificaciones_routes import notificaciones_bp
 from backend.routes.reportes_routes import reportes_blueprint
 from backend.routes.tareas_routes import tareas_bp
 from backend.routes.usuarios_routes import usuarios_bp
@@ -87,6 +88,11 @@ def create_app():
         )
     )
     app.config["SESSION_REFRESH_EACH_REQUEST"] = True
+    # Techo de infraestructura para el cuerpo de cualquier solicitud. El
+    # límite funcional de un adjunto (RF54) sigue siendo
+    # ADJUNTOS_TAMANO_MAXIMO_MB en parametros_sistema y debe quedar por
+    # debajo de este valor; deploy/nginx/nahan.conf usa el mismo techo.
+    app.config["MAX_CONTENT_LENGTH"] = _int_env("MAX_CONTENT_LENGTH_MB", 64) * 1024 * 1024
     app.config["APP_TIMEZONE"] = _configurar_zona_horaria()
 
     @app.before_request
@@ -127,6 +133,13 @@ def create_app():
         password = datos.get("password")
         if password and len(password.encode("utf-8")) > 72:
             return jsonify({"error": "La contraseña no puede superar 72 bytes UTF-8"}), 400
+
+    @app.errorhandler(RequestEntityTooLarge)
+    def solicitud_demasiado_grande(error):
+        limite_mb = app.config["MAX_CONTENT_LENGTH"] // (1024 * 1024)
+        return jsonify({
+            "error": f"La solicitud supera el tamaño máximo admitido por el servidor ({limite_mb} MB)"
+        }), 413
 
     @app.errorhandler(HTTPException)
     def error_http(error):
@@ -170,6 +183,7 @@ def create_app():
     app.register_blueprint(documentos_bp, url_prefix="/api")
     app.register_blueprint(reportes_blueprint, url_prefix="/api")
     app.register_blueprint(historial_bp, url_prefix="/api")
+    app.register_blueprint(notificaciones_bp, url_prefix="/api")
 
     @app.route("/")
     def home():
