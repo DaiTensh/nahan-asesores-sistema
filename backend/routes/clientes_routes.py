@@ -766,7 +766,7 @@ def resumen_clientes_dashboard():
     finally:
         if conexion:
             conexion.close()
-@clientes_blueprint.route('/clientes//historial', methods=['GET'])
+@clientes_blueprint.route('//historial-completo', methods=['GET'])
 @roles_required(*ROLES_OPERATIVOS)
 def historial_cliente(id_cliente):
     conexion = None
