@@ -5,7 +5,7 @@ from mysql.connector import IntegrityError
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 from backend.config.db import get_connection
-from backend.utils.auditoria import registrar_auditoria
+from backend.utils.auditoria import registrar_auditoria, consultar_auditoria
 from backend.utils.auth import ROL_ADMINISTRADOR, ROLES_OPERATIVOS, obtener_usuario_actual, roles_required
 
 clientes_blueprint = Blueprint('clientes_blueprint', __name__)
@@ -765,4 +765,78 @@ def resumen_clientes_dashboard():
 
     finally:
         if conexion:
+            conexion.close()
+@clientes_blueprint.route('/clientes//historial', methods=['GET'])
+@roles_required(*ROLES_OPERATIVOS)
+def historial_cliente(id_cliente):
+    conexion = None
+    cursor = None
+    try:
+        limite = request.args.get('limite', default=50, type=int)
+        offset = request.args.get('offset', default=0, type=int)
+        fecha_inicio = request.args.get('fecha_inicio')
+        fecha_fin = request.args.get('fecha_fin')
+
+        if limite is None or limite < 0:
+            limite = 50
+        if offset is None or offset < 0:
+            offset = 0
+
+        conexion = get_connection()
+        if conexion is None:
+            return jsonify({"error": "Fallo de conexión."}), 500
+
+        cursor = conexion.cursor(dictionary=True)
+
+        cursor.execute(
+            "SELECT id_observacion FROM observacion_cliente WHERE id_cliente = %s",
+            (id_cliente,)
+        )
+        ids_observaciones = [row["id_observacion"] for row in cursor.fetchall()]
+
+        cursor.execute(
+            "SELECT id_tarea FROM tarea WHERE id_cliente = %s",
+            (id_cliente,)
+        )
+        ids_tareas = [row["id_tarea"] for row in cursor.fetchall()]
+
+        cursor.execute(
+            "SELECT id_documento FROM documento WHERE id_cliente = %s",
+            (id_cliente,)
+        )
+        ids_documentos = [row["id_documento"] for row in cursor.fetchall()]
+
+        lista_registros = [("cliente", id_cliente)]
+
+        for id_obs in ids_observaciones:
+            lista_registros.append(("observacion_cliente", id_obs))
+
+        for id_tarea in ids_tareas:
+            lista_registros.append(("tarea", id_tarea))
+
+        for id_doc in ids_documentos:
+            lista_registros.append(("documento", id_doc))
+
+        filas, total = consultar_auditoria(
+            cursor,
+            registros=lista_registros,
+            limite=limite,
+            offset=offset,
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin,
+        )
+
+        return jsonify({
+            "historial": filas,
+            "total": total
+        }), 200
+
+    except Exception:
+        logger.exception("Error al consultar historial del cliente")
+        return jsonify({"error": "Error interno del servidor."}), 500
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if conexion is not None:
             conexion.close()
