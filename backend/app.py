@@ -17,6 +17,7 @@ from backend.routes.notificaciones_routes import notificaciones_bp
 from backend.routes.reportes_routes import reportes_blueprint
 from backend.routes.tareas_routes import tareas_bp
 from backend.routes.usuarios_routes import usuarios_bp
+from backend.routes.busqueda_routes import busqueda_bp
 
 
 DEFAULT_DEV_SECRET_KEY = "dev-secret-key-change-me"
@@ -184,6 +185,7 @@ def create_app():
     app.register_blueprint(reportes_blueprint, url_prefix="/api")
     app.register_blueprint(historial_bp, url_prefix="/api")
     app.register_blueprint(notificaciones_bp, url_prefix="/api")
+    app.register_blueprint(busqueda_bp, url_prefix="/api")
 
     @app.route("/")
     def home():
