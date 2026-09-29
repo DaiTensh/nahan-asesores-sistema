@@ -14,6 +14,31 @@
   <link rel="stylesheet" href="../assets/css/navigation.css">
   <link rel="stylesheet" href="../assets/css/topbar.css">
   <link rel="stylesheet" href="./clientes.css">
+  <style>
+    .clientes-table .sort-header {
+      align-items: center;
+      background: transparent;
+      border: 0;
+      color: inherit;
+      cursor: pointer;
+      display: inline-flex;
+      font: inherit;
+      gap: 6px;
+      padding: 0;
+      text-align: left;
+      text-transform: inherit;
+    }
+
+    .clientes-table .sort-header:focus-visible {
+      outline: 2px solid currentColor;
+      outline-offset: 3px;
+    }
+
+    .clientes-table .sort-indicator {
+      display: inline-block;
+      min-width: 1ch;
+    }
+  </style>
 </head>
 
 <body>
@@ -63,15 +88,28 @@
         <table class="clientes-table">
           <thead>
             <tr>
-              <th>RUT</th>
-              <th>Razón Social</th>
-              <th>Área Asociada</th>
-              <th>Estado</th>
-              <th>Acciones</th>
+              <th scope="col">RUT</th>
+              <th scope="col" aria-sort="ascending">
+                <button type="button" class="sort-header" data-sort="razon_social">
+                  Razón Social <span class="sort-indicator" aria-hidden="true"></span>
+                </button>
+              </th>
+              <th scope="col">Área Asociada</th>
+              <th scope="col" aria-sort="none">
+                <button type="button" class="sort-header" data-sort="estado">
+                  Estado <span class="sort-indicator" aria-hidden="true"></span>
+                </button>
+              </th>
+              <th scope="col" aria-sort="none">
+                <button type="button" class="sort-header" data-sort="fecha_creacion">
+                  Fecha de creación <span class="sort-indicator" aria-hidden="true"></span>
+                </button>
+              </th>
+              <th scope="col">Acciones</th>
             </tr>
           </thead>
           <tbody id="tablaClientesGeneralCuerpo">
-            <tr><td colspan="5" class="text-loading">Cargando clientes...</td></tr>
+            <tr><td colspan="6" class="text-loading">Cargando clientes...</td></tr>
           </tbody>
         </table>
 

@@ -571,6 +571,20 @@ def listado_general_paginado_clientes():
 
         id_area = request.args.get('id_area')
         texto_buscar = request.args.get('buscar', '').strip()
+        orden = request.args.get('orden', 'razon_social')
+        direccion = request.args.get('direccion', 'asc')
+
+        columnas_orden = {
+            "razon_social": "c.razon_social",
+            "estado": "c.estado",
+            "fecha_creacion": "c.fecha_creacion",
+        }
+        direcciones_orden = {"asc": "ASC", "desc": "DESC"}
+
+        if orden not in columnas_orden:
+            return jsonify({"error": "La columna de ordenamiento no es válida."}), 400
+        if direccion not in direcciones_orden:
+            return jsonify({"error": "La dirección de ordenamiento no es válida."}), 400
 
         # Cálculo matemático del desplazamiento en base de datos
         offset = (pagina - 1) * limite
@@ -584,7 +598,8 @@ def listado_general_paginado_clientes():
             # además de filtrar por id_area, el texto libre debe poder
             # encontrar coincidencias por nombre de área.
             query_base = """
-                SELECT DISTINCT c.id_cliente, c.rut, c.razon_social, c.estado, c.telefono
+                SELECT DISTINCT c.id_cliente, c.rut, c.razon_social, c.estado, c.telefono,
+                       c.fecha_creacion
                 FROM cliente c
                 LEFT JOIN cliente_area ca ON c.id_cliente = ca.id_cliente
                 LEFT JOIN area a ON ca.id_area = a.id_area
@@ -608,7 +623,12 @@ def listado_general_paginado_clientes():
                 query_base += " WHERE " + " AND ".join(condiciones)
 
             # Inyección de paginación controlada
-            query_base += " ORDER BY c.razon_social ASC LIMIT %s OFFSET %s"
+            columna_orden = columnas_orden[orden]
+            direccion_orden = direcciones_orden[direccion]
+            query_base += (
+                f" ORDER BY {columna_orden} {direccion_orden}, c.id_cliente ASC"
+                " LIMIT %s OFFSET %s"
+            )
             parametros.append(limite)
             parametros.append(offset)
 
