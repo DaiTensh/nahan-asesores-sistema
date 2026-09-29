@@ -28,8 +28,10 @@ El instalador crea el entorno virtual, instala las dependencias, te pregunta los
 datos de tu MySQL local, genera el `.env` con claves propias de tu máquina,
 importa el esquema, carga datos de prueba y comprueba que la aplicación arranca.
 
-El flujo normal puede repetirse: conserva una base existente y no vuelve a cargar
-datos de prueba. La opción explícita `--solo-bd` recrea el esquema y puede borrar
+El flujo normal puede repetirse: conserva una base existente, le aplica solo las
+migraciones de `database/migraciones/` que le falten y no vuelve a cargar datos
+de prueba. Guía completa de la base local (Windows incluido):
+[`docs/setup/CONFIGURACION_BASE_DATOS.md`](docs/setup/CONFIGURACION_BASE_DATOS.md). La opción explícita `--solo-bd` recrea el esquema y puede borrar
 los datos; no debe usarse para actualizar una instalación existente.
 Cuando solo quieras poner al día las dependencias sin tocar nada más:
 

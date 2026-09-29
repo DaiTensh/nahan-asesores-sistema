@@ -140,8 +140,16 @@ def revisar_mysql():
             user=os.getenv("DB_USER", ""), password=os.getenv("DB_PASSWORD", ""),
             connection_timeout=4)
     except Exception as e:
-        chequeo("Conexión con MySQL", False, str(e).split("\n")[0][:110],
-                "Levanta el servidor MySQL y revisa DB_USER y DB_PASSWORD en .env.")
+        codigo = getattr(e, "errno", None)
+        if codigo in (2002, 2003):
+            arreglo = ("No hay servidor MySQL escuchando en DB_HOST:DB_PORT; no es un problema de "
+                       "contraseña. Inicia el servicio (Windows: Get-Service *mysql* y Start-Service "
+                       "<Name>; macOS: brew services start mysql; Linux: sudo systemctl start mysql).")
+        elif codigo == 1045:
+            arreglo = "MySQL rechazó el usuario o la contraseña: corrige DB_USER y DB_PASSWORD en .env."
+        else:
+            arreglo = "Levanta el servidor MySQL y revisa DB_USER y DB_PASSWORD en .env."
+        chequeo("Conexión con MySQL", False, str(e).split("\n")[0][:110], arreglo)
         return None
     chequeo("Conexión con MySQL", True, f"{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}")
     return cn
@@ -172,8 +180,24 @@ def revisar_base(cn):
         tareas = cur.fetchone()[0]
         chequeo("Datos de ejemplo", tareas > 0, f"{tareas} tarea(s) cargadas",
                 CMD_SEED, critico=False)
+        revisar_migraciones(cur, nombre)
     cur.close()
     cn.close()
+
+
+def revisar_migraciones(cur, nombre):
+    """Una base de un incremento anterior puede tener todas las tablas y aun
+    así faltarle columnas o parámetros que el código ya usa."""
+    try:
+        sys.path.insert(0, os.path.join(RAIZ, "database"))
+        import migrar
+    except ImportError:
+        return
+    cur.execute(f"USE `{nombre}`")
+    faltan = migrar.pendientes(cur)
+    chequeo("Migraciones", not faltan,
+            "todas aplicadas" if not faltan else "pendientes: " + ", ".join(faltan),
+            CMD_SETUP)
 
 
 IDENTIFICACION_API = "API Nahan Asesores funcionando correctamente"

@@ -2012,7 +2012,7 @@ def test_setup_base_nueva_usa_nombre_configurado_sin_drop(monkeypatch):
     monkeypatch.setattr(setup, 'confirmar_borrado', lambda *a: pytest.fail('No debe preparar borrado'))
     assert setup.importar_esquema(cfg)
     assert not any('DROP DATABASE' in sql for sql in sentencias)
-    assert sentencias[0].startswith('CREATE DATABASE `nahan_prueba`')
+    assert sentencias[0].startswith('CREATE DATABASE IF NOT EXISTS `nahan_prueba`')
     assert sentencias[1] == 'USE `nahan_prueba`'
 
 

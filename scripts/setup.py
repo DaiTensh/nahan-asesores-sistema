@@ -4,9 +4,11 @@ r"""
 Instalador del entorno de desarrollo de Nahan Asesores.
 
 Deja una máquina recién clonada en condiciones de levantar el sistema:
-entorno virtual, dependencias, archivo .env, esquema de base de datos y datos
-de prueba. Funciona igual en Windows, macOS y Linux, y se puede volver a
-ejecutar sin romper nada.
+entorno virtual, dependencias, archivo .env, esquema de base de datos,
+migraciones pendientes y datos de prueba. Funciona igual en Windows, macOS y
+Linux, y se puede volver a ejecutar sin romper nada: una base que ya existe se
+conserva y solo recibe las migraciones de database/migraciones/ que le falten.
+Procedimiento completo: docs/setup/CONFIGURACION_BASE_DATOS.md
 
     bash scripts/setup.sh                # macOS y Linux: instalación completa
     bash scripts/setup.sh --solo-bd      # solo importar el esquema y sembrar
@@ -31,6 +33,7 @@ ENV = os.path.join(RAIZ, ".env")
 EJEMPLO = os.path.join(RAIZ, ".env.example")
 ESQUEMA = os.path.join(RAIZ, "database", "nahan_asesores.sql")
 SEMILLA = os.path.join(RAIZ, "database", "seed_dev.py")
+MIGRAR = os.path.join(RAIZ, "database", "migrar.py")
 ES_WINDOWS = os.name == "nt"
 
 VERDE, ROJO, GRIS, FIN = "\033[32m", "\033[31m", "\033[90m", "\033[0m"
@@ -262,6 +265,24 @@ def conectar(cfg, con_base=False):
     return correr([py_venv(), "-c", codigo])
 
 
+def explicar_error_mysql(salida, cfg):
+    """Qué hacer según el error de conexión. 2003/2002 significan que no hay
+    servidor escuchando: ahí la contraseña todavía no entra en juego."""
+    destino = f"{cfg.get('DB_HOST', '127.0.0.1')}:{cfg.get('DB_PORT') or 3306}"
+    if "2003" in salida or "2002" in salida:
+        return (f"No hay un servidor MySQL escuchando en {destino}. No es un problema de\n"
+                "      contraseña: primero hay que iniciar el servicio de MySQL.\n"
+                "      Windows: Get-Service *mysql*   y luego, en PowerShell como administrador,\n"
+                "               Start-Service <Name que mostró el comando anterior>\n"
+                "      macOS:   brew services start mysql\n"
+                "      Linux:   sudo systemctl start mysql\n"
+                "      Si el servicio corre en otro puerto, corrige DB_PORT en .env.")
+    if "1045" in salida:
+        return ("MySQL rechazó el usuario o la contraseña. Corrige DB_USER y DB_PASSWORD\n"
+                "      en el archivo .env (en la raíz del repositorio) y vuelve a ejecutar.")
+    return "Revisa que el servidor MySQL esté corriendo y los datos de conexión en .env."
+
+
 def contenido_de_la_base(cfg):
     """(usuarios, tareas) si la base ya existe; None si no existe o no se pudo
     consultar. Sirve para no borrar sin avisar el trabajo de quien vuelve a
@@ -313,10 +334,7 @@ def importar_esquema(cfg, interactivo=True, recrear=False):
     r = conectar(cfg)
     if r.returncode:
         morir("MySQL no responde: " + r.stdout.strip().replace("ERROR ", "")[:200],
-              "Levanta el servidor MySQL y revisa el usuario y la contraseña en .env.\n"
-              "      macOS:   brew services start mysql\n"
-              "      Linux:   sudo systemctl start mysql\n"
-              "      Windows: inicia el servicio MySQL desde «Servicios»")
+              explicar_error_mysql(r.stdout, cfg))
     bien("MySQL responde — " + r.stdout.strip().replace("OK ", "servidor "))
 
     if not recrear:
@@ -330,15 +348,26 @@ cn = mysql.connector.connect(host={cfg['DB_HOST']!r}, port={int(cfg['DB_PORT'])}
 cur = cn.cursor()
 cur.execute("SELECT SCHEMA_NAME FROM information_schema.schemata WHERE SCHEMA_NAME = %s",
             ({cfg['DB_NAME']!r},))
-print("EXISTE" if cur.fetchone() else "NUEVA")
+if cur.fetchone():
+    cur.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = %s",
+                ({cfg['DB_NAME']!r},))
+    print("EXISTE", cur.fetchone()[0])
+else:
+    print("NUEVA")
 cur.close(); cn.close()
 '''
         r = correr([py_venv(), "-c", codigo])
         if r.returncode:
             morir("No se pudo comprobar si la base existe; no se importó el esquema.")
-        if r.stdout.strip() == "EXISTE":
-            bien("Base existente conservada; no se reimporta ni se cargan datos de prueba.")
+        estado = r.stdout.strip().split()
+        tablas = int(estado[1]) if len(estado) > 1 and estado[1].isdigit() else None
+        if estado and estado[0] == "EXISTE" and tablas != 0:
+            bien(f"Base «{cfg['DB_NAME']}» existente conservada"
+                 + (f" ({tablas} tablas)" if tablas else "")
+                 + "; no se reimporta ni se cargan datos de prueba.")
             return False
+        if estado and estado[0] == "EXISTE":
+            aviso(f"La base «{cfg['DB_NAME']}» existe pero está vacía; se crean sus tablas.")
 
     if not re.fullmatch(r"[A-Za-z0-9_]+", cfg["DB_NAME"]):
         morir("DB_NAME debe contener únicamente letras, números y guiones bajos.")
@@ -352,6 +381,8 @@ sql = open({ESQUEMA!r}, encoding="utf-8").read()
 # Una instalación normal nunca debe borrar una base, ni apuntar a otra.
 if not {recrear!r}:
     sql = re.sub(r"DROP DATABASE IF EXISTS nahan_asesores;", "", sql, count=1)
+    # Una base creada a mano y todavía vacía se aprovecha en vez de fallar.
+    sql = sql.replace("CREATE DATABASE nahan_asesores", "CREATE DATABASE IF NOT EXISTS nahan_asesores", 1)
 sql = re.sub(r"(?<=DATABASE )nahan_asesores|(?<=EXISTS )nahan_asesores|(?<=USE )nahan_asesores",
              {('`' + cfg['DB_NAME'] + '`')!r}, sql)
 cn = mysql.connector.connect(host={cfg['DB_HOST']!r}, port={int(cfg['DB_PORT'])},
@@ -386,6 +417,19 @@ print("TABLAS", cur.fetchone()[0])
         morir(f"La base quedó con {tablas} tablas; se esperaban 20.")
     bien(f"{tablas} tablas creadas en «{cfg['DB_NAME']}»")
     return True
+
+
+def migrar():
+    paso("Aplicando las migraciones pendientes (database/migraciones)")
+    exigir_entorno()
+    r = correr([py_venv(), MIGRAR])
+    for linea in (r.stdout.strip() or r.stderr.strip()).splitlines():
+        if linea.strip():
+            aviso(linea.strip())
+    if r.returncode:
+        morir("Las migraciones no terminaron. La base no se borró.",
+              "Corrige el error indicado y vuelve a ejecutar el instalador.")
+    bien("Esquema al día")
 
 
 def sembrar():
@@ -466,6 +510,7 @@ def main():
 
     cfg = configurar_env(interactivo=not args.si_a_todo)
     creada = importar_esquema(cfg, interactivo=not args.si_a_todo, recrear=args.solo_bd)
+    migrar()
     if creada and not args.sin_datos:
         sembrar()
     verificar(cfg)
