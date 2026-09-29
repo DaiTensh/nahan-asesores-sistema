@@ -7,9 +7,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   const btnAnterior = document.getElementById("btnPaginaAnterior");
   const btnSiguiente = document.getElementById("btnPaginaSiguiente");
   const txtIndicador = document.getElementById("txtIndicadorPagina");
+  const encabezadosOrden = document.querySelectorAll(".clientes-table [data-sort]");
   const usuarioActual = await obtenerUsuarioActual();
 
   let paginaActual = 1;
+  let ordenActual = "razon_social";
+  let direccionActual = "asc";
   const limiteRegistros = 7;
   const esAdmin = usuarioActual && usuarioActual.nombre_rol === "ADMINISTRADOR";
 
@@ -23,13 +26,18 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const idArea = selectAreaFiltro.value;
     const textoBuscar = inputBuscarTexto.value.trim();
-    const queryParams = [`pagina=${paginaActual}`, `limite=${limiteRegistros}`];
+    const queryParams = new URLSearchParams({
+      pagina: String(paginaActual),
+      limite: String(limiteRegistros),
+      orden: ordenActual,
+      direccion: direccionActual
+    });
 
-    if (idArea !== "TODOS") queryParams.push(`id_area=${idArea}`);
-    if (textoBuscar) queryParams.push(`buscar=${encodeURIComponent(textoBuscar)}`);
+    if (idArea !== "TODOS") queryParams.set("id_area", idArea);
+    if (textoBuscar) queryParams.set("buscar", textoBuscar);
 
     try {
-      const response = await fetch(`${API_URL}/clientes/listado?${queryParams.join("&")}`, {
+      const response = await fetch(`${API_URL}/clientes/listado?${queryParams.toString()}`, {
         credentials: window.API_CONFIG.credentials
       });
       const data = await leerRespuestaJson(response);
@@ -117,6 +125,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       fila.appendChild(crearCeldaTexto(cliente.razon_social));
       fila.appendChild(crearCeldaTexto(cliente.areas_nombres || "Sin área"));
       fila.appendChild(crearCeldaEstado(cliente.estado));
+      fila.appendChild(crearCeldaTexto(cliente.fecha_creacion));
       fila.appendChild(crearCeldaAcciones(cliente));
 
       tbody.appendChild(fila);
@@ -136,7 +145,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const fila = document.createElement("tr");
     const celda = document.createElement("td");
-    celda.colSpan = 5;
+    celda.colSpan = 6;
     celda.className = "text-loading";
     celda.textContent = mensaje;
     fila.appendChild(celda);
@@ -147,6 +156,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     const celda = document.createElement("td");
     celda.textContent = texto || "";
     return celda;
+  }
+
+  function actualizarIndicadoresOrden() {
+    encabezadosOrden.forEach(encabezado => {
+      const indicador = encabezado.querySelector(".sort-indicator");
+      const activo = encabezado.dataset.sort === ordenActual;
+
+      indicador.textContent = activo
+        ? (direccionActual === "asc" ? "▲" : "▼")
+        : "";
+      encabezado.closest("th").setAttribute(
+        "aria-sort",
+        activo ? (direccionActual === "asc" ? "ascending" : "descending") : "none"
+      );
+    });
   }
 
   function crearCeldaEstado(estadoCliente) {
@@ -189,6 +213,23 @@ document.addEventListener("DOMContentLoaded", async () => {
     cargarListadoGeneral();
   });
 
+  encabezadosOrden.forEach(encabezado => {
+    encabezado.addEventListener("click", () => {
+      const nuevoOrden = encabezado.dataset.sort;
+
+      if (nuevoOrden === ordenActual) {
+        direccionActual = direccionActual === "asc" ? "desc" : "asc";
+      } else {
+        ordenActual = nuevoOrden;
+        direccionActual = "asc";
+      }
+
+      paginaActual = 1;
+      actualizarIndicadoresOrden();
+      cargarListadoGeneral();
+    });
+  });
+
   inputBuscarTexto.addEventListener("input", () => {
     paginaActual = 1;
     cargarListadoGeneral();
@@ -206,5 +247,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     cargarListadoGeneral();
   });
 
+  actualizarIndicadoresOrden();
   cargarListadoGeneral();
 });
