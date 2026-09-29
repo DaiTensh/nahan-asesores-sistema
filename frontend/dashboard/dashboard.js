@@ -33,6 +33,7 @@ document.addEventListener("DOMContentLoaded", () => {
   inputDias.addEventListener("change", () => cargarTareasPorVencer(inputDias.value));
   cargarResumenTareasPendientes();
   cargarResumenTareasFinalizadas();
+  cargarDistribucionPorArea();
 });
 
 function formatearRol(rol) {
@@ -448,6 +449,81 @@ async function cargarResumenTareasFinalizadas() {
   } catch (error) {
     console.error(error);
   }
+}
+
+async function cargarDistribucionPorArea() {
+  try {
+    const response = await fetch(`${API_URL}/reportes/distribucion-por-area`, {
+      credentials: window.API_CONFIG.credentials
+    });
+    const data = await leerRespuestaJson(response);
+
+    if (!response.ok) {
+      console.error(data.error || "Error al cargar la distribución por área");
+      return;
+    }
+
+    document.getElementById("totalClientesDistribucionArea").textContent = data.total_clientes ?? 0;
+    document.getElementById("totalRelacionesClientesArea").textContent = data.total_asignaciones_cliente_area ?? 0;
+    document.getElementById("totalTareasDistribucionArea").textContent = data.total_tareas ?? 0;
+
+    renderizarDistribucionArea(
+      "distribucionClientesPorArea",
+      data.areas || [],
+      "clientes",
+      "porcentaje_clientes"
+    );
+    renderizarDistribucionArea(
+      "distribucionTareasPorArea",
+      data.areas || [],
+      "tareas",
+      "porcentaje_tareas"
+    );
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+function renderizarDistribucionArea(idContenedor, areas, claveCantidad, clavePorcentaje) {
+  const contenedor = document.getElementById(idContenedor);
+  contenedor.replaceChildren();
+
+  if (!areas.length) {
+    const vacio = document.createElement("p");
+    vacio.textContent = "No hay áreas registradas.";
+    contenedor.appendChild(vacio);
+    return;
+  }
+
+  areas.forEach(area => {
+    const cantidad = Number(area[claveCantidad] || 0);
+    const porcentaje = Math.min(100, Math.max(0, Number(area[clavePorcentaje] || 0)));
+    const fila = document.createElement("div");
+    fila.className = "dashboard-area-row";
+
+    const encabezado = document.createElement("div");
+    encabezado.className = "dashboard-area-row-heading";
+    const nombre = document.createElement("span");
+    nombre.textContent = area.nombre_area;
+    const valor = document.createElement("strong");
+    valor.textContent = `${cantidad} (${porcentaje.toFixed(1)}%)`;
+    encabezado.append(nombre, valor);
+
+    const pista = document.createElement("div");
+    pista.className = "dashboard-area-track";
+    pista.setAttribute("role", "progressbar");
+    pista.setAttribute("aria-label", `${area.nombre_area}: ${cantidad}`);
+    pista.setAttribute("aria-valuemin", "0");
+    pista.setAttribute("aria-valuemax", "100");
+    pista.setAttribute("aria-valuenow", porcentaje.toFixed(1));
+    const barra = document.createElement("span");
+    barra.className = "dashboard-area-fill";
+    barra.style.width = `${porcentaje}%`;
+    pista.appendChild(barra);
+
+    fila.append(encabezado, pista);
+    contenedor.appendChild(fila);
+  });
 }
 
 function renderizarListaResumen(idLista, elementos, etiquetaClave, etiquetaValor) {

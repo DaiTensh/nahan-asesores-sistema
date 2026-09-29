@@ -578,6 +578,83 @@ def reporte_actividad_por_area():
             conexion.close()
 
 
+@reportes_blueprint.route('/reportes/distribucion-por-area', methods=['GET'])
+@roles_required(ROL_ADMINISTRADOR)
+def distribucion_actual_por_area():
+    """RF45 — Distribución actual de clientes y tareas por área.
+
+    Los porcentajes de clientes usan como denominador las relaciones únicas
+    cliente-área; un mismo cliente puede participar en más de un área.
+    """
+    conexion = None
+    try:
+        conexion = get_connection()
+        if conexion is None:
+            return jsonify({"error": "Fallo de conexión con MySQL."}), 500
+
+        with conexion.cursor(dictionary=True) as cursor:
+            cursor.execute("SELECT id_area, nombre_area FROM area ORDER BY nombre_area")
+            areas = cursor.fetchall()
+
+            cursor.execute(
+                "SELECT id_area, COUNT(DISTINCT id_cliente) AS total "
+                "FROM cliente_area GROUP BY id_area"
+            )
+            clientes_por_area = {
+                fila["id_area"]: int(fila["total"] or 0)
+                for fila in cursor.fetchall()
+            }
+
+            cursor.execute(
+                "SELECT COUNT(DISTINCT id_cliente) AS total FROM cliente_area"
+            )
+            total_clientes = int((cursor.fetchone() or {}).get("total", 0) or 0)
+
+            cursor.execute(
+                "SELECT id_area, COUNT(*) AS total FROM tarea GROUP BY id_area"
+            )
+            tareas_por_area = {
+                fila["id_area"]: int(fila["total"] or 0)
+                for fila in cursor.fetchall()
+            }
+
+            total_tareas = sum(tareas_por_area.values())
+            total_asignaciones_cliente_area = sum(clientes_por_area.values())
+            distribucion = []
+
+            for area in areas:
+                cantidad_clientes = clientes_por_area.get(area["id_area"], 0)
+                cantidad_tareas = tareas_por_area.get(area["id_area"], 0)
+                distribucion.append({
+                    "id_area": area["id_area"],
+                    "nombre_area": area["nombre_area"],
+                    "clientes": cantidad_clientes,
+                    "porcentaje_clientes": round(
+                        cantidad_clientes * 100.0 / total_asignaciones_cliente_area,
+                        1,
+                    ) if total_asignaciones_cliente_area else 0.0,
+                    "tareas": cantidad_tareas,
+                    "porcentaje_tareas": round(
+                        cantidad_tareas * 100.0 / total_tareas, 1
+                    ) if total_tareas else 0.0,
+                })
+
+        return jsonify({
+            "areas": distribucion,
+            "total_clientes": total_clientes,
+            "total_asignaciones_cliente_area": total_asignaciones_cliente_area,
+            "total_tareas": total_tareas,
+        }), 200
+
+    except Exception:
+        logger.exception("Error al calcular la distribución actual por área")
+        return jsonify({"error": "Ocurrió un error al calcular la distribución por área."}), 500
+
+    finally:
+        if conexion:
+            conexion.close()
+
+
 @reportes_blueprint.route('/reportes/tareas-por-responsable', methods=['GET'])
 @roles_required(ROL_ADMINISTRADOR)
 def reporte_tareas_por_responsable():
