@@ -97,9 +97,22 @@
 
 .clientes-toolbar {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 18px;
   align-items: end;
+}
+
+.clientes-filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+
+.filtros-activos {
+  color: var(--color-text-light);
+  margin: 0;
 }
 
 .clientes-table {
@@ -255,6 +268,11 @@
 
   .clientes-section {
     overflow-x: auto;
+  }
+
+  .clientes-filter-actions {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .cliente-detail-grid {

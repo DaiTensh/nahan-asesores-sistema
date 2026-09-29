@@ -27,7 +27,7 @@
       <section class="reportes-header">
         <div>
           <h1>Reportes</h1>
-          <p>Genera reportes de tareas por cliente o por responsable dentro de un período.</p>
+          <p>Consulta actividad por cliente, responsable o área de trabajo dentro de un período.</p>
         </div>
       </section>
 
@@ -40,6 +40,7 @@
             <select id="selectTipoReporte" class="form-input">
               <option value="cliente">Cliente</option>
               <option value="responsable">Usuario responsable</option>
+              <option value="area">Área de trabajo</option>
             </select>
           </div>
 
@@ -106,23 +107,62 @@
           </div>
         </div>
 
-        <div class="clientes-cards" id="resumenEstadoCards"></div>
+        <div id="resultadoDetalle">
+          <div class="clientes-cards" id="resumenEstadoCards"></div>
 
-        <div class="table-responsive">
-          <table class="table">
-            <thead>
-              <tr>
-                <th>Título</th>
-                <th>Cliente</th>
-                <th>Estado</th>
-                <th>Prioridad</th>
-                <th>Responsable</th>
-                <th>Creación</th>
-                <th>Vencimiento</th>
-              </tr>
-            </thead>
-            <tbody id="tablaTareasReporte"></tbody>
-          </table>
+          <div class="table-responsive">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Título</th>
+                  <th>Cliente</th>
+                  <th>Estado</th>
+                  <th>Prioridad</th>
+                  <th>Responsable</th>
+                  <th>Creación</th>
+                  <th>Vencimiento</th>
+                </tr>
+              </thead>
+              <tbody id="tablaTareasReporte"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="resultadoAreas" hidden>
+          <p class="area-reporte-nota">Clientes y tareas se cuentan por fecha de asignación o creación; los usuarios corresponden a cuentas activas creadas en el período.</p>
+          <div id="comparacionAreas" class="area-comparacion">
+            <h3>Comparación entre áreas</h3>
+            <div class="table-responsive">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Métrica</th>
+                    <th>Jurídica</th>
+                    <th>Contable</th>
+                    <th>Diferencia (jurídica - contable)</th>
+                  </tr>
+                </thead>
+                <tbody id="tablaComparacionAreas"></tbody>
+              </table>
+            </div>
+          </div>
+          <p id="mensajeComparacionAreas" class="mensaje" hidden></p>
+          <h3>Distribución de tareas del período</h3>
+          <div id="distribucionTareas" class="area-distribucion"></div>
+          <h3>Resumen por área</h3>
+          <div class="table-responsive">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Área</th>
+                  <th>Clientes asignados</th>
+                  <th>Tareas del período</th>
+                  <th>Usuarios activos creados</th>
+                </tr>
+              </thead>
+              <tbody id="tablaAreas"></tbody>
+            </table>
+          </div>
         </div>
       </section>
     </main>
