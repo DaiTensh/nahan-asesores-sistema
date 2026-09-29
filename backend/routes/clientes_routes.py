@@ -1,8 +1,10 @@
 import logging
+import io
 
 from mysql.connector import IntegrityError
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
+from openpyxl import Workbook
 from datetime import datetime
 from backend.config.db import get_connection
 from backend.utils.auditoria import registrar_auditoria, consultar_auditoria
@@ -550,6 +552,133 @@ def cambiar_estado_cliente_rf10(id_cliente):
 # ==========================================================================
 # RF11: LISTANDO GENERALMENTE LOS CLIENTES (CON PAGINACIÓN Y FILTROS CRUZADOS)
 # ==========================================================================
+def _validar_filtros_listado_clientes():
+    id_area = (request.args.get("id_area") or "").strip()
+    if id_area == "TODOS":
+        id_area = ""
+    if id_area and (not id_area.isdecimal() or int(id_area) < 1):
+        return None, "id_area debe ser un ID entero positivo."
+
+    id_responsable = (request.args.get("id_responsable") or "").strip()
+    if id_responsable and (not id_responsable.isdecimal() or int(id_responsable) < 1):
+        return None, "id_responsable debe ser un ID entero positivo."
+
+    estado = (request.args.get("estado") or "").strip().upper()
+    if estado and estado not in ("ACTIVO", "INACTIVO"):
+        return None, "estado debe ser ACTIVO o INACTIVO."
+
+    return {
+        "id_area": id_area,
+        "nombre": (request.args.get("nombre") or "").strip(),
+        "rut": (request.args.get("rut") or "").strip(),
+        "estado": estado,
+        "id_responsable": id_responsable,
+        "buscar": (request.args.get("buscar") or "").strip(),
+    }, None
+
+
+def _consultar_clientes_listado(cursor, filtros, orden, direccion, limite=None, offset=0):
+    query = """
+        SELECT DISTINCT c.id_cliente, c.rut, c.razon_social, c.estado, c.telefono,
+               c.fecha_creacion,
+               (
+                   SELECT GROUP_CONCAT(DISTINCT ur.nombres ORDER BY ur.nombres SEPARATOR ' / ')
+                   FROM tarea tr_resumen
+                   JOIN usuario ur ON tr_resumen.id_responsable = ur.id_usuario
+                   WHERE tr_resumen.id_cliente = c.id_cliente
+               ) AS responsables_nombres
+        FROM cliente c
+        LEFT JOIN cliente_area ca ON c.id_cliente = ca.id_cliente
+        LEFT JOIN area a ON ca.id_area = a.id_area
+    """
+    condiciones = []
+    parametros = []
+
+    if filtros["id_area"]:
+        condiciones.append("ca.id_area = %s")
+        parametros.append(filtros["id_area"])
+    if filtros["nombre"]:
+        condiciones.append("c.razon_social LIKE %s")
+        parametros.append(f"%{filtros['nombre']}%")
+    if filtros["rut"]:
+        condiciones.append("c.rut LIKE %s")
+        parametros.append(f"%{filtros['rut']}%")
+    if filtros["estado"]:
+        condiciones.append("c.estado = %s")
+        parametros.append(filtros["estado"])
+    if filtros["id_responsable"]:
+        condiciones.append(
+            "EXISTS (SELECT 1 FROM tarea tr "
+            "WHERE tr.id_cliente = c.id_cliente AND tr.id_responsable = %s)"
+        )
+        parametros.append(filtros["id_responsable"])
+    if filtros["buscar"]:
+        condiciones.append(
+            "(c.razon_social LIKE %s OR c.rut LIKE %s OR c.email LIKE %s "
+            "OR a.nombre_area LIKE %s OR c.estado LIKE %s)"
+        )
+        parametro_like = f"%{filtros['buscar']}%"
+        parametros.extend([parametro_like] * 5)
+
+    if condiciones:
+        query += " WHERE " + " AND ".join(condiciones)
+
+    columnas_orden = {
+        "razon_social": "c.razon_social",
+        "estado": "c.estado",
+        "fecha_creacion": "c.fecha_creacion",
+    }
+    direcciones_orden = {"asc": "ASC", "desc": "DESC"}
+    query += (
+        f" ORDER BY {columnas_orden[orden]} {direcciones_orden[direccion]}, c.id_cliente ASC"
+    )
+    if limite is not None:
+        query += " LIMIT %s OFFSET %s"
+        parametros.extend([limite, offset])
+
+    cursor.execute(query, tuple(parametros))
+    clientes = cursor.fetchall()
+    for cliente in clientes:
+        cursor.execute(
+            """
+            SELECT a.nombre_area FROM cliente_area ca
+            JOIN area a ON ca.id_area = a.id_area
+            WHERE ca.id_cliente = %s
+            """,
+            (cliente["id_cliente"],),
+        )
+        areas = cursor.fetchall()
+        nombres = [fila["nombre_area"] for fila in areas]
+        cliente["areas_nombres"] = " / ".join(nombres) if nombres else "Sin área"
+    return clientes
+
+
+def _exportar_listado_clientes_excel(clientes):
+    libro = Workbook()
+    hoja = libro.active
+    hoja.title = "Clientes"
+    hoja.append(["RUT", "Razón Social", "Áreas", "Estado", "Fecha de creación", "Responsables asignados"])
+
+    for cliente in clientes:
+        hoja.append([
+            cliente["rut"], cliente["razon_social"], cliente["areas_nombres"],
+            cliente["estado"], cliente["fecha_creacion"], cliente["responsables_nombres"] or "",
+        ])
+        for celda in hoja[hoja.max_row]:
+            if celda.data_type == "f":
+                celda.data_type = "s"
+
+    buffer = io.BytesIO()
+    libro.save(buffer)
+    buffer.seek(0)
+    return send_file(
+        buffer,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name="clientes_busqueda.xlsx",
+    )
+
+
 @clientes_blueprint.route('/clientes/listado', methods=['GET'])
 @roles_required(*ROLES_OPERATIVOS)
 def listado_general_paginado_clientes():
@@ -569,8 +698,14 @@ def listado_general_paginado_clientes():
         # (protección básica ante un límite absurdo enviado por el cliente).
         limite = max(1, min(limite, 100))
 
-        id_area = request.args.get('id_area')
-        texto_buscar = request.args.get('buscar', '').strip()
+        filtros, error = _validar_filtros_listado_clientes()
+        if error:
+            return jsonify({"error": error}), 400
+
+        formato = (request.args.get("formato") or "").strip().lower()
+        if formato not in ("", "excel"):
+            return jsonify({"error": "El formato de exportación no es válido."}), 400
+
         orden = request.args.get('orden', 'razon_social')
         direccion = request.args.get('direccion', 'asc')
 
@@ -586,7 +721,6 @@ def listado_general_paginado_clientes():
         if direccion not in direcciones_orden:
             return jsonify({"error": "La dirección de ordenamiento no es válida."}), 400
 
-        # Cálculo matemático del desplazamiento en base de datos
         offset = (pagina - 1) * limite
 
         conexion = get_connection()
@@ -594,58 +728,14 @@ def listado_general_paginado_clientes():
             return jsonify({"error": "Error interno de base de datos MySQL."}), 500
 
         with conexion.cursor(dictionary=True) as cursor:
-            # Consulta base estructurada. El LEFT JOIN con área va siempre:
-            # además de filtrar por id_area, el texto libre debe poder
-            # encontrar coincidencias por nombre de área.
-            query_base = """
-                SELECT DISTINCT c.id_cliente, c.rut, c.razon_social, c.estado, c.telefono,
-                       c.fecha_creacion
-                FROM cliente c
-                LEFT JOIN cliente_area ca ON c.id_cliente = ca.id_cliente
-                LEFT JOIN area a ON ca.id_area = a.id_area
-            """
-            condiciones = []
-            parametros = []
-
-            if id_area:
-                condiciones.append("ca.id_area = %s")
-                parametros.append(id_area)
-
-            if texto_buscar:
-                condiciones.append(
-                    "(c.razon_social LIKE %s OR c.rut LIKE %s OR c.email LIKE %s "
-                    "OR a.nombre_area LIKE %s OR c.estado LIKE %s)"
-                )
-                parametro_like = f"%{texto_buscar}%"
-                parametros.extend([parametro_like] * 5)
-
-            if condiciones:
-                query_base += " WHERE " + " AND ".join(condiciones)
-
-            # Inyección de paginación controlada
-            columna_orden = columnas_orden[orden]
-            direccion_orden = direcciones_orden[direccion]
-            query_base += (
-                f" ORDER BY {columna_orden} {direccion_orden}, c.id_cliente ASC"
-                " LIMIT %s OFFSET %s"
+            clientes = _consultar_clientes_listado(
+                cursor, filtros, orden, direccion,
+                limite=None if formato == "excel" else limite,
+                offset=offset,
             )
-            parametros.append(limite)
-            parametros.append(offset)
 
-            cursor.execute(query_base, tuple(parametros))
-            clientes = cursor.fetchall()
-
-            # Bloque de resolución secundaria: Concatenar nombres de áreas para cada fila
-            for cliente in clientes:
-                query_sub_areas = """
-                    SELECT a.nombre_area FROM cliente_area ca
-                    JOIN area a ON ca.id_area = a.id_area
-                    WHERE ca.id_cliente = %s
-                """
-                cursor.execute(query_sub_areas, (cliente['id_cliente'],))
-                areas_filas = cursor.fetchall()
-                nombres = [f['nombre_area'] for f in areas_filas]
-                cliente['areas_nombres'] = " / ".join(nombres) if nombres else "Sin área"
+        if formato == "excel":
+            return _exportar_listado_clientes_excel(clientes), 200
 
         return jsonify({"clientes": clientes}), 200
 

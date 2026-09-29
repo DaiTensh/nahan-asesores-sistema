@@ -59,6 +59,7 @@
         <div class="clientes-header-actions">
           <a href="registrar_clientes.html" class="btn btn-primary">Nuevo Cliente</a>
           <a href="filtrar_clientes.html" class="btn btn-secondary">Filtro Avanzado</a>
+          <button type="button" id="btnExportarClientes" class="btn btn-secondary">Exportar resultados</button>
         </div>
       </section>
 
@@ -76,9 +77,35 @@
           </div>
 
           <div class="form-group">
-            <label class="form-label" for="inputBuscarTexto">Búsqueda rápida</label>
-            <input type="text" id="inputBuscarTexto" class="form-input" placeholder="Nombre o RUT">
+            <label class="form-label" for="inputBuscarTexto">Nombre</label>
+            <input type="search" id="inputBuscarTexto" class="form-input" placeholder="Razón social" maxlength="200">
           </div>
+
+          <div class="form-group">
+            <label class="form-label" for="inputRutFiltro">RUT</label>
+            <input type="search" id="inputRutFiltro" class="form-input" placeholder="RUT completo o parcial" maxlength="20">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="selectEstadoFiltro">Estado</label>
+            <select id="selectEstadoFiltro" class="form-input">
+              <option value="">Todos los estados</option>
+              <option value="ACTIVO">Activo</option>
+              <option value="INACTIVO">Inactivo</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="selectResponsableFiltro">Responsable</label>
+            <select id="selectResponsableFiltro" class="form-input">
+              <option value="">Todos los responsables</option>
+            </select>
+            <small>Clientes con tareas asignadas a esta persona.</small>
+          </div>
+        </div>
+        <div class="clientes-filter-actions">
+          <button type="button" id="btnLimpiarFiltros" class="btn btn-secondary">Limpiar filtros</button>
+          <p id="indicadorFiltrosActivos" class="filtros-activos" aria-live="polite">Sin filtros activos.</p>
         </div>
       </section>
 
@@ -95,6 +122,7 @@
                 </button>
               </th>
               <th scope="col">Área Asociada</th>
+              <th scope="col">Responsables</th>
               <th scope="col" aria-sort="none">
                 <button type="button" class="sort-header" data-sort="estado">
                   Estado <span class="sort-indicator" aria-hidden="true"></span>
@@ -109,7 +137,7 @@
             </tr>
           </thead>
           <tbody id="tablaClientesGeneralCuerpo">
-            <tr><td colspan="6" class="text-loading">Cargando clientes...</td></tr>
+            <tr><td colspan="7" class="text-loading">Cargando clientes...</td></tr>
           </tbody>
         </table>
 
