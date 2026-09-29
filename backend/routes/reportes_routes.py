@@ -457,6 +457,127 @@ def reporte_productividad_por_usuario():
             conexion.close()
 
 
+def _resumen_actividad_por_area(cursor, fecha_inicio, fecha_fin):
+    """Resume clientes asignados y usuarios activos creados en el período,
+    junto con las tareas creadas, por cada área registrada."""
+    cursor.execute("SELECT id_area, nombre_area FROM area ORDER BY nombre_area")
+    areas = cursor.fetchall()
+    if not areas:
+        return []
+
+    cursor.execute(
+        "SELECT id_area, COUNT(DISTINCT id_cliente) AS total "
+        "FROM cliente_area "
+        "WHERE fecha_asignacion >= %s "
+        "AND fecha_asignacion < DATE_ADD(%s, INTERVAL 1 DAY) GROUP BY id_area",
+        (fecha_inicio, fecha_fin),
+    )
+    clientes_por_area = {fila["id_area"]: fila["total"] for fila in cursor.fetchall()}
+
+    cursor.execute(
+        """
+        SELECT id_area, COUNT(*) AS total
+        FROM tarea
+        WHERE fecha_creacion >= %s
+          AND fecha_creacion < DATE_ADD(%s, INTERVAL 1 DAY)
+        GROUP BY id_area
+        """,
+        (fecha_inicio, fecha_fin),
+    )
+    tareas_por_area = {fila["id_area"]: fila["total"] for fila in cursor.fetchall()}
+
+    cursor.execute(
+        "SELECT id_area, COUNT(*) AS total FROM usuario "
+        "WHERE estado = 'ACTIVO' AND fecha_creacion >= %s "
+        "AND fecha_creacion < DATE_ADD(%s, INTERVAL 1 DAY) GROUP BY id_area",
+        (fecha_inicio, fecha_fin),
+    )
+    usuarios_por_area = {fila["id_area"]: fila["total"] for fila in cursor.fetchall()}
+
+    return [
+        {
+            "id_area": area["id_area"],
+            "nombre_area": area["nombre_area"],
+            "clientes": clientes_por_area.get(area["id_area"], 0),
+            "tareas": tareas_por_area.get(area["id_area"], 0),
+            "usuarios": usuarios_por_area.get(area["id_area"], 0),
+        }
+        for area in areas
+    ]
+
+
+def _comparacion_areas(areas):
+    """Compara JURIDICA y CONTABLE cuando ambas están configuradas."""
+    por_nombre = {area["nombre_area"].strip().upper(): area for area in areas}
+    juridica = por_nombre.get("JURIDICA")
+    contable = por_nombre.get("CONTABLE")
+    if not juridica or not contable:
+        return {"disponible": False}
+
+    metricas = ("clientes", "tareas", "usuarios")
+    return {
+        "disponible": True,
+        "juridica": juridica,
+        "contable": contable,
+        "diferencias": {
+            metrica: juridica[metrica] - contable[metrica]
+            for metrica in metricas
+        },
+    }
+
+
+@reportes_blueprint.route('/reportes/actividad-por-area', methods=['GET'])
+@roles_required(ROL_ADMINISTRADOR)
+def reporte_actividad_por_area():
+    """RF33 — Reportando por área de trabajo.
+
+    Cuenta clientes asignados por fecha_asignacion, tareas por fecha_creacion
+    y usuarios activos por fecha_creacion, dentro del período elegido.
+    """
+    conexion = None
+    try:
+        fecha_inicio, fecha_fin, error = _validar_periodo(request.args)
+        if error:
+            return jsonify({"error": error}), 400
+        periodo_etiqueta, error = _etiqueta_periodo(request.args)
+        if error:
+            return jsonify({"error": error}), 400
+
+        conexion = get_connection()
+        if conexion is None:
+            return jsonify({"error": "Fallo de conexión con MySQL."}), 500
+
+        with conexion.cursor(dictionary=True) as cursor:
+            areas = _resumen_actividad_por_area(cursor, fecha_inicio, fecha_fin)
+            usuario_actual = obtener_usuario_actual()
+            parametros = _parametros_con_etiqueta(
+                {"fecha_inicio": fecha_inicio, "fecha_fin": fecha_fin},
+                periodo_etiqueta,
+            )
+            generacion = _registrar_generacion(
+                cursor, usuario_actual["id_usuario"], "ACTIVIDAD_POR_AREA", parametros
+            )
+            conexion.commit()
+
+        return jsonify({
+            "periodo": _periodo_respuesta(fecha_inicio, fecha_fin, periodo_etiqueta),
+            "areas": areas,
+            "comparacion": _comparacion_areas(areas),
+            "id_reporte": generacion["id_reporte"],
+            "fecha_generacion": generacion["fecha_generacion"],
+        }), 200
+
+    except Exception:
+        if conexion:
+            conexion.rollback()
+        logger.exception("Error al generar reporte de actividad por área")
+        return jsonify({"error": "Ocurrió un error al generar el reporte."}), 500
+
+    finally:
+        if conexion:
+            conexion.close()
+
+
 @reportes_blueprint.route('/reportes/tareas-por-responsable', methods=['GET'])
 @roles_required(ROL_ADMINISTRADOR)
 def reporte_tareas_por_responsable():
@@ -742,6 +863,19 @@ def _datos_para_exportar(cursor, tipo_reporte, parametros):
         nombre = f"reporte_productividad_area_{id_area or 'todas'}_{fecha_inicio}_a_{fecha_fin}.xlsx"
         return nombre, encabezados, filas
 
+    if tipo_reporte == "ACTIVIDAD_POR_AREA":
+        areas = _resumen_actividad_por_area(cursor, fecha_inicio, fecha_fin)
+        encabezados = [
+            "Área", "Clientes asignados en el período", "Tareas del período",
+            "Usuarios activos creados en el período",
+        ]
+        filas = [
+            [area["nombre_area"], area["clientes"], area["tareas"], area["usuarios"]]
+            for area in areas
+        ]
+        nombre = f"reporte_actividad_por_area_{fecha_inicio}_a_{fecha_fin}.xlsx"
+        return nombre, encabezados, filas
+
     if tipo_reporte == "HISTORIAL_CONSOLIDADO":
         eventos, _, _, _ = _consultar_historial_consolidado(cursor, parametros)
 
@@ -783,6 +917,8 @@ def _filtros_para_exportar(cursor, tipo_reporte, parametros):
             entidad = cursor.fetchone()
             area = entidad["nombre_area"] if entidad else str(parametros.get("id_area"))
         filtros.append(("Área", area))
+    elif tipo_reporte == "ACTIVIDAD_POR_AREA":
+        filtros.append(("Áreas", "Todas las áreas registradas"))
     elif tipo_reporte == "HISTORIAL_CONSOLIDADO":
         filtros.append(("Módulo", parametros.get("modulo") or "Todos los módulos"))
         usuario = "Todos los usuarios"
@@ -841,6 +977,7 @@ def exportar_reporte_excel(id_reporte, formato="excel"):
             "TAREAS_POR_CLIENTE": "Tareas por cliente",
             "TAREAS_POR_RESPONSABLE": "Tareas por usuario responsable",
             "PRODUCTIVIDAD_POR_USUARIO": "Productividad por usuario",
+            "ACTIVIDAD_POR_AREA": "Actividad por área de trabajo",
             "HISTORIAL_CONSOLIDADO": "Historial consolidado de actividades",
         }.get(reporte["tipo_reporte"], "Reporte")
         fecha_exportacion = f"{datetime.now():%d-%m-%Y %H:%M}"

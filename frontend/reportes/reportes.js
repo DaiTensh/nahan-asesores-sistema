@@ -19,6 +19,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const selectResponsable = document.getElementById("selectResponsable");
   const inputFechaInicio = document.getElementById("inputFechaInicio");
   const inputFechaFin = document.getElementById("inputFechaFin");
+  const resultadoDetalle = document.getElementById("resultadoDetalle");
+  const resultadoAreas = document.getElementById("resultadoAreas");
+  const tablaAreas = document.getElementById("tablaAreas");
+  const tablaComparacionAreas = document.getElementById("tablaComparacionAreas");
+  const distribucionTareas = document.getElementById("distribucionTareas");
   document.getElementById("atajoPeriodo").addEventListener("change", event => {
     if (!event.target.value) return;
     const fin = new Date();
@@ -50,11 +55,16 @@ document.addEventListener("DOMContentLoaded", () => {
   cargarClientes();
   cargarResponsables();
 
-  selectTipoReporte.addEventListener("change", () => {
+  function actualizarCriterios() {
+    const esPorCliente = selectTipoReporte.value === "cliente";
     const esPorResponsable = selectTipoReporte.value === "responsable";
-    grupoCliente.hidden = esPorResponsable;
+    grupoCliente.hidden = !esPorCliente;
     grupoResponsable.hidden = !esPorResponsable;
-  });
+    selectCliente.required = esPorCliente;
+    selectResponsable.required = esPorResponsable;
+  }
+  selectTipoReporte.addEventListener("change", actualizarCriterios);
+  actualizarCriterios();
 
   async function cargarResponsables() {
     try {
@@ -127,14 +137,17 @@ document.addEventListener("DOMContentLoaded", () => {
     mostrarMensaje("");
     resultado.hidden = true;
 
+    const esPorArea = selectTipoReporte.value === "area";
     const esPorResponsable = selectTipoReporte.value === "responsable";
     const fechaInicio = inputFechaInicio.value;
     const fechaFin = inputFechaFin.value;
     const idEntidad = esPorResponsable ? selectResponsable.value : selectCliente.value;
 
-    if (!idEntidad || !fechaInicio || !fechaFin) {
+    if ((!esPorArea && !idEntidad) || !fechaInicio || !fechaFin) {
       mostrarMensaje(
-        `Seleccione ${esPorResponsable ? "un usuario responsable" : "un cliente"} y un período completo.`,
+        esPorArea
+          ? "Seleccione un período completo."
+          : `Seleccione ${esPorResponsable ? "un usuario responsable" : "un cliente"} y un período completo.`,
         "error"
       );
       return;
@@ -146,13 +159,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     try {
-      const endpoint = esPorResponsable ? "tareas-por-responsable" : "tareas-por-cliente";
-      const nombreParametro = esPorResponsable ? "id_responsable" : "id_cliente";
-      const params = new URLSearchParams({
-        [nombreParametro]: idEntidad,
-        fecha_inicio: fechaInicio,
-        fecha_fin: fechaFin
-      });
+      const endpoint = esPorArea
+        ? "actividad-por-area"
+        : esPorResponsable ? "tareas-por-responsable" : "tareas-por-cliente";
+      const params = new URLSearchParams({ fecha_inicio: fechaInicio, fecha_fin: fechaFin });
+      if (!esPorArea) {
+        params.set(esPorResponsable ? "id_responsable" : "id_cliente", idEntidad);
+      }
       const atajo = document.getElementById("atajoPeriodo").value;
       if (atajo) params.set("periodo_etiqueta", atajo);
 
@@ -171,7 +184,8 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      renderizarResultado(data, esPorResponsable);
+      if (esPorArea) renderizarResultadoAreas(data);
+      else renderizarResultado(data, esPorResponsable);
     } catch (error) {
       console.error(error);
       mostrarMensaje("Error al conectar con el servidor.", "error");
@@ -179,6 +193,9 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   function renderizarResultado(data, esPorResponsable) {
+    resultadoDetalle.hidden = false;
+    resultadoAreas.hidden = true;
+    resultadoEntidad.parentElement.hidden = false;
     const entidad = esPorResponsable ? data.responsable : data.cliente;
     const detalleEntidad = esPorResponsable ? entidad.email : entidad.rut;
 
@@ -196,6 +213,93 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("btnExportarPdf").hidden = !idReporteActual;
 
     resultado.hidden = false;
+  }
+
+  function renderizarResultadoAreas(data) {
+    resultadoDetalle.hidden = true;
+    resultadoAreas.hidden = false;
+    resultadoEntidad.parentElement.hidden = true;
+    resultadoPeriodo.textContent = `${formatearFecha(data.periodo.fecha_inicio)} — ${formatearFecha(data.periodo.fecha_fin)}`
+      + (data.periodo.etiqueta ? ` (${data.periodo.etiqueta})` : "");
+    resultadoFechaGeneracion.textContent = data.fecha_generacion || "-";
+    idReporteActual = data.id_reporte || null;
+    btnExportarExcel.hidden = !idReporteActual;
+    document.getElementById("btnExportarPdf").hidden = !idReporteActual;
+
+    renderizarResumenAreas(data.areas || []);
+    renderizarComparacionAreas(data.comparacion || {});
+    renderizarDistribucionTareas(data.areas || []);
+    resultado.hidden = false;
+  }
+
+  function renderizarResumenAreas(areas) {
+    tablaAreas.textContent = "";
+    areas.forEach(area => {
+      const fila = document.createElement("tr");
+      [area.nombre_area, area.clientes, area.tareas, area.usuarios].forEach(valor => {
+        const celda = document.createElement("td");
+        celda.textContent = valor;
+        fila.appendChild(celda);
+      });
+      tablaAreas.appendChild(fila);
+    });
+  }
+
+  function renderizarComparacionAreas(comparacion) {
+    tablaComparacionAreas.textContent = "";
+    const mensajeComparacion = document.getElementById("mensajeComparacionAreas");
+    const tabla = document.getElementById("comparacionAreas");
+    tabla.hidden = !comparacion.disponible;
+    mensajeComparacion.hidden = comparacion.disponible;
+    if (!comparacion.disponible) {
+      mensajeComparacion.textContent = "La comparación requiere que estén configuradas las áreas jurídica y contable.";
+      return;
+    }
+
+    const metricas = [
+      ["Clientes asignados", "clientes"],
+      ["Tareas del período", "tareas"],
+      ["Usuarios activos creados", "usuarios"]
+    ];
+    metricas.forEach(([etiqueta, clave]) => {
+      const fila = document.createElement("tr");
+      const diferencia = comparacion.diferencias[clave];
+      [etiqueta, comparacion.juridica[clave], comparacion.contable[clave], diferencia > 0 ? `+${diferencia}` : diferencia]
+        .forEach(valor => {
+          const celda = document.createElement("td");
+          celda.textContent = valor;
+          fila.appendChild(celda);
+        });
+      tablaComparacionAreas.appendChild(fila);
+    });
+  }
+
+  function renderizarDistribucionTareas(areas) {
+    distribucionTareas.textContent = "";
+    const total = areas.reduce((acumulado, area) => acumulado + area.tareas, 0);
+    areas.forEach(area => {
+      const porcentaje = total ? Math.round(area.tareas / total * 100) : 0;
+      const fila = document.createElement("div");
+      fila.className = "area-bar-row";
+
+      const etiqueta = document.createElement("div");
+      etiqueta.className = "area-bar-label";
+      etiqueta.textContent = `${area.nombre_area}: ${area.tareas} (${porcentaje}%)`;
+
+      const pista = document.createElement("div");
+      pista.className = "area-bar-track";
+      const barra = document.createElement("div");
+      barra.className = "area-bar-fill";
+      barra.setAttribute("role", "progressbar");
+      barra.setAttribute("aria-label", `Tareas de ${area.nombre_area}`);
+      barra.setAttribute("aria-valuemin", "0");
+      barra.setAttribute("aria-valuemax", "100");
+      barra.setAttribute("aria-valuenow", String(porcentaje));
+      barra.style.width = `${porcentaje}%`;
+      pista.appendChild(barra);
+      fila.append(etiqueta, pista);
+      distribucionTareas.appendChild(fila);
+    });
   }
 
   async function exportar(formato) {
