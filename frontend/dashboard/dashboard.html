@@ -87,6 +87,101 @@
       </section>
 
       <section class="dashboard-section">
+        <h2>Tareas pendientes</h2>
+
+        <div class="dashboard-cards">
+          <div class="dashboard-card">
+            <p>Total pendientes</p>
+            <h2 id="totalTareasPendientes">0</h2>
+          </div>
+
+          <div class="dashboard-card">
+            <p>Comparación</p>
+            <h2 id="diferenciaPendientes">N/A</h2>
+          </div>
+        </div>
+
+        <div class="dashboard-cards" style="margin-top: 1rem;">
+          <div class="dashboard-card" style="flex: 1; min-width: 180px;">
+            <p>Por área</p>
+            <ul id="tareasPendientesPorArea" class="dashboard-list"></ul>
+          </div>
+
+          <div class="dashboard-card" style="flex: 1; min-width: 180px;">
+            <p>Por cliente</p>
+            <ul id="tareasPendientesPorCliente" class="dashboard-list"></ul>
+          </div>
+
+          <div class="dashboard-card" style="flex: 1; min-width: 180px;">
+            <p>Por responsable</p>
+            <ul id="tareasPendientesPorResponsable" class="dashboard-list"></ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="dashboard-section">
+        <h2>Tareas finalizadas</h2>
+
+        <div class="dashboard-cards">
+          <div class="dashboard-card">
+            <p>Total finalizadas</p>
+            <h2 id="totalTareasFinalizadas">0</h2>
+          </div>
+
+          <div class="dashboard-card">
+            <p>Total asignadas</p>
+            <h2 id="totalTareasAsignadas">0</h2>
+          </div>
+
+          <div class="dashboard-card">
+            <p>Cumplimiento</p>
+            <h2 id="cumplimientoTareasFinalizadas">0.0%</h2>
+          </div>
+
+          <div class="dashboard-card">
+            <p>Comparación</p>
+            <h2 id="diferenciaFinalizadas">N/A</h2>
+          </div>
+        </div>
+
+        <div class="dashboard-cards" style="margin-top: 1rem;">
+          <div class="dashboard-card" style="flex: 1; min-width: 180px;">
+            <p>Por área</p>
+            <ul id="tareasFinalizadasPorArea" class="dashboard-list"></ul>
+          </div>
+
+          <div class="dashboard-card" style="flex: 1; min-width: 180px;">
+            <p>Por cliente</p>
+            <ul id="tareasFinalizadasPorCliente" class="dashboard-list"></ul>
+          </div>
+
+          <div class="dashboard-card" style="flex: 1; min-width: 180px;">
+            <p>Por responsable</p>
+            <ul id="tareasFinalizadasPorUsuario" class="dashboard-list"></ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="dashboard-section">
+        <h2>Distribución por área</h2>
+        <div class="dashboard-area-totals">
+          <p>Clientes únicos asociados: <strong id="totalClientesDistribucionArea">0</strong></p>
+          <p>Asignaciones cliente-área: <strong id="totalRelacionesClientesArea">0</strong></p>
+          <p>Tareas: <strong id="totalTareasDistribucionArea">0</strong></p>
+        </div>
+        <div class="dashboard-area-distributions">
+          <section class="dashboard-area-panel" aria-labelledby="tituloDistribucionClientesArea">
+            <h3 id="tituloDistribucionClientesArea">Clientes por área</h3>
+            <div id="distribucionClientesPorArea" class="dashboard-area-chart"></div>
+          </section>
+          <section class="dashboard-area-panel" aria-labelledby="tituloDistribucionTareasArea">
+            <h3 id="tituloDistribucionTareasArea">Tareas por área</h3>
+            <div id="distribucionTareasPorArea" class="dashboard-area-chart"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="dashboard-section">
         <h2>Usuarios registrados</h2>
 
         <table class="dashboard-table">
