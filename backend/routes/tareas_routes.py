@@ -93,6 +93,27 @@ def _puede_operar_tarea(usuario, id_responsable):
         usuario["nombre_rol"] == ROL_ADMINISTRADOR
         or usuario["id_usuario"] == id_responsable
     )
+def _contar_tareas_finalizadas(cursor, fecha_inicio, fecha_fin, usuario):
+    """Cuenta tareas completadas en el período indicado."""
+    condiciones = [
+        "t.estado = 'COMPLETADA'",
+        "t.fecha_finalizacion >= %s",
+        "t.fecha_finalizacion < DATE_ADD(%s, INTERVAL 1 DAY)",
+    ]
+    parametros = [fecha_inicio, fecha_fin]
+
+    if usuario["nombre_rol"] != ROL_ADMINISTRADOR:
+        condiciones.append("t.id_responsable = %s")
+        parametros.append(usuario["id_usuario"])
+
+    sql = f"""
+        SELECT COUNT(*) AS total
+        FROM tarea t
+        WHERE {' AND '.join(condiciones)}
+    """
+    cursor.execute(sql, tuple(parametros))
+    fila = cursor.fetchone()
+    return int((fila or {}).get("total", 0) or 0)
 
 
 @tareas_bp.route("/tareas", methods=["POST"])
@@ -427,6 +448,145 @@ def resumen_tareas_pendientes_dashboard():
 
     except Exception:
         logger.exception("Error al calcular el resumen de tareas pendientes")
+        return jsonify({"error": "Error interno al calcular el resumen"}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
+@tareas_bp.route("/tareas/finalizadas/resumen", methods=["GET"])
+@login_required
+def resumen_tareas_finalizadas_dashboard():
+    """RF37 — Indicadores de tareas finalizadas."""
+    connection = None
+    cursor = None
+    usuario = obtener_usuario_actual()
+
+    fecha_inicio, fecha_fin, error = _validar_rango_tareas(request.args)
+    if error:
+        return jsonify({"error": error}), 400
+
+    if fecha_inicio is None and fecha_fin is None:
+        hoy = datetime.today().date()
+        fecha_inicio = datetime(hoy.year, hoy.month, 1).date().isoformat()
+        fecha_fin = datetime(hoy.year, hoy.month, calendar.monthrange(hoy.year, hoy.month)[1]).date().isoformat()
+
+    try:
+        connection = get_connection()
+        cursor = connection.cursor(dictionary=True)
+
+        condiciones_finalizadas = [
+            "t.estado = 'COMPLETADA'",
+            "t.fecha_finalizacion >= %s",
+            "t.fecha_finalizacion < DATE_ADD(%s, INTERVAL 1 DAY)",
+        ]
+        parametros_finalizadas = [fecha_inicio, fecha_fin]
+
+        if usuario["nombre_rol"] != ROL_ADMINISTRADOR:
+            condiciones_finalizadas.append("t.id_responsable = %s")
+            parametros_finalizadas.append(usuario["id_usuario"])
+
+        where_finalizadas = " WHERE " + " AND ".join(condiciones_finalizadas)
+
+        total_finalizadas_sql = f"SELECT COUNT(*) AS total FROM tarea t{where_finalizadas}"
+        cursor.execute(total_finalizadas_sql, tuple(parametros_finalizadas))
+        total_finalizadas = int((cursor.fetchone() or {}).get("total", 0) or 0)
+
+        condiciones_asignadas = [
+            "t.fecha_creacion >= %s",
+            "t.fecha_creacion < DATE_ADD(%s, INTERVAL 1 DAY)",
+        ]
+        parametros_asignadas = [fecha_inicio, fecha_fin]
+
+        if usuario["nombre_rol"] != ROL_ADMINISTRADOR:
+            condiciones_asignadas.append("t.id_responsable = %s")
+            parametros_asignadas.append(usuario["id_usuario"])
+
+        total_asignadas_sql = f"""
+            SELECT COUNT(*) AS total
+            FROM tarea t
+            WHERE {' AND '.join(condiciones_asignadas)}
+        """
+        cursor.execute(total_asignadas_sql, tuple(parametros_asignadas))
+        total_asignadas = int((cursor.fetchone() or {}).get("total", 0) or 0)
+
+        porcentaje_cumplimiento = round((total_finalizadas * 100.0) / total_asignadas, 1) if total_asignadas else 0.0
+
+        area_sql = f"""
+            SELECT a.id_area, a.nombre_area AS nombre_area, COUNT(*) AS total
+            FROM tarea t
+            INNER JOIN area a ON t.id_area = a.id_area
+            {where_finalizadas}
+            GROUP BY a.id_area, a.nombre_area
+            ORDER BY total DESC, a.nombre_area ASC
+        """
+        cursor.execute(area_sql, tuple(parametros_finalizadas))
+        por_area = [
+            {"area": fila.get("nombre_area") or fila.get("area"), "total": int(fila["total"])}
+            for fila in cursor.fetchall()
+        ]
+
+        cliente_sql = f"""
+            SELECT c.id_cliente, c.razon_social AS razon_social, COUNT(*) AS total
+            FROM tarea t
+            INNER JOIN cliente c ON t.id_cliente = c.id_cliente
+            {where_finalizadas}
+            GROUP BY c.id_cliente, c.razon_social
+            ORDER BY total DESC, c.razon_social ASC
+        """
+        cursor.execute(cliente_sql, tuple(parametros_finalizadas))
+        por_cliente = [
+            {
+                "id_cliente": fila["id_cliente"],
+                "cliente": fila.get("razon_social") or fila.get("cliente"),
+                "total": int(fila["total"]),
+            }
+            for fila in cursor.fetchall()
+        ]
+
+        responsable_sql = f"""
+            SELECT u.id_usuario AS id_usuario, u.nombres AS nombres, COUNT(*) AS total
+            FROM tarea t
+            INNER JOIN usuario u ON t.id_responsable = u.id_usuario
+            {where_finalizadas}
+            GROUP BY u.id_usuario, u.nombres
+            ORDER BY total DESC, u.nombres ASC
+        """
+        cursor.execute(responsable_sql, tuple(parametros_finalizadas))
+        por_usuario = [
+            {
+                "id_usuario": fila.get("id_usuario"),
+                "usuario": fila.get("nombres") or fila.get("usuario"),
+                "total": int(fila["total"]),
+            }
+            for fila in cursor.fetchall()
+        ]
+
+        inicio_periodo, fin_periodo = _rango_periodo_anterior(fecha_inicio, fecha_fin)
+        total_anterior = _contar_tareas_finalizadas(cursor, inicio_periodo, fin_periodo, usuario)
+        diferencia = total_finalizadas - total_anterior
+        comparacion = {
+            "disponible": total_finalizadas > 0 or total_anterior > 0,
+            "periodo_actual": {"fecha_inicio": fecha_inicio, "fecha_fin": fecha_fin},
+            "periodo_anterior": {"fecha_inicio": inicio_periodo, "fecha_fin": fin_periodo},
+            "diferencia": diferencia,
+        }
+
+        return jsonify({
+            "total_finalizadas": total_finalizadas,
+            "total_asignadas": total_asignadas,
+            "porcentaje_cumplimiento": porcentaje_cumplimiento,
+            "por_area": por_area,
+            "por_cliente": por_cliente,
+            "por_usuario": por_usuario,
+            "comparacion": comparacion,
+        }), 200
+
+    except Exception:
+        logger.exception("Error al calcular el resumen de tareas finalizadas")
         return jsonify({"error": "Error interno al calcular el resumen"}), 500
 
     finally:

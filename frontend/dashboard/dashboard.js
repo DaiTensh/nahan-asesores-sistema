@@ -32,6 +32,7 @@ document.addEventListener("DOMContentLoaded", () => {
   cargarTareasPorVencer(inputDias.value);
   inputDias.addEventListener("change", () => cargarTareasPorVencer(inputDias.value));
   cargarResumenTareasPendientes();
+  cargarResumenTareasFinalizadas();
 });
 
 function formatearRol(rol) {
@@ -411,6 +412,39 @@ async function cargarResumenTareas() {
     document.getElementById("resumenEnRevision").textContent = resumen.EN_REVISION ?? 0;
     document.getElementById("resumenCompletada").textContent = resumen.COMPLETADA ?? 0;
     document.getElementById("resumenCancelada").textContent = resumen.CANCELADA ?? 0;
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+async function cargarResumenTareasFinalizadas() {
+  try {
+    const response = await fetch(`${API_URL}/tareas/finalizadas/resumen`, {
+      credentials: window.API_CONFIG.credentials
+    });
+    const data = await leerRespuestaJson(response);
+
+    if (!response.ok) {
+      console.error(data.error || "Error al cargar tareas finalizadas");
+      return;
+    }
+
+    document.getElementById("totalTareasFinalizadas").textContent = data.total_finalizadas ?? 0;
+    document.getElementById("totalTareasAsignadas").textContent = data.total_asignadas ?? 0;
+    const porcentaje = Number(data.porcentaje_cumplimiento ?? 0);
+    document.getElementById("cumplimientoTareasFinalizadas").textContent = `${porcentaje.toFixed(1)}%`;
+
+    const diferenciaElemento = document.getElementById("diferenciaFinalizadas");
+    if (data.comparacion && data.comparacion.disponible) {
+      const diferencia = Number(data.comparacion.diferencia || 0);
+      diferenciaElemento.textContent = `${diferencia > 0 ? "+" : ""}${diferencia}`;
+    } else {
+      diferenciaElemento.textContent = "N/A";
+    }
+
+    renderizarListaResumen("tareasFinalizadasPorArea", data.por_area || [], "area", "total");
+    renderizarListaResumen("tareasFinalizadasPorCliente", data.por_cliente || [], "cliente", "total");
+    renderizarListaResumen("tareasFinalizadasPorUsuario", data.por_usuario || [], "usuario", "total");
   } catch (error) {
     console.error(error);
   }
