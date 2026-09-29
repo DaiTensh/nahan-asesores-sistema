@@ -31,6 +31,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const inputDias = document.getElementById("inputDiasPorVencer");
   cargarTareasPorVencer(inputDias.value);
   inputDias.addEventListener("change", () => cargarTareasPorVencer(inputDias.value));
+  cargarResumenTareasPendientes();
 });
 
 function formatearRol(rol) {
@@ -225,6 +226,36 @@ async function cargarTareasVencidas() {
   }
 }
 
+async function cargarResumenTareasPendientes() {
+  try {
+    const response = await fetch(`${API_URL}/tareas/pendientes/resumen`, {
+      credentials: window.API_CONFIG.credentials
+    });
+    const data = await leerRespuestaJson(response);
+
+    if (!response.ok) {
+      console.error(data.error || "Error al cargar tareas pendientes");
+      return;
+    }
+
+    document.getElementById("totalTareasPendientes").textContent = data.total_pendientes ?? 0;
+
+    const diferenciaElemento = document.getElementById("diferenciaPendientes");
+    if (data.comparacion && data.comparacion.disponible) {
+      const diferencia = Number(data.comparacion.diferencia || 0);
+      diferenciaElemento.textContent = `${diferencia > 0 ? "+" : ""}${diferencia}`;
+    } else {
+      diferenciaElemento.textContent = "N/A";
+    }
+
+    renderizarListaResumen("tareasPendientesPorArea", data.por_area || [], "area", "total");
+    renderizarListaResumen("tareasPendientesPorCliente", data.por_cliente || [], "cliente", "total");
+    renderizarListaResumen("tareasPendientesPorResponsable", data.por_responsable || [], "responsable", "total");
+  } catch (error) {
+    console.error(error);
+  }
+}
+
 function cargarTablaTareasVencidas(tareas) {
   const tabla = document.getElementById("tablaTareasVencidas");
   tabla.innerHTML = "";
@@ -383,6 +414,24 @@ async function cargarResumenTareas() {
   } catch (error) {
     console.error(error);
   }
+}
+
+function renderizarListaResumen(idLista, elementos, etiquetaClave, etiquetaValor) {
+  const lista = document.getElementById(idLista);
+  lista.innerHTML = "";
+
+  if (!elementos.length) {
+    const item = document.createElement("li");
+    item.textContent = "Sin tareas pendientes.";
+    lista.appendChild(item);
+    return;
+  }
+
+  elementos.forEach(elemento => {
+    const item = document.createElement("li");
+    item.textContent = `${elemento[etiquetaClave]}: ${elemento[etiquetaValor]}`;
+    lista.appendChild(item);
+  });
 }
 
 async function leerRespuestaJson(response) {

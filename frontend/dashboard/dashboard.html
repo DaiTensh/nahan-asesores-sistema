@@ -87,6 +87,39 @@
       </section>
 
       <section class="dashboard-section">
+        <h2>Tareas pendientes</h2>
+
+        <div class="dashboard-cards">
+          <div class="dashboard-card">
+            <p>Total pendientes</p>
+            <h2 id="totalTareasPendientes">0</h2>
+          </div>
+
+          <div class="dashboard-card">
+            <p>Comparación</p>
+            <h2 id="diferenciaPendientes">N/A</h2>
+          </div>
+        </div>
+
+        <div class="dashboard-cards" style="margin-top: 1rem;">
+          <div class="dashboard-card" style="flex: 1; min-width: 180px;">
+            <p>Por área</p>
+            <ul id="tareasPendientesPorArea" class="dashboard-list"></ul>
+          </div>
+
+          <div class="dashboard-card" style="flex: 1; min-width: 180px;">
+            <p>Por cliente</p>
+            <ul id="tareasPendientesPorCliente" class="dashboard-list"></ul>
+          </div>
+
+          <div class="dashboard-card" style="flex: 1; min-width: 180px;">
+            <p>Por responsable</p>
+            <ul id="tareasPendientesPorResponsable" class="dashboard-list"></ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="dashboard-section">
         <h2>Usuarios registrados</h2>
 
         <table class="dashboard-table">

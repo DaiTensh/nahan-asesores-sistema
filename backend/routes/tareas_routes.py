@@ -1,5 +1,6 @@
+import calendar
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import Blueprint, request, jsonify
 from backend.config.db import get_connection
@@ -12,6 +13,71 @@ logger = logging.getLogger(__name__)
 
 ESTADOS_FINALES = {"COMPLETADA", "CANCELADA"}
 ESTADOS_VALIDOS = ["PENDIENTE", "EN_PROCESO", "EN_REVISION", "COMPLETADA", "CANCELADA"]
+ESTADOS_PENDIENTE = ("PENDIENTE", "EN_PROCESO", "EN_REVISION")
+
+
+def _validar_rango_tareas(args):
+    """Valida un rango opcional de fechas para RF36."""
+    fecha_inicio = (args.get("fecha_inicio") or "").strip()
+    fecha_fin = (args.get("fecha_fin") or "").strip()
+
+    if not fecha_inicio and not fecha_fin:
+        return None, None, None
+
+    if not fecha_inicio or not fecha_fin:
+        return None, None, "Debe indicar fecha_inicio y fecha_fin (formato AAAA-MM-DD)."
+
+    try:
+        fecha_inicio_dt = datetime.strptime(fecha_inicio, "%Y-%m-%d").date()
+        fecha_fin_dt = datetime.strptime(fecha_fin, "%Y-%m-%d").date()
+    except ValueError:
+        return None, None, "Las fechas deben tener el formato AAAA-MM-DD."
+
+    if fecha_inicio_dt > fecha_fin_dt:
+        return None, None, "fecha_inicio no puede ser posterior a fecha_fin."
+
+    return fecha_inicio_dt.isoformat(), fecha_fin_dt.isoformat(), None
+
+
+def _rango_periodo_anterior(fecha_inicio, fecha_fin):
+    """Devuelve el período inmediatamente anterior de la misma longitud."""
+    inicio = datetime.strptime(fecha_inicio, "%Y-%m-%d").date()
+    fin = datetime.strptime(fecha_fin, "%Y-%m-%d").date()
+
+    if inicio.day == 1 and fin.day == calendar.monthrange(fin.year, fin.month)[1]:
+        mes = inicio.month - 1 if inicio.month > 1 else 12
+        anio = inicio.year if inicio.month > 1 else inicio.year - 1
+        ultimo_dia_anterior = calendar.monthrange(anio, mes)[1]
+        inicio_anterior = datetime(anio, mes, 1).date()
+        fin_anterior = datetime(anio, mes, ultimo_dia_anterior).date()
+        return inicio_anterior.isoformat(), fin_anterior.isoformat()
+
+    duracion = (fin - inicio).days + 1
+    inicio_anterior = inicio - timedelta(days=duracion)
+    fin_anterior = inicio - timedelta(days=1)
+    return inicio_anterior.isoformat(), fin_anterior.isoformat()
+
+
+def _contar_tareas_pendientes(cursor, fecha_inicio, fecha_fin, usuario):
+    condiciones = [
+        "t.estado IN ('PENDIENTE', 'EN_PROCESO', 'EN_REVISION')",
+        "t.fecha_creacion >= %s",
+        "t.fecha_creacion < DATE_ADD(%s, INTERVAL 1 DAY)",
+    ]
+    parametros = [fecha_inicio, fecha_fin]
+
+    if usuario["nombre_rol"] != ROL_ADMINISTRADOR:
+        condiciones.append("t.id_responsable = %s")
+        parametros.append(usuario["id_usuario"])
+
+    sql = f"""
+        SELECT COUNT(*) AS total
+        FROM tarea t
+        WHERE {' AND '.join(condiciones)}
+    """
+    cursor.execute(sql, tuple(parametros))
+    fila = cursor.fetchone()
+    return int((fila or {}).get("total", 0) or 0)
 
 
 def _url_detalle_tarea(id_tarea):
@@ -236,6 +302,132 @@ def listar_tareas_pendientes():
             connection.rollback()
         logger.exception("Error al listar tareas pendientes")
         return jsonify({"error": "Error interno al listar tareas"}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
+@tareas_bp.route("/tareas/pendientes/resumen", methods=["GET"])
+@login_required
+def resumen_tareas_pendientes_dashboard():
+    """RF36 — Indicadores de carga de trabajo en tareas pendientes."""
+    connection = None
+    cursor = None
+    usuario = obtener_usuario_actual()
+
+    fecha_inicio, fecha_fin, error = _validar_rango_tareas(request.args)
+    if error:
+        return jsonify({"error": error}), 400
+
+    if fecha_inicio is None and fecha_fin is None:
+        hoy = datetime.today().date()
+        fecha_inicio = datetime(hoy.year, hoy.month, 1).date().isoformat()
+        fecha_fin = datetime(hoy.year, hoy.month, calendar.monthrange(hoy.year, hoy.month)[1]).date().isoformat()
+
+    try:
+        connection = get_connection()
+        cursor = connection.cursor(dictionary=True)
+
+        condiciones = ["t.estado IN ('PENDIENTE', 'EN_PROCESO', 'EN_REVISION')"]
+        parametros = []
+
+        if usuario["nombre_rol"] != ROL_ADMINISTRADOR:
+            condiciones.append("t.id_responsable = %s")
+            parametros.append(usuario["id_usuario"])
+
+        where = " WHERE " + " AND ".join(condiciones)
+        total_sql = f"SELECT COUNT(*) AS total FROM tarea t{where}"
+        cursor.execute(total_sql, tuple(parametros))
+        total_pendientes = int((cursor.fetchone() or {}).get("total", 0) or 0)
+
+        area_sql = f"""
+            SELECT a.id_area, a.nombre_area AS nombre_area, COUNT(*) AS total
+            FROM tarea t
+            INNER JOIN area a ON t.id_area = a.id_area
+            {where}
+            GROUP BY a.id_area, a.nombre_area
+            ORDER BY total DESC, a.nombre_area ASC
+        """
+        cursor.execute(area_sql, tuple(parametros))
+        por_area = [
+            {"area": fila.get("nombre_area") or fila.get("area"), "total": int(fila["total"])}
+            for fila in cursor.fetchall()
+        ]
+
+        cliente_sql = f"""
+            SELECT c.id_cliente, c.razon_social AS razon_social, COUNT(*) AS total
+            FROM tarea t
+            INNER JOIN cliente c ON t.id_cliente = c.id_cliente
+            {where}
+            GROUP BY c.id_cliente, c.razon_social
+            ORDER BY total DESC, c.razon_social ASC
+        """
+        cursor.execute(cliente_sql, tuple(parametros))
+        por_cliente = [
+            {
+                "id_cliente": fila["id_cliente"],
+                "cliente": fila.get("razon_social") or fila.get("cliente"),
+                "total": int(fila["total"]),
+            }
+            for fila in cursor.fetchall()
+        ]
+
+        responsable_sql = f"""
+            SELECT u.id_usuario AS id_responsable, u.nombres AS nombres, COUNT(*) AS total
+            FROM tarea t
+            INNER JOIN usuario u ON t.id_responsable = u.id_usuario
+            {where}
+            GROUP BY u.id_usuario, u.nombres
+            ORDER BY total DESC, u.nombres ASC
+        """
+        cursor.execute(responsable_sql, tuple(parametros))
+        por_responsable = [
+            {
+                "id_responsable": fila.get("id_responsable") or fila.get("id_usuario"),
+                "responsable": fila.get("nombres") or fila.get("responsable"),
+                "total": int(fila["total"]),
+            }
+            for fila in cursor.fetchall()
+        ]
+
+        inicio_periodo, fin_periodo = _rango_periodo_anterior(fecha_inicio, fecha_fin)
+        total_anterior = _contar_tareas_pendientes(cursor, inicio_periodo, fin_periodo, usuario)
+        diferencia = total_pendientes - total_anterior
+        comparacion = {
+            "disponible": total_pendientes > 0 or total_anterior > 0,
+            "periodo_actual": {"fecha_inicio": fecha_inicio, "fecha_fin": fecha_fin},
+            "periodo_anterior": {"fecha_inicio": inicio_periodo, "fecha_fin": fin_periodo},
+            "diferencia": diferencia,
+        }
+
+        if total_pendientes == 0 and not por_area and not por_cliente and not por_responsable:
+            return jsonify({
+                "total_pendientes": 0,
+                "por_area": [],
+                "por_cliente": [],
+                "por_responsable": [],
+                "comparacion": {
+                    "disponible": False,
+                    "periodo_actual": None,
+                    "periodo_anterior": None,
+                    "diferencia": 0,
+                },
+            }), 200
+
+        return jsonify({
+            "total_pendientes": total_pendientes,
+            "por_area": por_area,
+            "por_cliente": por_cliente,
+            "por_responsable": por_responsable,
+            "comparacion": comparacion,
+        }), 200
+
+    except Exception:
+        logger.exception("Error al calcular el resumen de tareas pendientes")
+        return jsonify({"error": "Error interno al calcular el resumen"}), 500
 
     finally:
         if cursor:
