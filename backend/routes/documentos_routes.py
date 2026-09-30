@@ -164,6 +164,15 @@ def subir_documento_tarea(id_tarea):
                 (id_tarea, id_documento)
             )
 
+            registrar_auditoria(
+                cursor, usuario["id_usuario"], "documento", "DOCUMENTO_ADJUNTADO",
+                id_registro=id_documento,
+                datos_nuevos=(
+                    f"id_documento={id_documento}, id_tarea={id_tarea}, "
+                    f"id_cliente={tarea['id_cliente']}, nombre_documento={nombre_original}"
+                ),
+            )
+
             connection.commit()
         except Exception:
             if os.path.exists(ruta_absoluta):
@@ -307,6 +316,16 @@ def registrar_referencia_documento(id_cliente):
             )
         )
         id_documento = cursor.lastrowid
+
+        registrar_auditoria(
+            cursor, usuario["id_usuario"], "documento", "DOCUMENTO_REFERENCIADO",
+            id_registro=id_documento,
+            datos_nuevos=(
+                f"id_documento={id_documento}, id_cliente={id_cliente}, "
+                f"nombre_documento={nombre_documento}, tipo_documento={tipo_documento}"
+            ),
+        )
+
         connection.commit()
 
         return jsonify({

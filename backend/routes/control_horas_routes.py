@@ -2,6 +2,7 @@ import logging
 from decimal import Decimal, InvalidOperation
 from flask import Blueprint, jsonify, request
 from backend.config.db import get_connection
+from backend.utils.auditoria import registrar_auditoria
 from backend.utils.auth import login_required, obtener_usuario_actual
 
 
@@ -424,6 +425,14 @@ def iniciar_temporizador():
             return jsonify({"error": "No se pudo obtener el temporizador iniciado."}), 500
 
         temporizador["activo"] = True
+        registrar_auditoria(
+            cursor, id_usuario, "registro_tiempo", "TEMPORIZADOR_INICIADO",
+            id_registro=id_registro,
+            datos_nuevos=(
+                f"id_registro={id_registro}, id_tarea={tarea['id_tarea']}, "
+                f"id_cliente={tarea['id_cliente']}"
+            ),
+        )
         connection.commit()
 
         return jsonify({
@@ -536,6 +545,15 @@ def detener_temporizador():
         condiciones = ["rt.hora_fin IS NOT NULL", "rt.id_usuario = %s"]
         parametros = [id_usuario]
         resumen = _consultar_resumen(cursor, condiciones, parametros)
+
+        registrar_auditoria(
+            cursor, id_usuario, "registro_tiempo", "TEMPORIZADOR_DETENIDO",
+            id_registro=registro["id_registro"],
+            datos_nuevos=(
+                f"id_registro={registro['id_registro']}, "
+                f"duracion_minutos={registro_final['duracion_minutos']}"
+            ),
+        )
 
         connection.commit()
 

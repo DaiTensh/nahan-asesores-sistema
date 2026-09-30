@@ -304,6 +304,19 @@ def crear_tarea():
             )
 
             cursor.execute(sql, values)
+            id_tarea = cursor.lastrowid
+
+            # RF56 — la creación queda en el historial; RF13 la muestra en la
+            # ficha del cliente porque el evento apunta a la tarea creada.
+            registrar_auditoria(
+                cursor, id_creador, "tarea", "TAREA_CREADA",
+                id_registro=id_tarea,
+                datos_nuevos=(
+                    f"id_tarea={id_tarea}, id_cliente={id_cliente}, id_area={area}, "
+                    f"id_responsable={id_responsable}, titulo={titulo}, "
+                    f"prioridad={prioridad}, estado=PENDIENTE"
+                ),
+            )
 
             # RF52 — la asignación inicial también es una nueva asignación:
             # se avisa al responsable, salvo que se haya asignado a sí mismo.
@@ -312,7 +325,7 @@ def crear_tarea():
                 int(id_responsable),
                 "ASIGNACION_TAREA",
                 f"Se te asignó la nueva tarea \"{titulo}\"",
-                _url_detalle_tarea(cursor.lastrowid),
+                _url_detalle_tarea(id_tarea),
                 id_usuario_actor=id_creador,
             )
 
@@ -1197,6 +1210,15 @@ def actualizar_estado_tarea(id_tarea):
                     id_registro=id_tarea,
                     datos_anteriores=f"id_tarea={id_tarea}, estado={estado_anterior}",
                     datos_nuevos=f"id_tarea={id_tarea}, estado=CANCELADA",
+                )
+            else:
+                # RF56 — los cambios entre estados operativos también quedan
+                # en el historial (RF13: «cambios de estado»).
+                registrar_auditoria(
+                    cursor, usuario["id_usuario"], "tarea", "CAMBIO_ESTADO_TAREA",
+                    id_registro=id_tarea,
+                    datos_anteriores=f"id_tarea={id_tarea}, estado={estado_anterior}",
+                    datos_nuevos=f"id_tarea={id_tarea}, estado={estado}",
                 )
 
         if estado != estado_anterior and estado != "EN_REVISION":

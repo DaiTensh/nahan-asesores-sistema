@@ -13,12 +13,28 @@ from backend.utils.auth import ROL_ADMINISTRADOR, ROLES_OPERATIVOS, obtener_usua
 clientes_blueprint = Blueprint('clientes_blueprint', __name__)
 logger = logging.getLogger(__name__)
 
+def _describir_cliente(razon_social, email, telefono, direccion, areas, rut=None):
+    """Texto de los datos de un cliente para AUDITORIA (RF56, RF13)."""
+    partes = []
+    if rut:
+        partes.append(f"rut={rut}")
+    partes.extend([
+        f"razon_social={razon_social}",
+        f"email={email or '-'}",
+        f"telefono={telefono or '-'}",
+        f"direccion={direccion or '-'}",
+        f"areas={','.join(str(area) for area in areas) or '-'}",
+    ])
+    return ", ".join(partes)
+
+
 @clientes_blueprint.route('/clientes', methods=['POST'])
 @roles_required(*ROLES_OPERATIVOS)
 def registrar_cliente():
     conexion = None
     try:
         datos = request.json
+        id_usuario = obtener_usuario_actual()["id_usuario"]
         
         rut = (datos.get('rut') or '').strip()
         razon_social = (datos.get('razon_social') or '').strip()
@@ -62,7 +78,13 @@ def registrar_cliente():
             fecha_hoy = datetime.now().date()
             for id_area in areas:
                 cursor.execute(query_area, (id_nuevo_cliente, id_area, fecha_hoy))
-            
+
+            registrar_auditoria(
+                cursor, id_usuario, "cliente", "CLIENTE_CREADO",
+                id_registro=id_nuevo_cliente,
+                datos_nuevos=_describir_cliente(razon_social, email, telefono, direccion, areas, rut=rut),
+            )
+
             conexion.commit()
 
         return jsonify({"message": "Cliente incorporado exitosamente junto a sus áreas asociadas."}), 201
@@ -137,6 +159,7 @@ def modificar_cliente(id_cliente):
     conexion = None
     try:
         datos = request.json
+        id_usuario = obtener_usuario_actual()["id_usuario"]
         razon_social = (datos.get('razon_social') or '').strip()
         email = (datos.get('email') or '').strip()
         telefono = (datos.get('telefono') or '').strip()
@@ -159,6 +182,21 @@ def modificar_cliente(id_cliente):
             if not cursor.fetchone():
                 return jsonify({"error": "Cliente inexistente."}), 404
 
+            # RF56 — datos previos, para dejar el antes y el después en el historial.
+            cursor.execute(
+                "SELECT razon_social, email, telefono, direccion FROM cliente WHERE id_cliente = %s",
+                (id_cliente,),
+            )
+            fila_anterior = cursor.fetchone()
+            cursor.execute(
+                "SELECT id_area FROM cliente_area WHERE id_cliente = %s ORDER BY id_area",
+                (id_cliente,),
+            )
+            areas_anteriores = [fila[0] for fila in cursor.fetchall()]
+            datos_anteriores = None
+            if fila_anterior and len(fila_anterior) >= 4:
+                datos_anteriores = _describir_cliente(*fila_anterior[:4], areas_anteriores)
+
             # 1. Actualizar tabla base cliente
             query_update = """
                 UPDATE cliente 
@@ -176,6 +214,13 @@ def modificar_cliente(id_cliente):
             """
             for id_area in areas:
                 cursor.execute(query_insert_area, (id_cliente, id_area))
+
+            registrar_auditoria(
+                cursor, id_usuario, "cliente", "CLIENTE_MODIFICADO",
+                id_registro=id_cliente,
+                datos_anteriores=datos_anteriores,
+                datos_nuevos=_describir_cliente(razon_social, email, telefono, direccion, areas),
+            )
 
             conexion.commit()
 
@@ -815,6 +860,13 @@ def registrar_observacion_cliente(id_cliente):
                 INSERT INTO observacion_cliente (id_cliente, id_usuario, texto)
                 VALUES (%s, %s, %s)
             """, (id_cliente, id_usuario, texto))
+
+            # El texto no se copia a la auditoría: queda en observacion_cliente.
+            registrar_auditoria(
+                cursor, id_usuario, "observacion_cliente", "OBSERVACION_CREADA",
+                id_registro=cursor.lastrowid,
+                datos_nuevos=f"id_cliente={id_cliente}",
+            )
 
             conexion.commit()
 

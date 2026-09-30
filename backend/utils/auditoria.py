@@ -18,6 +18,7 @@ MODULO_POR_TABLA = {
     "documento": "Documentos",
     "tarea": "Tareas",
     "revision_tarea": "Tareas",
+    "registro_tiempo": "Control de horas",
     "usuario": "Usuarios",
     "sesion": "Seguridad",
     "token_recuperacion": "Seguridad",
