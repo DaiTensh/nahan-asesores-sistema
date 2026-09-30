@@ -59,7 +59,7 @@ CREATE TABLE documento (
 CREATE TABLE tarea_documento (
     id_tarea_documento INTEGER PRIMARY KEY AUTOINCREMENT, id_tarea INTEGER, id_documento INTEGER);
 CREATE TABLE notificacion (
-    id_notificacion INTEGER PRIMARY KEY AUTOINCREMENT, id_usuario INTEGER, tipo TEXT,
+    id_notificacion INTEGER PRIMARY KEY AUTOINCREMENT, id_usuario INTEGER, tipo TEXT, importancia TEXT NOT NULL DEFAULT 'NORMAL',
     mensaje TEXT, url_destino TEXT, fecha DATETIME DEFAULT CURRENT_TIMESTAMP, leida INTEGER DEFAULT 0);
 CREATE TABLE auditoria (
     id_auditoria INTEGER PRIMARY KEY AUTOINCREMENT, id_usuario INTEGER,

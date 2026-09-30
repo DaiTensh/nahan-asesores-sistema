@@ -4,7 +4,11 @@ from datetime import datetime, timedelta
 
 from flask import Blueprint, request, jsonify
 from backend.config.db import get_connection
-from backend.routes.notificaciones_routes import crear_notificacion
+from backend.routes.notificaciones_routes import (
+    IMPORTANCIA_ALTA,
+    IMPORTANCIA_CRITICA,
+    crear_notificacion,
+)
 from backend.utils.auditoria import registrar_auditoria
 from backend.utils.auth import ROL_ADMINISTRADOR, login_required, obtener_usuario_actual, roles_required
 
@@ -327,6 +331,7 @@ def crear_tarea():
                 f"Se te asignó la nueva tarea \"{titulo}\"",
                 _url_detalle_tarea(id_tarea),
                 id_usuario_actor=id_creador,
+                importancia=IMPORTANCIA_ALTA,
             )
 
         connection.commit()
@@ -940,6 +945,7 @@ def editar_tarea(id_tarea):
                 f"Se te asignó la tarea \"{titulo}\"",
                 _url_detalle_tarea(id_tarea),
                 id_usuario_actor=usuario["id_usuario"],
+                importancia=IMPORTANCIA_ALTA,
             )
 
         connection.commit()
@@ -1077,6 +1083,7 @@ def asignar_tarea(id_tarea):
             f"Se te asignó la tarea \"{titulo_tarea}\"",
             _url_detalle_tarea(id_tarea),
             id_usuario_actor=usuario["id_usuario"],
+            importancia=IMPORTANCIA_ALTA,
         )
 
         connection.commit()
@@ -1198,6 +1205,7 @@ def actualizar_estado_tarea(id_tarea):
                     f"La tarea \"{tarea['titulo']}\" pasó a revisión administrativa desde {estado_anterior} (En revisión).",
                     _url_detalle_tarea(id_tarea),
                     id_usuario_actor=usuario["id_usuario"],
+                    importancia=IMPORTANCIA_CRITICA,
                 )
         else:
             cursor.execute(
@@ -1820,6 +1828,7 @@ def reasignar_tareas_masivo():
                     f"Se te asignó la tarea \"{fila_titulo[0] if fila_titulo else id_tarea}\"",
                     _url_detalle_tarea(id_tarea),
                     id_usuario_actor=usuario["id_usuario"],
+                    importancia=IMPORTANCIA_ALTA,
                 )
             reasignadas += 1
 

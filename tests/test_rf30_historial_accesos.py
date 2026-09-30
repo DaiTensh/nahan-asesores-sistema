@@ -33,7 +33,7 @@ CREATE TABLE usuario (
     id_usuario INTEGER PRIMARY KEY AUTOINCREMENT, id_rol INTEGER, id_area INTEGER,
     nombres TEXT, email TEXT UNIQUE, password_hash TEXT, estado TEXT DEFAULT 'ACTIVO');
 CREATE TABLE notificacion (
-    id_notificacion INTEGER PRIMARY KEY AUTOINCREMENT, id_usuario INTEGER, tipo TEXT,
+    id_notificacion INTEGER PRIMARY KEY AUTOINCREMENT, id_usuario INTEGER, tipo TEXT, importancia TEXT NOT NULL DEFAULT 'NORMAL',
     mensaje TEXT, url_destino TEXT, fecha DATETIME DEFAULT CURRENT_TIMESTAMP, leida INTEGER DEFAULT 0);
 CREATE TABLE token_recuperacion (
     id_token INTEGER PRIMARY KEY AUTOINCREMENT, id_usuario INTEGER,

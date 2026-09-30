@@ -5,6 +5,7 @@ import secrets
 
 from flask import Blueprint, request, jsonify, session
 from backend.config.db import get_connection
+from backend.routes.notificaciones_routes import IMPORTANCIA_CRITICA, crear_notificacion
 from backend.utils.auditoria import registrar_auditoria
 from backend.utils.auth import (
     AVISO_SEGUNDOS_RANGO,
@@ -380,13 +381,13 @@ def _avisar_a_administradores(cursor, usuario):
         f"{usuario['email']} ({usuario['nombres']})."
     )
 
-    cursor.executemany(
-        """
-        INSERT INTO notificacion (id_usuario, tipo, mensaje, url_destino, leida)
-        VALUES (%s, 'SEGURIDAD', %s, '/frontend/usuarios/usuarios.html', FALSE)
-        """,
-        [(administrador["id_usuario"], mensaje) for administrador in administradores]
-    )
+    # RF46 — una solicitud de seguridad es crítica para quien administra.
+    for administrador in administradores:
+        crear_notificacion(
+            cursor, administrador["id_usuario"], "SEGURIDAD", mensaje,
+            "/frontend/usuarios/usuarios.html",
+            importancia=IMPORTANCIA_CRITICA,
+        )
 
 
 @auth_bp.route("/auth/recuperar", methods=["POST"])

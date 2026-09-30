@@ -179,6 +179,8 @@ CREATE TABLE notificacion (
     id_notificacion INT AUTO_INCREMENT PRIMARY KEY,
     id_usuario INT NOT NULL,
     tipo VARCHAR(50) NOT NULL,
+    -- RF46: NORMAL, ALTA o CRITICA (migración 007)
+    importancia VARCHAR(10) NOT NULL DEFAULT 'NORMAL',
     mensaje TEXT NOT NULL,
     url_destino VARCHAR(255),
     fecha DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

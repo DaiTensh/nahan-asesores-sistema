@@ -69,6 +69,7 @@ MARCADORES = {
             (_INDICE, ("auditoria", "idx_auditoria_fecha"))],
     "006": [(_PARAMETRO, ("SESION_INACTIVIDAD_MINUTOS",)),
             (_PARAMETRO, ("SESION_AVISO_SEGUNDOS",))],
+    "007": [(_COLUMNA, ("notificacion", "importancia"))],
 }
 
 

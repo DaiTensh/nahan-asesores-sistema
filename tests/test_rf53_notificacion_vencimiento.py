@@ -51,8 +51,9 @@ def test_notifica_al_responsable_de_una_tarea_por_vencer(monkeypatch, fake_conne
     _, params = inserts[0]
     assert params[0] == 2  # id_usuario
     assert params[1] == "VENCIMIENTO_PROXIMO"
-    assert "Declarar impuestos" in params[2]
-    assert params[3] == "/frontend/tareas/detalle_tarea.html?id=10"
+    assert params[2] == "NORMAL"  # RF46: un vencimiento próximo no es crítico
+    assert "Declarar impuestos" in params[3]
+    assert params[4] == "/frontend/tareas/detalle_tarea.html?id=10"
     assert connection.commits == 1
 
 

@@ -73,6 +73,30 @@
   border-left: 3px solid var(--color-primary);
 }
 
+.notificacion-item.critica {
+  background: var(--color-danger-soft);
+  border-left: 4px solid var(--color-danger);
+}
+
+.notificacion-importancia {
+  margin-left: var(--spacing-2);
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: none;
+}
+
+.importancia-critica {
+  background: var(--color-danger-strong);
+  color: #FFFFFF;
+}
+
+.importancia-alta {
+  background: var(--color-warning-soft);
+  color: var(--color-text-primary);
+}
+
 .notificacion-tipo {
   display: block;
   color: var(--color-text-secondary);

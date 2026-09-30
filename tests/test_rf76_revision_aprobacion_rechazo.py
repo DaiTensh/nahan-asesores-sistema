@@ -40,7 +40,7 @@ CREATE TABLE auditoria (
 );
 CREATE TABLE notificacion (
     id_notificacion INTEGER PRIMARY KEY AUTOINCREMENT, id_usuario INTEGER,
-    tipo TEXT, mensaje TEXT, url_destino TEXT, fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
+    tipo TEXT, importancia TEXT NOT NULL DEFAULT 'NORMAL', mensaje TEXT, url_destino TEXT, fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
     leida INTEGER DEFAULT 0
 );
 
