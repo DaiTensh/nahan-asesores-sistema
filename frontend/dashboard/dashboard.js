@@ -27,6 +27,7 @@ document.addEventListener("DOMContentLoaded", () => {
   cargarTareasVencidas();
   cargarTareasPrioritarias();
   cargarResumenTareas();
+  cargarCargaTrabajoPorUsuario();
 
   const inputDias = document.getElementById("inputDiasPorVencer");
   cargarTareasPorVencer(inputDias.value);
@@ -34,6 +35,11 @@ document.addEventListener("DOMContentLoaded", () => {
   cargarResumenTareasPendientes();
   cargarResumenTareasFinalizadas();
   cargarDistribucionPorArea();
+
+  const selectAreaCargaTrabajo = document.getElementById("selectAreaCargaTrabajo");
+  if (selectAreaCargaTrabajo) {
+    selectAreaCargaTrabajo.addEventListener("change", cargarCargaTrabajoPorUsuario);
+  }
 });
 
 function formatearRol(rol) {
@@ -92,8 +98,70 @@ async function cargarResumenUsuarios() {
     document.getElementById("totalAdmins").textContent =
       usuarios.filter(usuario => usuario.nombre_rol === "ADMINISTRADOR").length;
 
+    const selectAreaCargaTrabajo = document.getElementById("selectAreaCargaTrabajo");
+    if (selectAreaCargaTrabajo) {
+      const areas = [...new Map(
+        usuarios
+          .filter(usuario => usuario.estado === "ACTIVO" && usuario.id_area != null)
+          .map(usuario => [String(usuario.id_area), usuario.nombre_area || formatearArea(usuario.id_area)])
+      )].map(([idArea, nombreArea]) => ({ idArea, nombreArea }));
+
+      const valorActual = selectAreaCargaTrabajo.value;
+      selectAreaCargaTrabajo.innerHTML = '<option value="">Todas las áreas</option>' + areas.map(area =>
+        `<option value="${escapeHtml(area.idArea)}">${escapeHtml(area.nombreArea)}</option>`
+      ).join("");
+      if (valorActual) {
+        selectAreaCargaTrabajo.value = valorActual;
+      }
+    }
+
     cargarTablaUsuarios(usuarios);
 
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+async function cargarCargaTrabajoPorUsuario() {
+  try {
+    const selectAreaCargaTrabajo = document.getElementById("selectAreaCargaTrabajo");
+    const params = new URLSearchParams();
+    if (selectAreaCargaTrabajo && selectAreaCargaTrabajo.value) {
+      params.set("id_area", selectAreaCargaTrabajo.value);
+    }
+
+    const response = await fetch(`${API_URL}/reportes/carga-por-usuario${params.toString() ? `?${params.toString()}` : ""}`, {
+      credentials: window.API_CONFIG.credentials
+    });
+    const data = await leerRespuestaJson(response);
+
+    if (!response.ok) {
+      console.error(data.error || "Error al cargar la carga de trabajo por usuario");
+      return;
+    }
+
+    const tabla = document.getElementById("tablaCargaTrabajoUsuarios");
+    tabla.innerHTML = "";
+
+    if (!data.usuarios || data.usuarios.length === 0) {
+      tabla.innerHTML = '<tr><td colspan="8">No hay usuarios activos para los criterios seleccionados.</td></tr>';
+      return;
+    }
+
+    data.usuarios.forEach(usuario => {
+      const fila = document.createElement("tr");
+      fila.innerHTML = `
+        <td>${escapeHtml(usuario.usuario || "-")}</td>
+        <td>${escapeHtml(usuario.nombre_area || "-")}</td>
+        <td>${escapeHtml(usuario.por_estado.PENDIENTE ?? 0)}</td>
+        <td>${escapeHtml(usuario.por_estado.EN_PROCESO ?? 0)}</td>
+        <td>${escapeHtml(usuario.por_estado.EN_REVISION ?? 0)}</td>
+        <td>${escapeHtml(usuario.por_estado.COMPLETADA ?? 0)}</td>
+        <td>${escapeHtml(usuario.por_estado.CANCELADA ?? 0)}</td>
+        <td>${escapeHtml(usuario.total_tareas ?? 0)}</td>
+      `;
+      tabla.appendChild(fila);
+    });
   } catch (error) {
     console.error(error);
   }

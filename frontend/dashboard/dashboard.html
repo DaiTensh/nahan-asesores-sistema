@@ -182,6 +182,37 @@
       </section>
 
       <section class="dashboard-section">
+        <h2>Carga de trabajo por usuario</h2>
+
+        <div class="dashboard-cards" style="margin-bottom: 1rem;">
+          <div class="dashboard-card" style="flex: 1; min-width: 220px;">
+            <p>Área</p>
+            <select id="selectAreaCargaTrabajo" class="form-input" aria-label="Seleccionar área para carga de trabajo">
+              <option value="">Todas las áreas</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="dashboard-table">
+            <thead>
+              <tr>
+                <th>Usuario</th>
+                <th>Área</th>
+                <th>Pendiente</th>
+                <th>En proceso</th>
+                <th>En revisión</th>
+                <th>Completadas</th>
+                <th>Canceladas</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody id="tablaCargaTrabajoUsuarios"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="dashboard-section">
         <h2>Usuarios registrados</h2>
 
         <table class="dashboard-table">

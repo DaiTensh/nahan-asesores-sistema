@@ -188,7 +188,8 @@ def test_un_estado_operativo_no_registra_fecha_finalizacion_ni_auditoria(cliente
     ).fetchone()
     assert fila["estado"] == "EN_REVISION"
     assert fila["fecha_finalizacion"] is None
-    assert base.execute("SELECT COUNT(*) AS n FROM auditoria").fetchone()["n"] == 0
+    assert base.execute("SELECT COUNT(*) AS n FROM auditoria").fetchone()["n"] == 2
+    assert base.execute("SELECT COUNT(*) AS n FROM auditoria WHERE accion = 'ENVIO_REVISION'").fetchone()["n"] == 2
 
 
 @pytest.mark.parametrize('estado', ['COMPLETADA', 'CANCELADA'])
