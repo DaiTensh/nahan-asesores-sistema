@@ -163,6 +163,59 @@
           </tbody>
         </table>
       </section>
+
+      <section class="clientes-section" id="seccionHistorial" hidden>
+        <h2>Historial</h2>
+        <p>Tareas, gestiones y cambios del cliente, del más reciente al más antiguo. Solo lectura.</p>
+
+        <form id="formHistorialCliente" class="clientes-form">
+          <div class="form-grid">
+            <div class="form-group form-full">
+              <label class="form-label" for="historialAccion">Tipo de acción</label>
+              <select id="historialAccion" class="form-input">
+                <option value="">Todas las acciones</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="historialFechaInicio">Desde</label>
+              <input type="date" id="historialFechaInicio" class="form-input">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="historialFechaFin">Hasta</label>
+              <input type="date" id="historialFechaFin" class="form-input">
+            </div>
+          </div>
+
+          <div class="clientes-filter-actions">
+            <button type="submit" class="btn btn-primary">Filtrar</button>
+            <button type="button" id="btnLimpiarHistorial" class="btn btn-secondary">Limpiar</button>
+          </div>
+          <p id="mensajeHistorialFeedback" class="mensaje"></p>
+        </form>
+
+        <table class="clientes-table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Hora</th>
+              <th>Usuario</th>
+              <th>Acción</th>
+              <th>Detalle</th>
+            </tr>
+          </thead>
+          <tbody id="tablaHistorialCuerpo">
+            <tr><td colspan="5" class="text-loading">Cargando historial...</td></tr>
+          </tbody>
+        </table>
+
+        <div class="pagination">
+          <button type="button" id="btnHistorialAnterior" class="btn btn-secondary btn-small" disabled>Anterior</button>
+          <span id="txtHistorialPagina">Página 1</span>
+          <button type="button" id="btnHistorialSiguiente" class="btn btn-secondary btn-small" disabled>Siguiente</button>
+        </div>
+      </section>
     </main>
   </div>
 </div>

@@ -200,3 +200,152 @@ def test_rf13_historial_cliente_inexistente(cliente):
     respuesta = cliente.get('/api/clientes/999/historial-completo')
 
     assert respuesta.status_code == 404
+
+
+# --- Estabilización: validación del rango de fechas e interfaz en la ficha ---
+
+from pathlib import Path
+
+FRONTEND_CLIENTES = Path(__file__).resolve().parents[1] / 'frontend/clientes'
+URL_HISTORIAL = '/api/clientes/5/historial-completo'
+
+
+@pytest.mark.parametrize('valor', ['xx', '2026-13-01', '2026-02-30', '14-09-2026', '2026/09/14'])
+def test_rf13_fecha_inicio_invalida_responde_400(cliente, valor):
+    _login(cliente, 'admin@nahan.local')
+
+    respuesta = cliente.get(URL_HISTORIAL, query_string={'fecha_inicio': valor})
+
+    assert respuesta.status_code == 400
+    assert 'AAAA-MM-DD' in respuesta.get_json()['error']
+
+
+@pytest.mark.parametrize('valor', ['xx', '2026-13-01', '2026-02-30', '14-09-2026', '2026/09/14'])
+def test_rf13_fecha_fin_invalida_responde_400(cliente, valor):
+    _login(cliente, 'admin@nahan.local')
+
+    respuesta = cliente.get(URL_HISTORIAL, query_string={'fecha_fin': valor})
+
+    assert respuesta.status_code == 400
+    assert 'AAAA-MM-DD' in respuesta.get_json()['error']
+
+
+def test_rf13_rango_invertido_responde_400(cliente):
+    _login(cliente, 'admin@nahan.local')
+
+    respuesta = cliente.get(URL_HISTORIAL + '?fecha_inicio=2026-09-15&fecha_fin=2026-09-12')
+
+    assert respuesta.status_code == 400
+    assert 'posterior' in respuesta.get_json()['error']
+
+
+def test_rf13_la_validacion_de_fechas_precede_a_la_busqueda_del_cliente(cliente):
+    _login(cliente, 'admin@nahan.local')
+
+    assert cliente.get('/api/clientes/999/historial-completo?fecha_fin=xx').status_code == 400
+    assert cliente.get('/api/clientes/999/historial-completo?fecha_fin=2026-09-15').status_code == 404
+
+
+def test_rf13_rango_de_fechas_incluye_ambos_extremos(cliente):
+    _login(cliente, 'admin@nahan.local')
+
+    datos = cliente.get(URL_HISTORIAL + '?fecha_inicio=2026-09-13&fecha_fin=2026-09-14').get_json()
+
+    assert [evento['accion'] for evento in datos['historial']] == ['EDICION', 'CREACION']
+    assert datos['total'] == 2
+
+
+def test_rf13_se_puede_filtrar_solo_desde_o_solo_hasta(cliente):
+    _login(cliente, 'admin@nahan.local')
+
+    desde = cliente.get(URL_HISTORIAL + '?fecha_inicio=2026-09-14').get_json()
+    hasta = cliente.get(URL_HISTORIAL + '?fecha_fin=2026-09-12').get_json()
+
+    assert [evento['accion'] for evento in desde['historial']] == ['CAMBIO_ESTADO', 'EDICION']
+    assert [evento['accion'] for evento in hasta['historial']] == ['REGISTRO']
+
+
+def test_rf13_orden_cronologico_descendente_con_fecha_hora_y_usuario(cliente):
+    _login(cliente, 'admin@nahan.local')
+
+    historial = cliente.get(URL_HISTORIAL).get_json()['historial']
+
+    momentos = [f"{evento['fecha']} {evento['hora']}" for evento in historial]
+    assert momentos == sorted(momentos, reverse=True)
+    assert momentos[0] == '2026-09-15 18:00:00'
+    assert all(evento['usuario'] and evento['accion'] for evento in historial)
+
+
+def test_rf13_filtro_por_accion_y_acciones_disponibles(cliente):
+    _login(cliente, 'admin@nahan.local')
+
+    datos = cliente.get(URL_HISTORIAL + '?accion=REGISTRO').get_json()
+
+    assert [evento['accion'] for evento in datos['historial']] == ['REGISTRO']
+    # El selector ofrece todas las acciones del cliente, no solo la filtrada.
+    assert datos['acciones_disponibles'] == ['CAMBIO_ESTADO', 'CREACION', 'EDICION', 'REGISTRO']
+
+
+def test_rf13_accion_inexistente_devuelve_lista_vacia_sin_error(cliente):
+    _login(cliente, 'admin@nahan.local')
+
+    respuesta = cliente.get(URL_HISTORIAL, query_string={'accion': "X' OR '1'='1"})
+
+    assert respuesta.status_code == 200
+    assert respuesta.get_json()['historial'] == []
+
+
+def test_rf13_paginacion_con_limite_y_offset(cliente):
+    _login(cliente, 'admin@nahan.local')
+
+    pagina = cliente.get(URL_HISTORIAL + '?limite=2&offset=2').get_json()
+
+    assert pagina['total'] == 4
+    assert [evento['accion'] for evento in pagina['historial']] == ['CREACION', 'REGISTRO']
+
+
+def test_rf13_usuario_de_area_puede_consultar_y_sin_sesion_no(cliente):
+    assert cliente.get(URL_HISTORIAL).status_code == 401
+
+    _login(cliente, 'juridica@nahan.local')
+    assert cliente.get(URL_HISTORIAL).status_code == 200
+
+
+def test_rf13_el_historial_es_de_solo_lectura(cliente, base):
+    _login(cliente, 'admin@nahan.local')
+
+    for metodo in (cliente.post, cliente.put, cliente.patch, cliente.delete):
+        assert metodo(URL_HISTORIAL).status_code == 405
+    cliente.get(URL_HISTORIAL)
+    assert base.execute('SELECT COUNT(*) FROM auditoria').fetchone()[0] == 4
+
+
+def test_rf13_la_ficha_del_cliente_tiene_la_seccion_historial():
+    html = (FRONTEND_CLIENTES / 'ficha_cliente.html').read_text(encoding='utf-8')
+    javascript = (FRONTEND_CLIENTES / 'ficha_cliente.js').read_text(encoding='utf-8')
+
+    for identificador in ('seccionHistorial', 'formHistorialCliente', 'historialAccion',
+                          'historialFechaInicio', 'historialFechaFin', 'tablaHistorialCuerpo',
+                          'btnHistorialAnterior', 'btnHistorialSiguiente'):
+        assert f'id="{identificador}"' in html
+        assert f'"{identificador}"' in javascript
+    assert '/historial-completo?' in javascript
+    assert 'cargarHistorial();' in javascript
+    # Solo lectura: la sección consulta, no envía cambios.
+    seccion = javascript[javascript.index('// RF13'):]
+    assert 'method:' not in seccion
+    assert 'innerHTML' not in seccion
+
+
+def test_rf13_el_limite_por_pagina_tiene_un_maximo(cliente, base):
+    _login(cliente, 'admin@nahan.local')
+    base.executemany(
+        "INSERT INTO auditoria (id_usuario, tabla_afectada, id_registro, accion) VALUES (1, 'cliente', 5, 'CAMBIO_ESTADO')",
+        [()] * 250,
+    )
+    base.commit()
+
+    datos = cliente.get(URL_HISTORIAL + '?limite=100000').get_json()
+
+    assert datos['total'] == 254
+    assert len(datos['historial']) == clientes_routes.HISTORIAL_LIMITE_MAXIMO == 200

@@ -59,6 +59,46 @@ def registrar_auditoria(cursor, id_usuario, tabla_afectada, accion,
     )
 
 
+def _condicion_registros(registros):
+    """Arma la condición SQL de una lista de pares (tabla, id_registro).
+
+    Devuelve (condicion, parametros), o (None, []) si la lista está vacía.
+    """
+    por_tabla = {}
+    for tabla, id_registro in registros:
+        por_tabla.setdefault(tabla, []).append(id_registro)
+    if not por_tabla:
+        return None, []
+
+    partes = []
+    parametros = []
+    for tabla, ids in por_tabla.items():
+        partes.append(
+            f"(a.tabla_afectada = %s AND a.id_registro IN ({', '.join(['%s'] * len(ids))}))"
+        )
+        parametros.append(tabla)
+        parametros.extend(ids)
+    return "(" + " OR ".join(partes) + ")", parametros
+
+
+def acciones_de_registros(cursor, registros):
+    """Acciones distintas registradas sobre `registros`, en orden alfabético.
+
+    La usa RF13 para ofrecer el filtro por tipo de acción solo con las
+    acciones que existen en el historial del cliente. Acepta cursores con o
+    sin dictionary=True.
+    """
+    condicion, parametros = _condicion_registros(registros)
+    if condicion is None:
+        return []
+
+    cursor.execute(
+        f"SELECT DISTINCT a.accion AS accion FROM auditoria a WHERE {condicion} ORDER BY a.accion",
+        tuple(parametros),
+    )
+    return [fila["accion"] if isinstance(fila, dict) else fila[0] for fila in cursor.fetchall()]
+
+
 def _dia_siguiente(fecha_iso):
     return (date.fromisoformat(fecha_iso) + timedelta(days=1)).isoformat()
 
@@ -107,19 +147,11 @@ def consultar_auditoria(cursor, *, id_usuario=None, tablas=None, acciones=None,
         parametros.extend(acciones)
 
     if registros is not None:
-        por_tabla = {}
-        for tabla, id_registro in registros:
-            por_tabla.setdefault(tabla, []).append(id_registro)
-        if not por_tabla:
+        condicion, parametros_registros = _condicion_registros(registros)
+        if condicion is None:
             return [], 0
-        partes = []
-        for tabla, ids in por_tabla.items():
-            partes.append(
-                f"(a.tabla_afectada = %s AND a.id_registro IN ({', '.join(['%s'] * len(ids))}))"
-            )
-            parametros.append(tabla)
-            parametros.extend(ids)
-        condiciones.append("(" + " OR ".join(partes) + ")")
+        condiciones.append(condicion)
+        parametros.extend(parametros_registros)
 
     if fecha_inicio:
         condiciones.append("a.fecha >= %s")

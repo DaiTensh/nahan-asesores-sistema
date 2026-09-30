@@ -7,7 +7,7 @@ from flask import Blueprint, request, jsonify, send_file
 from openpyxl import Workbook
 from datetime import datetime
 from backend.config.db import get_connection
-from backend.utils.auditoria import registrar_auditoria, consultar_auditoria
+from backend.utils.auditoria import acciones_de_registros, registrar_auditoria, consultar_auditoria
 from backend.utils.auth import ROL_ADMINISTRADOR, ROLES_OPERATIVOS, obtener_usuario_actual, roles_required
 
 clientes_blueprint = Blueprint('clientes_blueprint', __name__)
@@ -876,6 +876,20 @@ def resumen_clientes_dashboard():
     finally:
         if conexion:
             conexion.close()
+HISTORIAL_LIMITE_MAXIMO = 200
+
+
+def _fecha_historial(valor):
+    """Valida una fecha opcional 'AAAA-MM-DD'. Devuelve (fecha, error)."""
+    valor = (valor or '').strip()
+    if not valor:
+        return None, None
+    try:
+        return datetime.strptime(valor, '%Y-%m-%d').date().isoformat(), None
+    except ValueError:
+        return None, "Las fechas deben tener el formato AAAA-MM-DD."
+
+
 @clientes_blueprint.route('/clientes/<int:id_cliente>/historial-completo', methods=['GET'])
 @roles_required(*ROLES_OPERATIVOS)
 def historial_cliente(id_cliente):
@@ -889,6 +903,7 @@ def historial_cliente(id_cliente):
 
         if limite is None or limite < 0:
             limite = 50
+        limite = min(limite, HISTORIAL_LIMITE_MAXIMO)
         if offset is None or offset < 0:
             offset = 0
 
@@ -900,8 +915,14 @@ def historial_cliente(id_cliente):
             fecha_inicio = fecha_dt.isoformat()
             fecha_fin = fecha_dt.isoformat()
         else:
-            fecha_inicio = request.args.get('fecha_inicio')
-            fecha_fin = request.args.get('fecha_fin')
+            fecha_inicio, error = _fecha_historial(request.args.get('fecha_inicio'))
+            if error:
+                return jsonify({"error": error}), 400
+            fecha_fin, error = _fecha_historial(request.args.get('fecha_fin'))
+            if error:
+                return jsonify({"error": error}), 400
+            if fecha_inicio and fecha_fin and fecha_inicio > fecha_fin:
+                return jsonify({"error": "fecha_inicio no puede ser posterior a fecha_fin."}), 400
 
         conexion = get_connection()
         if conexion is None:
@@ -950,6 +971,7 @@ def historial_cliente(id_cliente):
             filtros["acciones"] = [accion]
 
         filas, total = consultar_auditoria(cursor, **filtros)
+        acciones_disponibles = acciones_de_registros(cursor, lista_registros)
 
         for fila in filas:
             fecha_value = fila.get('fecha')
@@ -966,7 +988,8 @@ def historial_cliente(id_cliente):
 
         return jsonify({
             "historial": filas,
-            "total": total
+            "total": total,
+            "acciones_disponibles": acciones_disponibles,
         }), 200
 
     except Exception:
