@@ -23,23 +23,37 @@ function obtenerTituloPagina() {
   return titulo ? titulo.textContent.trim() : document.title;
 }
 
-function generarUrlResultado(resultado) {
-  if (!resultado || !resultado.tipo) return "#";
+// RF57 — la API agrupa los resultados en plural (clientes, tareas, usuarios)
+// y cada resultado trae su tipo en singular. La URL se arma con el tipo del
+// resultado; el nombre del grupo solo sirve de respaldo.
+const GRUPOS_BUSQUEDA_GLOBAL = {
+  clientes: { tipo: "cliente", etiqueta: "Clientes" },
+  tareas: { tipo: "tarea", etiqueta: "Tareas" },
+  usuarios: { tipo: "usuario", etiqueta: "Usuarios" }
+};
 
-  if (resultado.tipo === "cliente") {
-    return `../clientes/ficha_cliente.html?id=${encodeURIComponent(resultado.id)}`;
-  }
-  if (resultado.tipo === "tarea") {
-    return `../tareas/detalle_tarea.html?id=${encodeURIComponent(resultado.id)}`;
-  }
-  if (resultado.tipo === "usuario") {
-    return `../usuarios/modificar_usuario.html?id=${encodeURIComponent(resultado.id)}`;
-  }
+const PAGINA_POR_TIPO_BUSQUEDA = {
+  cliente: "../clientes/ficha_cliente.html",
+  tarea: "../tareas/detalle_tarea.html",
+  usuario: "../usuarios/modificar_usuario.html"
+};
 
-  return "#";
+// Devuelve la URL del registro, o null si no hay una página a la que ir.
+// El perfil de usuario es una pantalla de administrador: a los demás roles
+// no se les ofrece un enlace que terminaría en «sin permisos».
+function generarUrlResultado(resultado, esAdministrador = false) {
+  if (!resultado) return null;
+
+  const pagina = PAGINA_POR_TIPO_BUSQUEDA[resultado.tipo];
+  const id = String(resultado.id ?? "");
+  if (!pagina || !/^\d+$/.test(id)) return null;
+  if (resultado.tipo === "usuario" && !esAdministrador) return null;
+
+  return `${pagina}?id=${encodeURIComponent(id)}`;
 }
 
-function renderizarBuscadorGlobal() {
+function renderizarBuscadorGlobal(usuario) {
+  const esAdministrador = Boolean(usuario) && usuario.nombre_rol === "ADMINISTRADOR";
   const busqueda = document.getElementById("globalSearchInput");
   const resultados = document.getElementById("globalSearchResults");
   if (!busqueda || !resultados) return;
@@ -74,10 +88,9 @@ function renderizarBuscadorGlobal() {
 
       const grupos = data.resultados || {};
       const bloques = [];
-      const orden = ["clientes", "tareas", "usuarios"];
 
-      orden.forEach(tipo => {
-        const items = grupos[tipo] || [];
+      Object.entries(GRUPOS_BUSQUEDA_GLOBAL).forEach(([nombreGrupo, definicion]) => {
+        const items = grupos[nombreGrupo] || [];
         if (!items.length) return;
 
         const grupo = document.createElement("div");
@@ -85,14 +98,17 @@ function renderizarBuscadorGlobal() {
 
         const etiqueta = document.createElement("div");
         etiqueta.className = "topbar-search-label";
-        etiqueta.textContent = tipo;
+        etiqueta.textContent = definicion.etiqueta;
         grupo.appendChild(etiqueta);
 
         items.forEach(item => {
-          const url = generarUrlResultado({ tipo, id: item.id });
-          const enlace = document.createElement("a");
+          const url = generarUrlResultado(
+            { tipo: item.tipo || definicion.tipo, id: item.id },
+            esAdministrador
+          );
+          const enlace = document.createElement(url ? "a" : "div");
           enlace.className = "topbar-search-item";
-          enlace.href = url;
+          if (url) enlace.href = url;
 
           const nombre = document.createElement("span");
           nombre.className = "topbar-search-title";
@@ -100,7 +116,7 @@ function renderizarBuscadorGlobal() {
 
           const detalle = document.createElement("span");
           detalle.className = "topbar-search-meta";
-          detalle.textContent = item.detalle || tipo;
+          detalle.textContent = item.detalle || definicion.etiqueta;
 
           enlace.append(nombre, detalle);
           grupo.appendChild(enlace);
@@ -282,7 +298,7 @@ async function cargarTopbar() {
   topbar.appendChild(contexto);
   topbar.appendChild(acciones);
 
-  renderizarBuscadorGlobal();
+  renderizarBuscadorGlobal(usuario);
   montarModuloTopbar("inactividad"); // RF59
   montarModuloTopbar("notificaciones"); // RF51, RF52, RF53
 }

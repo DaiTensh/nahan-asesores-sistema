@@ -149,3 +149,79 @@ def test_rf57_busqueda_global_rechaza_consulta_corta(cliente):
     respuesta = cliente.get('/api/busqueda-global?q=T')
 
     assert respuesta.status_code == 400
+
+
+# --- Estabilización: acceso directo al registro encontrado ---
+
+from pathlib import Path
+
+TOPBAR_JS = Path(__file__).resolve().parents[1] / 'frontend/assets/js/topbar.js'
+
+
+def test_rf57_cada_resultado_trae_el_tipo_e_id_que_usa_el_enlace(cliente):
+    _login(cliente, 'admin@nahan.local')
+
+    resultados = cliente.get('/api/busqueda-global?q=nahan').get_json()['resultados']
+    tarea = cliente.get('/api/busqueda-global?q=Tarea propia').get_json()['resultados']['tareas']
+    cliente_encontrado = cliente.get('/api/busqueda-global?q=Cliente de').get_json()['resultados']['clientes']
+
+    assert [(u['tipo'], u['id']) for u in resultados['usuarios']] == [('usuario', 1), ('usuario', 2)]
+    assert [(t['tipo'], t['id']) for t in tarea] == [('tarea', 20)]
+    assert [(c['tipo'], c['id']) for c in cliente_encontrado] == [('cliente', 10)]
+
+
+def test_rf57_usuario_no_admin_solo_se_encuentra_a_si_mismo(cliente):
+    _login(cliente, 'juridica@nahan.local')
+
+    usuarios = cliente.get('/api/busqueda-global?q=nahan').get_json()['resultados']['usuarios']
+
+    assert [u['id'] for u in usuarios] == [2]
+
+
+def test_rf57_la_respuesta_no_expone_datos_sensibles(cliente):
+    _login(cliente, 'admin@nahan.local')
+
+    respuesta = cliente.get('/api/busqueda-global?q=nahan')
+
+    assert 'password' not in respuesta.get_data(as_text=True).lower()
+    for usuario in respuesta.get_json()['resultados']['usuarios']:
+        assert set(usuario) == {'tipo', 'id', 'nombre', 'detalle'}
+
+
+def test_rf57_busqueda_global_exige_sesion(cliente):
+    assert cliente.get('/api/busqueda-global?q=Tarea').status_code == 401
+
+
+def test_rf57_el_termino_se_trata_como_dato_y_no_como_sql(cliente, base):
+    _login(cliente, 'admin@nahan.local')
+
+    respuesta = cliente.get("/api/busqueda-global", query_string={'q': "x' OR '1'='1"})
+
+    assert respuesta.status_code == 200
+    assert respuesta.get_json()['total'] == 0
+    assert base.execute('SELECT COUNT(*) FROM tarea').fetchone()[0] == 2
+
+
+def test_rf57_el_buscador_arma_los_enlaces_con_el_tipo_del_resultado():
+    javascript = TOPBAR_JS.read_text(encoding='utf-8')
+
+    # El defecto original: se pasaba el nombre del grupo (plural) a una
+    # función que compara contra el tipo en singular, y la URL quedaba en «#».
+    assert 'generarUrlResultado({ tipo, id: item.id })' not in javascript
+    assert 'tipo: item.tipo || definicion.tipo' in javascript
+    for grupo, tipo in (('clientes', 'cliente'), ('tareas', 'tarea'), ('usuarios', 'usuario')):
+        assert f'{grupo}: {{ tipo: "{tipo}"' in javascript
+    assert 'cliente: "../clientes/ficha_cliente.html"' in javascript
+    assert 'tarea: "../tareas/detalle_tarea.html"' in javascript
+    assert 'usuario: "../usuarios/modificar_usuario.html"' in javascript
+
+
+def test_rf57_el_buscador_conserva_minimo_de_caracteres_y_debounce():
+    javascript = TOPBAR_JS.read_text(encoding='utf-8')
+
+    assert 'texto.length < 2' in javascript
+    assert 'setTimeout(() => ejecutarBusqueda(valor), 250)' in javascript
+    assert 'clearTimeout(temporizador)' in javascript
+    # La búsqueda la inicia el usuario: debe contar como actividad (RF59).
+    inicio = javascript.index('const ejecutarBusqueda')
+    assert 'X-Actividad' not in javascript[inicio:javascript.index('busqueda.addEventListener("input"')]
