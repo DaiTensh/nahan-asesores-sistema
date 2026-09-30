@@ -29,6 +29,10 @@ CREATE TABLE usuario (
 CREATE TABLE notificacion (
     id_notificacion INTEGER PRIMARY KEY AUTOINCREMENT, id_usuario INTEGER, tipo TEXT,
     mensaje TEXT, url_destino TEXT, fecha DATETIME DEFAULT CURRENT_TIMESTAMP, leida INTEGER DEFAULT 0);
+CREATE TABLE auditoria (
+    id_auditoria INTEGER PRIMARY KEY AUTOINCREMENT, id_usuario INTEGER,
+    tabla_afectada TEXT, id_registro INTEGER, accion TEXT, datos_anteriores TEXT,
+    datos_nuevos TEXT, fecha DATETIME DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE token_recuperacion (
     id_token INTEGER PRIMARY KEY AUTOINCREMENT, id_usuario INTEGER,
     token_hash TEXT UNIQUE NOT NULL, fecha_emision DATETIME DEFAULT CURRENT_TIMESTAMP,

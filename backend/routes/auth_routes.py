@@ -81,6 +81,15 @@ def login():
                 "error": "Credenciales incorrectas"
             }), 401
 
+        # RF30 — el inicio de sesión queda en AUDITORIA antes de abrir la
+        # sesión: si no se puede registrar, no se inicia. Los intentos
+        # fallidos no se registran (no hay un usuario identificado).
+        registrar_auditoria(
+            cursor, usuario["id_usuario"], "sesion", "LOGIN",
+            id_registro=usuario["id_usuario"],
+        )
+        connection.commit()
+
         session.clear()
         session.permanent = True
         session["usuario_id"] = usuario["id_usuario"]
@@ -123,8 +132,42 @@ def auth_me():
     }), 200
 
 
+def _registrar_cierre_de_sesion():
+    """RF30 — deja el LOGOUT en AUDITORIA mientras la sesión sigue vigente.
+
+    Sin sesión no hay actor, así que no se registra nada. Un fallo al
+    registrar no impide cerrar la sesión: salir siempre debe funcionar.
+    """
+    usuario = obtener_usuario_actual()
+    if not usuario:
+        return
+
+    connection = None
+    cursor = None
+    try:
+        connection = get_connection()
+        if connection is None:
+            return
+        cursor = connection.cursor()
+        registrar_auditoria(
+            cursor, usuario["id_usuario"], "sesion", "LOGOUT",
+            id_registro=usuario["id_usuario"],
+        )
+        connection.commit()
+    except Exception:
+        if connection:
+            connection.rollback()
+        logger.exception("No se pudo registrar el cierre de sesión")
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
 @auth_bp.route("/logout", methods=["POST"])
 def logout():
+    _registrar_cierre_de_sesion()
     session.clear()
 
     return jsonify({
@@ -521,6 +564,13 @@ def confirmar_restablecimiento():
             "UPDATE token_recuperacion SET utilizado = TRUE "
             "WHERE id_usuario = %s AND utilizado = FALSE",
             (registro["id_usuario"],)
+        )
+        # RF30 — solo queda constancia de que ocurrió: ni la contraseña, ni
+        # su hash, ni el token se guardan en AUDITORIA.
+        registrar_auditoria(
+            cursor, registro["id_usuario"], "usuario", "CONTRASENA_RESTABLECIDA",
+            id_registro=registro["id_usuario"],
+            datos_nuevos="restablecimiento mediante enlace de recuperación",
         )
         connection.commit()
 

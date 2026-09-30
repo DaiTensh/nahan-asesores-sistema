@@ -1,4 +1,5 @@
-// RF56 — Historiando la Actividad: vista del historial global (solo administradores).
+// RF56 — Historiando la Actividad y RF30 — accesos y modificaciones de usuarios:
+// vista del historial global (solo administradores).
 (function () {
   const API_URL = window.API_CONFIG.API_URL;
   const POR_PAGINA = 25;
@@ -51,11 +52,13 @@
     const parametros = new URLSearchParams();
     const modulo = document.getElementById("selectModulo").value;
     const usuario = document.getElementById("selectUsuario").value;
+    const accion = document.getElementById("selectAccion").value;
     const inicio = document.getElementById("inputFechaInicio").value;
     const fin = document.getElementById("inputFechaFin").value;
 
     if (modulo) parametros.set("modulo", modulo);
     if (usuario) parametros.set("id_usuario", usuario);
+    if (accion) parametros.set("accion", accion);
     if (inicio || fin) {
       parametros.set("fecha_inicio", inicio);
       parametros.set("fecha_fin", fin);
@@ -79,6 +82,14 @@
         opcion.value = modulo;
         opcion.textContent = modulo;
         selectModulo.appendChild(opcion);
+      });
+
+      const selectAccion = document.getElementById("selectAccion");
+      (data.acciones || []).forEach(accion => {
+        const opcion = document.createElement("option");
+        opcion.value = accion;
+        opcion.textContent = accion;
+        selectAccion.appendChild(opcion);
       });
 
       const selectUsuario = document.getElementById("selectUsuario");
