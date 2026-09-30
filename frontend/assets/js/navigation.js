@@ -53,8 +53,8 @@ const ADMIN_ITEMS = [
     href: "../reportes/historial_consolidado.html"
   },
   {
-    id: "registrar",
-    label: "Registrar usuario",
+    id: "usuarios",
+    label: "Usuarios",
     icon: "RU",
     href: "../usuarios/usuarios.html"
   },

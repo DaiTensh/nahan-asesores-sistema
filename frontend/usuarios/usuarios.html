@@ -2,13 +2,14 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Registrar Usuario</title>
+    <title>Usuarios</title>
 
     <link rel="stylesheet" href="../assets/css/variables.css">
     <link rel="stylesheet" href="../assets/css/global.css">
     <link rel="stylesheet" href="../assets/css/buttons.css">
     <link rel="stylesheet" href="../assets/css/forms.css">
     <link rel="stylesheet" href="../assets/css/cards.css">
+    <link rel="stylesheet" href="../assets/css/tables.css">
     <link rel="stylesheet" href="../assets/css/navigation.css">
     <link rel="stylesheet" href="../assets/css/topbar.css">
     <link rel="stylesheet" href="./usuarios.css">
@@ -23,9 +24,52 @@
         <header class="topbar" id="topbar"></header>
 
         <main class="main-content">
+            <h1 class="usuarios-page-title">Usuarios</h1>
+
+            <section class="usuarios-listado" aria-labelledby="tituloUsuariosRegistrados">
+                <h2 id="tituloUsuariosRegistrados">Usuarios registrados</h2>
+                <div class="usuarios-filtros">
+                    <div class="form-group">
+                        <label class="form-label" for="filtroRol">Rol</label>
+                        <select id="filtroRol" class="form-input"><option value="">Todos los roles</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="filtroArea">Área</label>
+                        <select id="filtroArea" class="form-input"><option value="">Todas las áreas</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="filtroEstado">Estado</label>
+                        <select id="filtroEstado" class="form-input">
+                            <option value="">Todos los estados</option>
+                            <option value="ACTIVO">Activo</option>
+                            <option value="INACTIVO">Inactivo</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="ordenUsuarios">Ordenar por</label>
+                        <select id="ordenUsuarios" class="form-input">
+                            <option value="">Registro más reciente primero</option>
+                            <option value="nombre:ASC">Nombre: A a Z</option>
+                            <option value="nombre:DESC">Nombre: Z a A</option>
+                            <option value="fecha_registro:DESC">Registro: más reciente</option>
+                            <option value="fecha_registro:ASC">Registro: más antiguo</option>
+                        </select>
+                    </div>
+                </div>
+                <p id="mensajeListadoUsuarios" class="mensaje" role="status" aria-live="polite"></p>
+                <div class="table-responsive">
+                    <table class="table usuarios-tabla">
+                        <thead><tr>
+                            <th>Nombre</th><th>Correo electrónico</th><th>Rol</th><th>Área</th>
+                            <th>Estado</th><th>Fecha de registro</th><th>Perfil</th>
+                        </tr></thead>
+                        <tbody id="tablaUsuarios"><tr><td colspan="7">Cargando usuarios...</td></tr></tbody>
+                    </table>
+                </div>
+            </section>
+
             <section class="usuarios-card">
-                <h1 class="usuarios-title">Registrar Usuario Interno</h1>
-                <p class="subtitle">Complete el formulario para registrar un nuevo usuario interno en el sistema.</p>
+                <h2 class="usuarios-title">Registrar usuario</h2>
 
                 <form id="formUsuario">
                     <div class="form-group">
@@ -84,7 +128,7 @@
 
 <script>
     protegerPagina(["ADMINISTRADOR"]);
-    cargarNavegacion("registrar");
+    cargarNavegacion("usuarios");
     cargarTopbar();
 </script>
 
