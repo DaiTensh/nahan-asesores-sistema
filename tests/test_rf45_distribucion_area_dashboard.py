@@ -1,4 +1,7 @@
+import sqlite3
 from pathlib import Path
+
+import pytest
 
 from tests.conftest import normalize_sql
 
@@ -86,7 +89,9 @@ def test_distribuye_clientes_y_tareas_con_areas_dinamicas_y_proporciones(
     sql_areas = next(sql for sql, _ in conexion.executed if "FROM area" in normalize_sql(sql))
     assert "COUNT(DISTINCT id_cliente)" in normalize_sql(sql_clientes)
     assert "estado" not in normalize_sql(sql_clientes)
-    assert "estado" not in normalize_sql(sql_tareas)
+    # Documento 0, Tabla 7.45: «Muestra distribución de tareas activas por
+    # área». La consulta de tareas sí debe filtrar por estado.
+    assert "WHERE estado IN (%s, %s, %s)" in normalize_sql(sql_tareas)
     assert "estado" not in normalize_sql(sql_areas)
 
 
@@ -162,3 +167,124 @@ def test_dashboard_integra_la_distribucion_y_los_graficos_dinamicos():
 def test_supervisor_no_se_simula_con_roles_existentes():
     """El sistema no define un rol supervisor; no se equipara a roles de área."""
     assert all("SUPERVISOR" not in nombre for nombre in auth_module.ROLES.values())
+
+
+# --- Estabilización: solo tareas activas (Documento 0, Tabla 7.45) ---
+
+ESQUEMA_ACTIVAS = """
+CREATE TABLE area (id_area INTEGER PRIMARY KEY, nombre_area TEXT);
+CREATE TABLE cliente_area (id_cliente INTEGER, id_area INTEGER);
+CREATE TABLE tarea (id_tarea INTEGER PRIMARY KEY AUTOINCREMENT, id_area INTEGER, estado TEXT);
+INSERT INTO area VALUES (1, 'JURIDICA'), (2, 'CONTABLE'), (3, 'ADMINISTRACION');
+INSERT INTO cliente_area VALUES (1, 1), (2, 1), (2, 2);
+INSERT INTO tarea (id_area, estado) VALUES
+  (1, 'PENDIENTE'), (1, 'EN_PROCESO'), (1, 'EN_REVISION'), (1, 'COMPLETADA'), (1, 'CANCELADA'),
+  (2, 'PENDIENTE'), (2, 'COMPLETADA'), (2, 'COMPLETADA'), (2, 'CANCELADA'),
+  (3, 'COMPLETADA'), (3, 'CANCELADA');
+"""
+
+
+class _CursorSqlite:
+    def __init__(self, conexion):
+        self._cursor = conexion.cursor()
+
+    def execute(self, sql, params=()):
+        self._cursor.execute(sql.replace("%s", "?"), tuple(params))
+
+    def fetchone(self):
+        fila = self._cursor.fetchone()
+        return dict(fila) if fila is not None else None
+
+    def fetchall(self):
+        return [dict(fila) for fila in self._cursor.fetchall()]
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        return False
+
+
+class _ConexionSqlite:
+    def __init__(self, conexion):
+        self._conexion = conexion
+
+    def cursor(self, dictionary=False):
+        return _CursorSqlite(self._conexion)
+
+    def close(self):
+        pass
+
+
+@pytest.fixture
+def base_activas(monkeypatch, iniciar_sesion):
+    conexion = sqlite3.connect(":memory:")
+    conexion.row_factory = sqlite3.Row
+    conexion.executescript(ESQUEMA_ACTIVAS)
+    iniciar_sesion(usuario_id=9, rol_id=1)
+    monkeypatch.setattr(reportes_routes, "get_connection", lambda: _ConexionSqlite(conexion))
+    yield conexion
+    conexion.close()
+
+
+def _por_area(datos):
+    return {area["nombre_area"]: area for area in datos["areas"]}
+
+
+def test_cuenta_solo_tareas_activas_por_area(client, base_activas):
+    datos = client.get(URL).get_json()
+    areas = _por_area(datos)
+
+    # 11 tareas en la base: 4 activas, 4 completadas y 3 canceladas.
+    assert datos["total_tareas"] == 4
+    assert areas["JURIDICA"]["tareas"] == 3
+    assert areas["CONTABLE"]["tareas"] == 1
+    assert areas["ADMINISTRACION"]["tareas"] == 0
+
+
+def test_porcentajes_se_calculan_sobre_las_tareas_activas(client, base_activas):
+    areas = _por_area(client.get(URL).get_json())
+
+    assert areas["JURIDICA"]["porcentaje_tareas"] == 75.0
+    assert areas["CONTABLE"]["porcentaje_tareas"] == 25.0
+    assert areas["ADMINISTRACION"]["porcentaje_tareas"] == 0.0
+
+
+@pytest.mark.parametrize("estado", ["COMPLETADA", "CANCELADA"])
+def test_excluye_las_tareas_en_estado_final(client, base_activas, estado):
+    antes = client.get(URL).get_json()
+    base_activas.execute("INSERT INTO tarea (id_area, estado) VALUES (2, ?)", (estado,))
+    base_activas.commit()
+
+    assert client.get(URL).get_json() == antes
+
+
+@pytest.mark.parametrize("estado", ["PENDIENTE", "EN_PROCESO", "EN_REVISION"])
+def test_incluye_cada_estado_activo(client, base_activas, estado):
+    base_activas.execute("INSERT INTO tarea (id_area, estado) VALUES (3, ?)", (estado,))
+    base_activas.commit()
+
+    datos = client.get(URL).get_json()
+
+    assert datos["total_tareas"] == 5
+    assert _por_area(datos)["ADMINISTRACION"]["tareas"] == 1
+
+
+def test_un_area_solo_con_tareas_finales_queda_en_cero_sin_error(client, base_activas):
+    base_activas.execute("DELETE FROM tarea WHERE estado IN ('PENDIENTE', 'EN_PROCESO', 'EN_REVISION')")
+    base_activas.commit()
+
+    datos = client.get(URL).get_json()
+
+    assert datos["total_tareas"] == 0
+    assert all(area["tareas"] == 0 and area["porcentaje_tareas"] == 0.0 for area in datos["areas"])
+
+
+def test_la_distribucion_de_clientes_no_depende_del_estado_de_las_tareas(client, base_activas):
+    datos = client.get(URL).get_json()
+    areas = _por_area(datos)
+
+    assert datos["total_clientes"] == 2
+    assert datos["total_asignaciones_cliente_area"] == 3
+    assert areas["JURIDICA"]["clientes"] == 2
+    assert areas["CONTABLE"]["clientes"] == 1

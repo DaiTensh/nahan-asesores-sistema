@@ -22,6 +22,9 @@ logger = logging.getLogger(__name__)
 MENSAJE_SIN_TAREAS = "No se registran tareas para los criterios seleccionados"
 MENSAJE_SIN_COMPLETADAS = "No se registran tareas completadas en el período seleccionado"
 
+# RF45 — una tarea está activa mientras no llega a un estado final.
+ESTADOS_TAREA_ACTIVA = ("PENDIENTE", "EN_PROCESO", "EN_REVISION")
+
 # ==========================================================================
 # Contrato de respuesta del módulo de reportes (RF31 / RF32).
 # Lo consumen Renato Villalobos (RF34, RF38) y Elías Alarcón (RF35): si este
@@ -581,10 +584,12 @@ def reporte_actividad_por_area():
 @reportes_blueprint.route('/reportes/distribucion-por-area', methods=['GET'])
 @roles_required(ROL_ADMINISTRADOR)
 def distribucion_actual_por_area():
-    """RF45 — Distribución actual de clientes y tareas por área.
+    """RF45 — Distribución actual de clientes y tareas activas por área.
 
     Los porcentajes de clientes usan como denominador las relaciones únicas
-    cliente-área; un mismo cliente puede participar en más de un área.
+    cliente-área; un mismo cliente puede participar en más de un área. Las
+    tareas COMPLETADA y CANCELADA no se cuentan: el criterio pide la
+    distribución de tareas activas.
     """
     conexion = None
     try:
@@ -610,8 +615,11 @@ def distribucion_actual_por_area():
             )
             total_clientes = int((cursor.fetchone() or {}).get("total", 0) or 0)
 
+            marcadores = ", ".join(["%s"] * len(ESTADOS_TAREA_ACTIVA))
             cursor.execute(
-                "SELECT id_area, COUNT(*) AS total FROM tarea GROUP BY id_area"
+                "SELECT id_area, COUNT(*) AS total FROM tarea "
+                f"WHERE estado IN ({marcadores}) GROUP BY id_area",
+                ESTADOS_TAREA_ACTIVA,
             )
             tareas_por_area = {
                 fila["id_area"]: int(fila["total"] or 0)
