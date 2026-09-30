@@ -23,6 +23,122 @@ function obtenerTituloPagina() {
   return titulo ? titulo.textContent.trim() : document.title;
 }
 
+function generarUrlResultado(resultado) {
+  if (!resultado || !resultado.tipo) return "#";
+
+  if (resultado.tipo === "cliente") {
+    return `../clientes/ficha_cliente.html?id=${encodeURIComponent(resultado.id)}`;
+  }
+  if (resultado.tipo === "tarea") {
+    return `../tareas/detalle_tarea.html?id=${encodeURIComponent(resultado.id)}`;
+  }
+  if (resultado.tipo === "usuario") {
+    return `../usuarios/modificar_usuario.html?id=${encodeURIComponent(resultado.id)}`;
+  }
+
+  return "#";
+}
+
+function renderizarBuscadorGlobal() {
+  const busqueda = document.getElementById("globalSearchInput");
+  const resultados = document.getElementById("globalSearchResults");
+  if (!busqueda || !resultados) return;
+
+  let temporizador = null;
+
+  const mostrarMensaje = (mensaje) => {
+    const elemento = document.createElement("div");
+    elemento.className = "topbar-search-empty";
+    elemento.textContent = mensaje;
+    resultados.replaceChildren(elemento);
+    resultados.hidden = false;
+  };
+
+  const ejecutarBusqueda = async (valor) => {
+    const texto = valor.trim();
+    if (!texto || texto.length < 2) {
+      resultados.hidden = true;
+      return;
+    }
+
+    try {
+      const response = await fetch(`${window.API_CONFIG.API_URL}/busqueda-global?q=${encodeURIComponent(texto)}`, {
+        credentials: window.API_CONFIG.credentials
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        mostrarMensaje(data.error || "Sin resultados");
+        return;
+      }
+
+      const grupos = data.resultados || {};
+      const bloques = [];
+      const orden = ["clientes", "tareas", "usuarios"];
+
+      orden.forEach(tipo => {
+        const items = grupos[tipo] || [];
+        if (!items.length) return;
+
+        const grupo = document.createElement("div");
+        grupo.className = "topbar-search-group";
+
+        const etiqueta = document.createElement("div");
+        etiqueta.className = "topbar-search-label";
+        etiqueta.textContent = tipo;
+        grupo.appendChild(etiqueta);
+
+        items.forEach(item => {
+          const url = generarUrlResultado({ tipo, id: item.id });
+          const enlace = document.createElement("a");
+          enlace.className = "topbar-search-item";
+          enlace.href = url;
+
+          const nombre = document.createElement("span");
+          nombre.className = "topbar-search-title";
+          nombre.textContent = item.nombre || "Sin nombre";
+
+          const detalle = document.createElement("span");
+          detalle.className = "topbar-search-meta";
+          detalle.textContent = item.detalle || tipo;
+
+          enlace.append(nombre, detalle);
+          grupo.appendChild(enlace);
+        });
+
+        bloques.push(grupo);
+      });
+
+      if (!bloques.length) {
+        mostrarMensaje("Sin resultados para la búsqueda.");
+      } else {
+        resultados.replaceChildren(...bloques);
+        resultados.hidden = false;
+      }
+    } catch {
+      mostrarMensaje("No fue posible ejecutar la búsqueda.");
+    }
+  };
+
+  busqueda.addEventListener("input", event => {
+    const valor = event.target.value;
+    clearTimeout(temporizador);
+    temporizador = setTimeout(() => ejecutarBusqueda(valor), 250);
+  });
+
+  busqueda.addEventListener("focus", () => {
+    if (busqueda.value.trim().length >= 2) {
+      ejecutarBusqueda(busqueda.value);
+    }
+  });
+
+  document.addEventListener("click", event => {
+    if (!event.target.closest("#globalSearchInput") && !event.target.closest("#globalSearchResults")) {
+      resultados.hidden = true;
+    }
+  });
+}
+
 function obtenerSubtituloPagina() {
   const encabezados = [
     ".dashboard-header p",
@@ -98,6 +214,23 @@ async function cargarTopbar() {
   fecha.className = "topbar-date";
   fecha.textContent = fechaActualEnEspanol();
 
+  const buscador = document.createElement("div");
+  buscador.className = "topbar-search";
+
+  const inputBusqueda = document.createElement("input");
+  inputBusqueda.id = "globalSearchInput";
+  inputBusqueda.type = "search";
+  inputBusqueda.placeholder = "Buscar clientes, tareas, usuarios";
+  inputBusqueda.setAttribute("aria-label", "Buscar globalmente");
+
+  const resultadosBusqueda = document.createElement("div");
+  resultadosBusqueda.id = "globalSearchResults";
+  resultadosBusqueda.className = "topbar-search-panel";
+  resultadosBusqueda.hidden = true;
+
+  buscador.appendChild(inputBusqueda);
+  buscador.appendChild(resultadosBusqueda);
+
   const menuSesion = document.createElement("details");
   menuSesion.className = "topbar-user";
 
@@ -143,11 +276,13 @@ async function cargarTopbar() {
   menuSesion.appendChild(panel);
 
   acciones.appendChild(fecha);
+  acciones.appendChild(buscador);
   acciones.appendChild(menuSesion);
 
   topbar.appendChild(contexto);
   topbar.appendChild(acciones);
 
+  renderizarBuscadorGlobal();
   montarModuloTopbar("inactividad"); // RF59
   montarModuloTopbar("notificaciones"); // RF51, RF52, RF53
 }
