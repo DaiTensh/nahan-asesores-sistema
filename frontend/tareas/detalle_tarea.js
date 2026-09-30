@@ -66,12 +66,113 @@ async function cargarDetalle(idTarea) {
       enlaceEditar.hidden = false;
     }
 
+    await configurarAccionesRevision(tarea);
     renderizarHistorial(tarea.historial || []);
     await cargarAdjuntos(idTarea);
 
   } catch (error) {
     console.error(error);
     mostrarMensaje("Error al conectar con el servidor.", "error");
+  }
+}
+
+async function configurarAccionesRevision(tarea) {
+  const seccion = document.getElementById("seccionAccionesRevision");
+  const btnEnviar = document.getElementById("btnEnviarRevision");
+  const btnAprobar = document.getElementById("btnAprobarRevision");
+  const btnRechazar = document.getElementById("btnRechazarRevision");
+  const contenedorRechazo = document.getElementById("contenedorObservacionRechazo");
+  const observacion = document.getElementById("observacionRechazo");
+  const usuario = await obtenerUsuarioActual();
+
+  if (!usuario) {
+    seccion.hidden = true;
+    return;
+  }
+
+  const esResponsable = Number(usuario.id_usuario) === Number(tarea.id_responsable);
+  const esAdmin = usuario.nombre_rol === "ADMINISTRADOR";
+  const puedeEnviar = !ESTADOS_FINALES.includes(tarea.estado) && tarea.estado !== "EN_REVISION" && (esResponsable || esAdmin);
+  const puedeAprobar = esAdmin && tarea.estado === "EN_REVISION";
+  const puedeRechazar = esAdmin && tarea.estado === "EN_REVISION";
+
+  btnEnviar.hidden = !puedeEnviar;
+  btnAprobar.hidden = !puedeAprobar;
+  btnRechazar.hidden = !puedeRechazar;
+  contenedorRechazo.hidden = true;
+  observacion.value = "";
+
+  seccion.hidden = !(puedeEnviar || puedeAprobar || puedeRechazar);
+
+  if (puedeEnviar) {
+    btnEnviar.onclick = async () => {
+      const respuesta = await fetch(`${API_URL}/tareas/${tarea.id_tarea}/estado`, {
+        method: "PUT",
+        credentials: window.API_CONFIG.credentials,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ estado: "EN_REVISION" })
+      });
+      const data = await respuesta.json().catch(() => ({}));
+
+      if (!respuesta.ok) {
+        mostrarMensaje(data.error || "No se pudo enviar la tarea a revisión.", "error");
+        return;
+      }
+
+      mostrarMensaje(data.message || "Tarea enviada a revisión.", "success");
+      window.location.reload();
+    };
+  }
+
+  if (puedeAprobar) {
+    btnAprobar.onclick = async () => {
+      const respuesta = await fetch(`${API_URL}/tareas/${tarea.id_tarea}/revision`, {
+        method: "PUT",
+        credentials: window.API_CONFIG.credentials,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accion: "aprobar" })
+      });
+      const data = await respuesta.json().catch(() => ({}));
+
+      if (!respuesta.ok) {
+        mostrarMensaje(data.error || "No se pudo aprobar la tarea.", "error");
+        return;
+      }
+
+      mostrarMensaje(data.message || "Tarea aprobada.", "success");
+      window.location.reload();
+    };
+  }
+
+  if (puedeRechazar) {
+    btnRechazar.onclick = () => {
+      contenedorRechazo.hidden = false;
+      observacion.focus();
+    };
+
+    document.getElementById("btnConfirmarRechazo").onclick = async () => {
+      const descripcion = observacion.value.trim();
+      if (!descripcion) {
+        mostrarMensaje("Debe indicar las observaciones del rechazo.", "error");
+        return;
+      }
+
+      const respuesta = await fetch(`${API_URL}/tareas/${tarea.id_tarea}/revision`, {
+        method: "PUT",
+        credentials: window.API_CONFIG.credentials,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accion: "rechazar", observaciones: descripcion })
+      });
+      const data = await respuesta.json().catch(() => ({}));
+
+      if (!respuesta.ok) {
+        mostrarMensaje(data.error || "No se pudo rechazar la tarea.", "error");
+        return;
+      }
+
+      mostrarMensaje(data.message || "La tarea fue rechazada.", "success");
+      window.location.reload();
+    };
   }
 }
 

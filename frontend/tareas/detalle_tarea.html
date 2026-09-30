@@ -41,6 +41,20 @@
 
       <p id="detalleMensaje" class="mensaje"></p>
 
+      <section class="tareas-section" id="seccionAccionesRevision" hidden>
+        <h2>Revisión de tarea</h2>
+        <div class="tareas-header-actions">
+          <button type="button" id="btnEnviarRevision" class="btn btn-primary">Enviar a revisión</button>
+          <button type="button" id="btnAprobarRevision" class="btn btn-success">Aprobar</button>
+          <button type="button" id="btnRechazarRevision" class="btn btn-secondary">Rechazar</button>
+        </div>
+        <div id="contenedorObservacionRechazo" hidden style="margin-top: 1rem; max-width: 480px;">
+          <label for="observacionRechazo" class="form-label">Observaciones del rechazo</label>
+          <textarea id="observacionRechazo" class="form-input" rows="3" placeholder="Indique por qué se rechaza la tarea..."></textarea>
+          <button type="button" id="btnConfirmarRechazo" class="btn btn-danger" style="margin-top: 0.75rem;">Confirmar rechazo</button>
+        </div>
+      </section>
+
       <section class="tareas-section" id="detalleContenido" hidden>
         <h2>Antecedentes generales</h2>
 

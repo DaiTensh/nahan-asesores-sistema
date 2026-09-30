@@ -93,6 +93,103 @@ def _puede_operar_tarea(usuario, id_responsable):
         usuario["nombre_rol"] == ROL_ADMINISTRADOR
         or usuario["id_usuario"] == id_responsable
     )
+
+
+def _obtener_administradores(cursor):
+    """Lista de administradores activos, para RF76 en revisión."""
+    cursor.execute(
+        """
+        SELECT u.id_usuario
+        FROM usuario u
+        INNER JOIN rol r ON r.id_rol = u.id_rol
+        WHERE r.nombre_rol = %s AND u.estado = 'ACTIVO'
+        ORDER BY u.id_usuario ASC
+        """,
+        (ROL_ADMINISTRADOR,),
+    )
+    filas = cursor.fetchall()
+    return [fila["id_usuario"] if isinstance(fila, dict) else fila[0] for fila in filas]
+
+
+def _revision_tarea_disponible(cursor):
+    """La tabla revision_tarea existe en el esquema real del proyecto; en
+    pruebas viejas o bases mínimas puede no estar creada, en cuyo caso RF76
+    debe operar sin romper la compatibilidad."""
+    try:
+        cursor.execute("SELECT 1 FROM revision_tarea LIMIT 1")
+        return True
+    except Exception:
+        return False
+
+
+def _registrar_revision_tarea(cursor, id_tarea, id_revisor, accion, observaciones=None):
+    """Guarda el registro de la revisión en la tabla ya existente."""
+    if not _revision_tarea_disponible(cursor):
+        return None
+
+    cursor.execute(
+        """
+        INSERT INTO revision_tarea (id_tarea, id_revisor, accion, observaciones)
+        VALUES (%s, %s, %s, %s)
+        """,
+        (id_tarea, id_revisor, accion, observaciones),
+    )
+    lastrowid = getattr(cursor, "lastrowid", None)
+    return int(lastrowid) if lastrowid is not None else None
+
+
+def _estado_previo_revision(cursor, id_tarea):
+    """Resuelve el estado previo a una tarea en revisión usando el historial existente."""
+    if not _revision_tarea_disponible(cursor):
+        return None
+
+    cursor.execute(
+        """
+        SELECT observaciones
+        FROM revision_tarea
+        WHERE id_tarea = %s AND accion = 'ENVIO_REVISION'
+        ORDER BY fecha_revision DESC, id_revision DESC
+        LIMIT 1
+        """,
+        (id_tarea,),
+    )
+    fila = cursor.fetchone()
+    if not fila:
+        return None
+    texto = fila.get("observaciones") if isinstance(fila, dict) else fila[0]
+    if not texto:
+        return None
+
+    for parte in str(texto).split(";"):
+        parte = parte.strip()
+        if parte.startswith("estado_previo="):
+            return parte.split("=", 1)[1].strip() or None
+    return None
+
+
+def _obtener_tarea_para_revision(cursor, id_tarea):
+    cursor.execute(
+        """
+        SELECT id_tarea, id_responsable, titulo, estado, observaciones
+        FROM tarea
+        WHERE id_tarea = %s
+        """,
+        (id_tarea,),
+    )
+    return cursor.fetchone()
+
+
+def _agregar_observacion_tarea(observaciones_actuales, texto):
+    if not texto:
+        return observaciones_actuales or None
+    texto = str(texto).strip()
+    if not texto:
+        return observaciones_actuales or None
+    if observaciones_actuales:
+        return f"{observaciones_actuales}\n{texto}"
+    return texto
+
+
 def _contar_tareas_finalizadas(cursor, fecha_inicio, fecha_fin, usuario):
     """Cuenta tareas completadas en el período indicado."""
     condiciones = [
@@ -992,7 +1089,7 @@ def asignar_tarea(id_tarea):
 def actualizar_estado_tarea(id_tarea):
     connection = None
     cursor = None
-    data = request.get_json()
+    data = request.get_json() or {}
     usuario = obtener_usuario_actual()
 
     estado = data.get("estado")
@@ -1018,22 +1115,18 @@ def actualizar_estado_tarea(id_tarea):
         if not tarea:
             return jsonify({"error": "Tarea no encontrada"}), 404
 
-        # Quien no es ADMINISTRADOR solo cambia el estado de sus propias
-        # tareas: el listado solo le muestra esas, y el servidor lo exige.
         if not _puede_operar_tarea(usuario, tarea["id_responsable"]):
             return jsonify({"error": "No tiene acceso a esta tarea"}), 403
 
         estado_anterior = tarea["estado"]
         if estado_anterior == estado:
+            if estado == "EN_REVISION":
+                return jsonify({"error": "La tarea ya está en revisión"}), 409
             return jsonify({"message": "Estado actualizado correctamente"}), 200
         if estado_anterior in ESTADOS_FINALES:
             return jsonify({"error": "No se puede modificar una tarea COMPLETADA o CANCELADA"}), 409
 
         if estado == "COMPLETADA":
-            # RF65 — Marcando Tarea como Completada: además de cerrar el
-            # estado se registra la hora exacta del cierre; quién la
-            # completó queda en auditoria, igual que el resto de los
-            # cambios sobre tarea (RF64, RF16).
             cursor.execute(
                 """
                 UPDATE tarea
@@ -1048,13 +1141,45 @@ def actualizar_estado_tarea(id_tarea):
                 datos_anteriores=f"id_tarea={id_tarea}, estado={estado_anterior}",
                 datos_nuevos=f"id_tarea={id_tarea}, estado=COMPLETADA",
             )
+        elif estado == "EN_REVISION":
+            cursor.execute(
+                "UPDATE tarea SET estado = %s WHERE id_tarea = %s",
+                (estado, id_tarea)
+            )
+            observacion_revision = f"estado_previo={estado_anterior}"
+            id_revision = _registrar_revision_tarea(
+                cursor,
+                id_tarea,
+                usuario["id_usuario"],
+                "ENVIO_REVISION",
+                observacion_revision,
+            )
+            registrar_auditoria(
+                cursor, usuario["id_usuario"], "tarea", "ENVIO_REVISION",
+                id_registro=id_tarea,
+                datos_anteriores=f"id_tarea={id_tarea}, estado={estado_anterior}",
+                datos_nuevos=f"id_tarea={id_tarea}, estado=EN_REVISION",
+            )
+            registrar_auditoria(
+                cursor, usuario["id_usuario"], "revision_tarea", "ENVIO_REVISION",
+                id_registro=id_revision,
+                datos_anteriores=f"id_tarea={id_tarea}, accion=ENVIO_REVISION",
+                datos_nuevos=f"id_tarea={id_tarea}, accion=ENVIO_REVISION, observaciones={observacion_revision}",
+            )
+            for id_admin in _obtener_administradores(cursor):
+                crear_notificacion(
+                    cursor,
+                    id_admin,
+                    "REVISION_TAREA",
+                    f"La tarea \"{tarea['titulo']}\" pasó a revisión administrativa desde {estado_anterior} (En revisión).",
+                    _url_detalle_tarea(id_tarea),
+                    id_usuario_actor=usuario["id_usuario"],
+                )
         else:
             cursor.execute(
                 "UPDATE tarea SET estado = %s WHERE id_tarea = %s",
                 (estado, id_tarea)
             )
-            # La cancelación también cierra la tarea (bloquea la edición,
-            # igual que RF65): queda en el historial quién la canceló.
             if estado == "CANCELADA":
                 registrar_auditoria(
                     cursor, usuario["id_usuario"], "tarea", "CANCELAR_TAREA",
@@ -1063,9 +1188,7 @@ def actualizar_estado_tarea(id_tarea):
                     datos_nuevos=f"id_tarea={id_tarea}, estado=CANCELADA",
                 )
 
-        # RF51 — el responsable se entera del cambio de estado, salvo que lo
-        # haya hecho él mismo o que el estado no haya cambiado realmente.
-        if estado != estado_anterior:
+        if estado != estado_anterior and estado != "EN_REVISION":
             crear_notificacion(
                 cursor,
                 tarea["id_responsable"],
@@ -1084,6 +1207,137 @@ def actualizar_estado_tarea(id_tarea):
             connection.rollback()
         logger.exception("Error al actualizar estado de tarea")
         return jsonify({"error": "Error interno al actualizar estado"}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
+@tareas_bp.route("/tareas/<int:id_tarea>/revision", methods=["PUT"])
+@login_required
+def revisar_tarea(id_tarea):
+    """RF76 — Revisión, aprobación y rechazo de tareas en revisión."""
+    connection = None
+    cursor = None
+    usuario = obtener_usuario_actual()
+    data = request.get_json() or {}
+
+    accion = (data.get("accion") or "").strip().lower()
+
+    if usuario["nombre_rol"] != ROL_ADMINISTRADOR:
+        return jsonify({"error": "Solo un administrador puede revisar tareas"}), 403
+
+    if accion not in {"aprobar", "rechazar"}:
+        return jsonify({"error": "Acción no válida. Use aprobar o rechazar."}), 400
+
+    if accion == "rechazar":
+        observaciones = (data.get("observaciones") or "").strip()
+        if not observaciones:
+            return jsonify({"error": "Debe indicar las observaciones del rechazo"}), 400
+    else:
+        observaciones = None
+
+    try:
+        connection = get_connection()
+        cursor = connection.cursor(dictionary=True)
+
+        tarea = _obtener_tarea_para_revision(cursor, id_tarea)
+        if not tarea:
+            return jsonify({"error": "Tarea no encontrada"}), 404
+
+        if tarea["estado"] != "EN_REVISION":
+            return jsonify({"error": "La tarea debe estar en revisión para aprobarla o rechazarla"}), 409
+
+        if accion == "aprobar":
+            estado_final = "COMPLETADA"
+            cursor.execute(
+                """
+                UPDATE tarea
+                SET estado = %s, fecha_finalizacion = CURRENT_TIMESTAMP
+                WHERE id_tarea = %s
+                """,
+                (estado_final, id_tarea),
+            )
+            id_revision = _registrar_revision_tarea(
+                cursor,
+                id_tarea,
+                usuario["id_usuario"],
+                "APROBAR_REVISION",
+                f"estado_final={estado_final}",
+            )
+            registrar_auditoria(
+                cursor, usuario["id_usuario"], "tarea", "APROBAR_REVISION",
+                id_registro=id_tarea,
+                datos_anteriores=f"id_tarea={id_tarea}, estado=EN_REVISION",
+                datos_nuevos=f"id_tarea={id_tarea}, estado=COMPLETADA",
+            )
+            registrar_auditoria(
+                cursor, usuario["id_usuario"], "revision_tarea", "APROBAR_REVISION",
+                id_registro=id_revision,
+                datos_anteriores=f"id_tarea={id_tarea}, accion=APROBAR_REVISION",
+                datos_nuevos=f"id_tarea={id_tarea}, accion=APROBAR_REVISION, estado_final={estado_final}",
+            )
+            mensaje = f"La tarea \"{tarea['titulo']}\" fue aprobada y quedó finalizada."
+            crear_notificacion(
+                cursor,
+                tarea["id_responsable"],
+                "REVISION_TAREA",
+                mensaje,
+                _url_detalle_tarea(id_tarea),
+                id_usuario_actor=usuario["id_usuario"],
+            )
+        else:
+            estado_anterior = _estado_previo_revision(cursor, id_tarea)
+            if estado_anterior is None:
+                return jsonify({"error": "No se puede determinar el estado previo de la revisión"}), 409
+
+            observacion_total = _agregar_observacion_tarea(
+                tarea.get("observaciones"),
+                f"Rechazo de revisión: {observaciones}",
+            )
+            cursor.execute(
+                "UPDATE tarea SET estado = %s, observaciones = %s WHERE id_tarea = %s",
+                (estado_anterior, observacion_total, id_tarea),
+            )
+            id_revision = _registrar_revision_tarea(
+                cursor,
+                id_tarea,
+                usuario["id_usuario"],
+                "RECHAZAR_REVISION",
+                f"estado_retorno={estado_anterior}; {observaciones}",
+            )
+            registrar_auditoria(
+                cursor, usuario["id_usuario"], "tarea", "RECHAZAR_REVISION",
+                id_registro=id_tarea,
+                datos_anteriores=f"id_tarea={id_tarea}, estado=EN_REVISION",
+                datos_nuevos=f"id_tarea={id_tarea}, estado={estado_anterior}",
+            )
+            registrar_auditoria(
+                cursor, usuario["id_usuario"], "revision_tarea", "RECHAZAR_REVISION",
+                id_registro=id_revision,
+                datos_anteriores=f"id_tarea={id_tarea}, accion=RECHAZAR_REVISION",
+                datos_nuevos=f"id_tarea={id_tarea}, accion=RECHAZAR_REVISION, observaciones={observaciones}",
+            )
+            mensaje = f"La tarea \"{tarea['titulo']}\" fue rechazada y volvió a {estado_anterior}. Observación: {observaciones}"
+            crear_notificacion(
+                cursor,
+                tarea["id_responsable"],
+                "REVISION_TAREA",
+                mensaje,
+                _url_detalle_tarea(id_tarea),
+                id_usuario_actor=usuario["id_usuario"],
+            )
+
+        connection.commit()
+        return jsonify({"message": "Acción de revisión registrada correctamente"}), 200
+
+    except Exception:
+        if connection:
+            connection.rollback()
+        logger.exception("Error al revisar tarea")
+        return jsonify({"error": "Error interno al procesar la revisión"}), 500
 
     finally:
         if cursor:
