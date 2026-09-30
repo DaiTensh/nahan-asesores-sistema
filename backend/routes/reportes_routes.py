@@ -655,6 +655,118 @@ def distribucion_actual_por_area():
             conexion.close()
 
 
+@reportes_blueprint.route('/reportes/carga-por-usuario', methods=['GET'])
+@roles_required(ROL_ADMINISTRADOR)
+def carga_por_usuario():
+    """RF44 — Carga de trabajo por usuario.
+
+    Muestra el desglose real de tareas por estado para cada usuario activo,
+    con opción de limitar la comparación a un área concreta. La consulta se
+    basa en la base actual y no inventa ponderaciones ni fórmulas arbitrarias.
+    """
+    conexion = None
+    try:
+        id_area = (request.args.get('id_area') or '').strip()
+        if id_area and (not id_area.isdecimal() or int(id_area) < 1):
+            return jsonify({"error": "id_area debe ser un ID entero positivo"}), 400
+
+        conexion = get_connection()
+        if conexion is None:
+            return jsonify({"error": "Fallo de conexión con MySQL."}), 500
+
+        with conexion.cursor(dictionary=True) as cursor:
+            consulta_usuarios = """
+                SELECT u.id_usuario, u.nombres, u.id_area, a.nombre_area, u.estado
+                FROM usuario u
+                LEFT JOIN area a ON a.id_area = u.id_area
+                WHERE u.estado = 'ACTIVO'
+            """
+            parametros = []
+            if id_area:
+                consulta_usuarios += " AND u.id_area = %s"
+                parametros.append(int(id_area))
+            consulta_usuarios += " ORDER BY u.id_area, u.nombres"
+            cursor.execute(consulta_usuarios, tuple(parametros))
+            usuarios = [
+                usuario for usuario in cursor.fetchall()
+                if usuario.get("estado") == "ACTIVO"
+            ]
+
+            if not usuarios:
+                return jsonify({
+                    "usuarios": [],
+                    "mensaje": "No hay usuarios activos para los criterios seleccionados",
+                }), 200
+
+            ids_usuario = [usuario["id_usuario"] for usuario in usuarios]
+            marcadores = ", ".join(["%s"] * len(ids_usuario))
+            consulta_tareas = f"""
+                SELECT u.id_usuario,
+                       SUM(CASE WHEN t.estado = 'PENDIENTE' THEN 1 ELSE 0 END) AS PENDIENTE,
+                       SUM(CASE WHEN t.estado = 'EN_PROCESO' THEN 1 ELSE 0 END) AS EN_PROCESO,
+                       SUM(CASE WHEN t.estado = 'EN_REVISION' THEN 1 ELSE 0 END) AS EN_REVISION,
+                       SUM(CASE WHEN t.estado = 'COMPLETADA' THEN 1 ELSE 0 END) AS COMPLETADA,
+                       SUM(CASE WHEN t.estado = 'CANCELADA' THEN 1 ELSE 0 END) AS CANCELADA
+                FROM usuario u
+                LEFT JOIN tarea t ON t.id_responsable = u.id_usuario
+                WHERE u.id_usuario IN ({marcadores})
+                GROUP BY u.id_usuario
+            """
+            cursor.execute(consulta_tareas, tuple(ids_usuario))
+
+            conteos = {}
+            for fila in cursor.fetchall():
+                conteos[fila["id_usuario"]] = {
+                    "PENDIENTE": int(fila.get("PENDIENTE") or 0),
+                    "EN_PROCESO": int(fila.get("EN_PROCESO") or 0),
+                    "EN_REVISION": int(fila.get("EN_REVISION") or 0),
+                    "COMPLETADA": int(fila.get("COMPLETADA") or 0),
+                    "CANCELADA": int(fila.get("CANCELADA") or 0),
+                }
+
+            carga = []
+            for usuario in usuarios:
+                por_estado = conteos.get(
+                    usuario["id_usuario"],
+                    {
+                        "PENDIENTE": 0,
+                        "EN_PROCESO": 0,
+                        "EN_REVISION": 0,
+                        "COMPLETADA": 0,
+                        "CANCELADA": 0,
+                    },
+                )
+                total = sum(por_estado.values())
+                carga.append({
+                    "id_usuario": usuario["id_usuario"],
+                    "usuario": usuario["nombres"],
+                    "id_area": usuario["id_area"],
+                    "nombre_area": usuario.get("nombre_area") or "Sin área",
+                    "estado": usuario["estado"],
+                    "por_estado": por_estado,
+                    "total_tareas": total,
+                })
+
+            respuesta = {"usuarios": carga}
+            if id_area:
+                respuesta["area"] = {
+                    "id_area": int(id_area),
+                    "nombre_area": (usuarios[0] or {}).get("nombre_area") or "Área seleccionada",
+                }
+
+            return jsonify(respuesta), 200
+
+    except Exception:
+        if conexion:
+            conexion.rollback()
+        logger.exception("Error al calcular la carga de trabajo por usuario")
+        return jsonify({"error": "Ocurrió un error al calcular la carga de trabajo por usuario."}), 500
+
+    finally:
+        if conexion:
+            conexion.close()
+
+
 @reportes_blueprint.route('/reportes/tareas-por-responsable', methods=['GET'])
 @roles_required(ROL_ADMINISTRADOR)
 def reporte_tareas_por_responsable():
