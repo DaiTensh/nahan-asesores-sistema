@@ -123,6 +123,32 @@ def listar_usuarios():
     cursor = None
 
     try:
+        id_rol = request.args.get("id_rol", type=int)
+        id_area = request.args.get("id_area", type=int)
+        estado = (request.args.get("estado") or "").strip().upper()
+        ordenar_por = (request.args.get("ordenar_por") or "").strip().lower()
+        direccion = (request.args.get("direccion") or "").strip().upper()
+
+        if request.args.get("id_rol") and id_rol is None:
+            return jsonify({"error": "El rol seleccionado no es válido"}), 400
+        if request.args.get("id_area") and id_area is None:
+            return jsonify({"error": "El área seleccionada no es válida"}), 400
+        if id_rol is not None and id_rol <= 0:
+            return jsonify({"error": "El rol seleccionado no es válido"}), 400
+        if id_area is not None and id_area <= 0:
+            return jsonify({"error": "El área seleccionada no es válida"}), 400
+        if estado and estado not in ("ACTIVO", "INACTIVO"):
+            return jsonify({"error": "El estado seleccionado no es válido"}), 400
+
+        columnas_orden = {
+            "nombre": "u.nombres",
+            "fecha_registro": "u.fecha_creacion",
+        }
+        if ordenar_por and ordenar_por not in columnas_orden:
+            return jsonify({"error": "El criterio de ordenamiento no es válido"}), 400
+        if direccion and direccion not in ("ASC", "DESC"):
+            return jsonify({"error": "La dirección de ordenamiento no es válida"}), 400
+
         connection = get_connection()
         cursor = connection.cursor(dictionary=True)
 
@@ -139,11 +165,30 @@ def listar_usuarios():
                 a.nombre_area
             FROM usuario u
             INNER JOIN rol r ON u.id_rol = r.id_rol
-            INNER JOIN area a ON u.id_area = a.id_area
-            ORDER BY u.id_usuario DESC
+            LEFT JOIN area a ON u.id_area = a.id_area
         """
+        filtros = []
+        parametros = []
+        if id_rol is not None:
+            filtros.append("u.id_rol = %s")
+            parametros.append(id_rol)
+        if id_area is not None:
+            filtros.append("u.id_area = %s")
+            parametros.append(id_area)
+        if estado:
+            filtros.append("u.estado = %s")
+            parametros.append(estado)
+        if filtros:
+            sql += " WHERE " + " AND ".join(filtros)
 
-        cursor.execute(sql)
+        if ordenar_por:
+            columna = columnas_orden[ordenar_por]
+            direccion_sql = direccion or ("ASC" if ordenar_por == "nombre" else "DESC")
+            sql += f" ORDER BY {columna} {direccion_sql}, u.id_usuario DESC"
+        else:
+            sql += " ORDER BY u.id_usuario DESC"
+
+        cursor.execute(sql, tuple(parametros))
         usuarios = cursor.fetchall()
 
         return jsonify(usuarios), 200

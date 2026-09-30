@@ -876,7 +876,7 @@ def resumen_clientes_dashboard():
     finally:
         if conexion:
             conexion.close()
-@clientes_blueprint.route('//historial-completo', methods=['GET'])
+@clientes_blueprint.route('/clientes/<int:id_cliente>/historial-completo', methods=['GET'])
 @roles_required(*ROLES_OPERATIVOS)
 def historial_cliente(id_cliente):
     conexion = None
@@ -884,19 +884,34 @@ def historial_cliente(id_cliente):
     try:
         limite = request.args.get('limite', default=50, type=int)
         offset = request.args.get('offset', default=0, type=int)
-        fecha_inicio = request.args.get('fecha_inicio')
-        fecha_fin = request.args.get('fecha_fin')
+        accion = (request.args.get('accion') or '').strip()
+        fecha = (request.args.get('fecha') or '').strip()
 
         if limite is None or limite < 0:
             limite = 50
         if offset is None or offset < 0:
             offset = 0
 
+        if fecha:
+            try:
+                fecha_dt = datetime.strptime(fecha, '%Y-%m-%d').date()
+            except ValueError:
+                return jsonify({"error": "La fecha debe tener el formato AAAA-MM-DD."}), 400
+            fecha_inicio = fecha_dt.isoformat()
+            fecha_fin = fecha_dt.isoformat()
+        else:
+            fecha_inicio = request.args.get('fecha_inicio')
+            fecha_fin = request.args.get('fecha_fin')
+
         conexion = get_connection()
         if conexion is None:
             return jsonify({"error": "Fallo de conexión."}), 500
 
         cursor = conexion.cursor(dictionary=True)
+
+        cursor.execute("SELECT id_cliente FROM cliente WHERE id_cliente = %s", (id_cliente,))
+        if not cursor.fetchone():
+            return jsonify({"error": "Cliente inexistente."}), 404
 
         cursor.execute(
             "SELECT id_observacion FROM observacion_cliente WHERE id_cliente = %s",
@@ -917,24 +932,37 @@ def historial_cliente(id_cliente):
         ids_documentos = [row["id_documento"] for row in cursor.fetchall()]
 
         lista_registros = [("cliente", id_cliente)]
-
         for id_obs in ids_observaciones:
             lista_registros.append(("observacion_cliente", id_obs))
-
         for id_tarea in ids_tareas:
             lista_registros.append(("tarea", id_tarea))
-
         for id_doc in ids_documentos:
             lista_registros.append(("documento", id_doc))
 
-        filas, total = consultar_auditoria(
-            cursor,
-            registros=lista_registros,
-            limite=limite,
-            offset=offset,
-            fecha_inicio=fecha_inicio,
-            fecha_fin=fecha_fin,
-        )
+        filtros = {
+            "registros": lista_registros,
+            "limite": limite,
+            "offset": offset,
+            "fecha_inicio": fecha_inicio,
+            "fecha_fin": fecha_fin,
+        }
+        if accion:
+            filtros["acciones"] = [accion]
+
+        filas, total = consultar_auditoria(cursor, **filtros)
+
+        for fila in filas:
+            fecha_value = fila.get('fecha')
+            if fecha_value:
+                try:
+                    fecha_dt = datetime.strptime(str(fecha_value), '%Y-%m-%d %H:%M:%S')
+                    fila['fecha'] = fecha_dt.date().isoformat()
+                    fila['hora'] = fecha_dt.time().strftime('%H:%M:%S')
+                except ValueError:
+                    fila['fecha'] = str(fecha_value).split(' ')[0] if ' ' in str(fecha_value) else str(fecha_value)
+                    fila['hora'] = str(fecha_value).split(' ')[1] if ' ' in str(fecha_value) else '00:00:00'
+            if not fila.get('usuario'):
+                fila['usuario'] = 'Sistema'
 
         return jsonify({
             "historial": filas,

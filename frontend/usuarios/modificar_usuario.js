@@ -33,6 +33,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("id_rol").addEventListener("change", sincronizarAreaConRol);
     sincronizarAreaConRol();
+
+    const idUsuario = new URLSearchParams(window.location.search).get("id");
+    if (idUsuario && /^\d+$/.test(idUsuario) && Number(idUsuario) > 0) {
+        cargarUsuarioPorId(idUsuario);
+    }
 });
 
 async function buscarUsuario() {
@@ -70,6 +75,11 @@ async function cargarUsuarioPorId(id) {
         document.getElementById("id_rol").value = data.id_rol;
         document.getElementById("id_area").value = data.id_area;
         document.getElementById("estado").value = data.estado;
+        document.getElementById("perfilId").textContent = data.id_usuario;
+        document.getElementById("perfilRol").textContent = data.nombre_rol || "Sin rol";
+        document.getElementById("perfilArea").textContent = data.nombre_area || "Sin área";
+        document.getElementById("fechaCreacion").textContent = data.fecha_creacion || "Sin fecha";
+        document.getElementById("perfilUsuario").hidden = false;
         sincronizarAreaConRol();
 
     }

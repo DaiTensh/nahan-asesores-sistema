@@ -23,3 +23,34 @@ body {
 
     box-shadow: 0 4px 15px rgba(0,0,0,0.08);
 }
+
+.usuarios-page-title { margin-bottom: var(--spacing-5); }
+.usuarios-listado { width: 100%; margin-bottom: var(--spacing-6); }
+.usuarios-listado h2 { margin-bottom: var(--spacing-4); }
+.usuarios-filtros {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--spacing-4);
+    margin-bottom: var(--spacing-4);
+}
+.usuarios-filtros .form-group { min-width: 0; }
+.usuarios-tabla { min-width: 760px; }
+.usuarios-tabla td { vertical-align: middle; }
+.usuarios-tabla .usuario-fila-inactiva td { background: var(--color-neutral-soft); }
+.usuario-estado {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 700;
+}
+.usuario-estado-activo { background: var(--color-success-soft); color: var(--color-success-strong); }
+.usuario-estado-inactivo { background: var(--color-danger-soft); color: var(--color-danger-strong); }
+
+@media (max-width: 900px) {
+    .usuarios-filtros { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 540px) {
+    .usuarios-filtros { grid-template-columns: 1fr; }
+}
