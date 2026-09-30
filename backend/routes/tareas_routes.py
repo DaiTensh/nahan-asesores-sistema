@@ -117,6 +117,10 @@ def _revision_tarea_disponible(cursor):
     debe operar sin romper la compatibilidad."""
     try:
         cursor.execute("SELECT 1 FROM revision_tarea LIMIT 1")
+        # Se consume el resultado: con mysql-connector (cursor sin buffer) una
+        # consulta sin leer provoca «Unread result found» en la siguiente
+        # sentencia del mismo cursor.
+        cursor.fetchall()
         return True
     except Exception:
         return False
@@ -1123,6 +1127,13 @@ def actualizar_estado_tarea(id_tarea):
             if estado == "EN_REVISION":
                 return jsonify({"error": "La tarea ya está en revisión"}), 409
             return jsonify({"message": "Estado actualizado correctamente"}), 200
+        # RF76: una tarea en revisión solo sale de ese estado aprobándola o
+        # rechazándola en PUT /tareas/<id>/revision. El cambio de estado
+        # genérico no puede saltarse el flujo de revisión.
+        if estado_anterior == "EN_REVISION":
+            return jsonify({
+                "error": "La tarea está en revisión: debe aprobarse o rechazarse desde la revisión"
+            }), 409
         if estado_anterior in ESTADOS_FINALES:
             return jsonify({"error": "No se puede modificar una tarea COMPLETADA o CANCELADA"}), 409
 

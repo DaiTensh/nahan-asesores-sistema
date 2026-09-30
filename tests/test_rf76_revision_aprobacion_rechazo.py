@@ -58,9 +58,20 @@ INSERT INTO tarea (id_cliente, id_area, id_responsable, id_creador, titulo, esta
 
 
 class _Cursor:
+    """Cursor SQLite que imita al cursor sin buffer de mysql-connector.
+
+    Con el conector real, ejecutar una sentencia mientras la anterior todavía
+    tiene filas sin leer lanza «Unread result found». SQLite lo tolera, y por
+    eso las pruebas originales no detectaron el defecto de RF76. Aquí se
+    reproduce la regla: el resultado de un SELECT queda pendiente hasta que
+    una lectura llega al final de las filas.
+    """
+
     def __init__(self, conexion, dictionary):
         self._cursor = conexion.cursor()
         self._dictionary = dictionary
+        self._filas = []
+        self._sin_leer = False
         self.lastrowid = None
         self.rowcount = 0
 
@@ -70,15 +81,30 @@ class _Cursor:
         return dict(fila) if self._dictionary else tuple(fila)
 
     def execute(self, sql, params=()):
+        if self._sin_leer:
+            raise RuntimeError("Unread result found")
         self._cursor.execute(sql.replace("%s", "?"), tuple(params))
         self.lastrowid = self._cursor.lastrowid
         self.rowcount = self._cursor.rowcount
+        if self._cursor.description is not None:
+            self._filas = self._cursor.fetchall()
+            self._sin_leer = True
+        else:
+            self._filas = []
 
     def fetchone(self):
-        return self._empaquetar(self._cursor.fetchone())
+        if not self._filas:
+            self._sin_leer = False
+            return None
+        fila = self._filas.pop(0)
+        if not self._filas:
+            self._sin_leer = False
+        return self._empaquetar(fila)
 
     def fetchall(self):
-        return [self._empaquetar(fila) for fila in self._cursor.fetchall()]
+        filas, self._filas = self._filas, []
+        self._sin_leer = False
+        return [self._empaquetar(fila) for fila in filas]
 
     def close(self):
         pass
@@ -246,3 +272,145 @@ def test_no_se_rechaza_si_no_hay_historial_de_envio_a_revision(cliente, base):
     assert tarea["estado"] == "EN_REVISION"
     assert base.execute("SELECT COUNT(*) AS n FROM revision_tarea WHERE id_tarea = 1").fetchone()["n"] == 0
     assert base.execute("SELECT COUNT(*) AS n FROM auditoria WHERE accion = 'RECHAZAR_REVISION'").fetchone()["n"] == 0
+
+
+# --- Estabilización: resultado sin leer (H-01) y flujo eludible (H-02) ---
+
+def _enviar_a_revision(cliente):
+    _login(cliente, "responsable@nahan.local")
+    respuesta = cliente.put("/api/tareas/1/estado", json={"estado": "EN_REVISION"})
+    assert respuesta.status_code == 200
+
+
+def test_el_cursor_de_prueba_detecta_resultados_sin_leer(base):
+    cursor = _Conexion(base).cursor()
+    cursor.execute("SELECT 1 FROM revision_tarea LIMIT 1")
+
+    with pytest.raises(RuntimeError, match="Unread result found"):
+        cursor.execute("SELECT 1")
+
+
+def test_la_comprobacion_de_revision_tarea_consume_su_resultado(base):
+    cursor = _Conexion(base).cursor(dictionary=True)
+
+    assert tareas_routes._revision_tarea_disponible(cursor) is True
+    # Con el resultado pendiente, esta sentencia fallaría en MySQL.
+    cursor.execute("SELECT COUNT(*) AS n FROM revision_tarea")
+    assert cursor.fetchone()["n"] == 0
+
+
+@pytest.mark.parametrize("estado", ["EN_PROCESO", "PENDIENTE"])
+def test_responsable_no_saca_la_tarea_de_revision_por_estado(cliente, base, estado):
+    _enviar_a_revision(cliente)
+
+    respuesta = cliente.put("/api/tareas/1/estado", json={"estado": estado})
+
+    assert respuesta.status_code == 409
+    assert "revisión" in respuesta.get_json()["error"]
+    assert base.execute("SELECT estado FROM tarea WHERE id_tarea = 1").fetchone()["estado"] == "EN_REVISION"
+
+
+@pytest.mark.parametrize("estado", ["COMPLETADA", "CANCELADA", "EN_PROCESO", "PENDIENTE"])
+def test_administrador_no_saca_la_tarea_de_revision_por_estado(cliente, base, estado):
+    _enviar_a_revision(cliente)
+    _login(cliente, "admin@nahan.local")
+    auditoria_antes = base.execute("SELECT COUNT(*) AS n FROM auditoria").fetchone()["n"]
+    notificaciones_antes = base.execute("SELECT COUNT(*) AS n FROM notificacion").fetchone()["n"]
+
+    respuesta = cliente.put("/api/tareas/1/estado", json={"estado": estado})
+
+    assert respuesta.status_code == 409
+    tarea = base.execute("SELECT estado, fecha_finalizacion FROM tarea WHERE id_tarea = 1").fetchone()
+    assert tarea["estado"] == "EN_REVISION"
+    assert tarea["fecha_finalizacion"] is None
+    # El intento bloqueado no deja rastro: ni revisión, ni auditoría, ni aviso.
+    assert base.execute("SELECT COUNT(*) AS n FROM revision_tarea").fetchone()["n"] == 1
+    assert base.execute("SELECT COUNT(*) AS n FROM auditoria").fetchone()["n"] == auditoria_antes
+    assert base.execute("SELECT COUNT(*) AS n FROM notificacion").fetchone()["n"] == notificaciones_antes
+
+
+def test_el_envio_a_revision_audita_y_notifica_a_los_administradores(cliente, base):
+    _enviar_a_revision(cliente)
+
+    eventos = base.execute(
+        "SELECT tabla_afectada, id_registro, id_usuario FROM auditoria "
+        "WHERE accion = 'ENVIO_REVISION' ORDER BY id_auditoria"
+    ).fetchall()
+    id_revision = base.execute("SELECT id_revision FROM revision_tarea").fetchone()["id_revision"]
+    assert [(e["tabla_afectada"], e["id_registro"], e["id_usuario"]) for e in eventos] == [
+        ("tarea", 1, 2),
+        ("revision_tarea", id_revision, 2),
+    ]
+    avisos = base.execute("SELECT id_usuario, tipo FROM notificacion").fetchall()
+    assert [(a["id_usuario"], a["tipo"]) for a in avisos] == [(1, "REVISION_TAREA")]
+
+
+def test_la_aprobacion_audita_y_notifica_al_responsable(cliente, base):
+    _enviar_a_revision(cliente)
+    _login(cliente, "admin@nahan.local")
+
+    assert cliente.put("/api/tareas/1/revision", json={"accion": "aprobar"}).status_code == 200
+
+    eventos = base.execute(
+        "SELECT tabla_afectada, id_usuario, datos_nuevos FROM auditoria "
+        "WHERE accion = 'APROBAR_REVISION' ORDER BY id_auditoria"
+    ).fetchall()
+    assert [e["tabla_afectada"] for e in eventos] == ["tarea", "revision_tarea"]
+    assert all(e["id_usuario"] == 1 for e in eventos)
+    assert "estado=COMPLETADA" in eventos[0]["datos_nuevos"]
+    aviso = base.execute(
+        "SELECT tipo, mensaje FROM notificacion WHERE id_usuario = 2 ORDER BY id_notificacion DESC"
+    ).fetchone()
+    assert aviso["tipo"] == "REVISION_TAREA"
+    assert "aprobada" in aviso["mensaje"]
+
+
+@pytest.mark.parametrize("estado_previo", ["PENDIENTE", "EN_PROCESO"])
+def test_el_rechazo_restaura_el_estado_previo_audita_y_notifica(cliente, base, estado_previo):
+    base.execute("UPDATE tarea SET estado = ? WHERE id_tarea = 1", (estado_previo,))
+    base.commit()
+    _enviar_a_revision(cliente)
+    _login(cliente, "admin@nahan.local")
+
+    respuesta = cliente.put(
+        "/api/tareas/1/revision",
+        json={"accion": "rechazar", "observaciones": "Falta el respaldo"},
+    )
+
+    assert respuesta.status_code == 200
+    tarea = base.execute("SELECT estado, fecha_finalizacion FROM tarea WHERE id_tarea = 1").fetchone()
+    assert tarea["estado"] == estado_previo
+    assert tarea["fecha_finalizacion"] is None
+    eventos = base.execute(
+        "SELECT tabla_afectada, datos_nuevos FROM auditoria "
+        "WHERE accion = 'RECHAZAR_REVISION' ORDER BY id_auditoria"
+    ).fetchall()
+    assert [e["tabla_afectada"] for e in eventos] == ["tarea", "revision_tarea"]
+    assert f"estado={estado_previo}" in eventos[0]["datos_nuevos"]
+    aviso = base.execute(
+        "SELECT tipo, mensaje FROM notificacion WHERE id_usuario = 2 ORDER BY id_notificacion DESC"
+    ).fetchone()
+    assert aviso["tipo"] == "REVISION_TAREA"
+    assert "rechazada" in aviso["mensaje"]
+    assert "Falta el respaldo" in aviso["mensaje"]
+
+
+def test_el_rechazo_sin_observaciones_no_modifica_la_tarea(cliente, base):
+    _enviar_a_revision(cliente)
+    _login(cliente, "admin@nahan.local")
+
+    assert cliente.put("/api/tareas/1/revision", json={"accion": "rechazar"}).status_code == 400
+    assert base.execute("SELECT estado FROM tarea WHERE id_tarea = 1").fetchone()["estado"] == "EN_REVISION"
+    assert base.execute(
+        "SELECT COUNT(*) AS n FROM revision_tarea WHERE accion = 'RECHAZAR_REVISION'"
+    ).fetchone()["n"] == 0
+
+
+def test_tras_el_rechazo_la_tarea_puede_volver_a_enviarse(cliente, base):
+    _enviar_a_revision(cliente)
+    _login(cliente, "admin@nahan.local")
+    cliente.put("/api/tareas/1/revision", json={"accion": "rechazar", "observaciones": "Corregir"})
+
+    _enviar_a_revision(cliente)
+
+    assert base.execute("SELECT estado FROM tarea WHERE id_tarea = 1").fetchone()["estado"] == "EN_REVISION"

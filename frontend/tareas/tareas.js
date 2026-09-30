@@ -393,6 +393,16 @@ function accionesTarea(tarea, usuario) {
   botonEstado.addEventListener("click", () => actualizarEstado(tarea.id_tarea));
   contenedor.appendChild(botonEstado);
 
+  // RF76 — una tarea en revisión solo sale de ese estado al aprobarla o
+  // rechazarla desde su detalle; el servidor rechaza el cambio genérico.
+  if (tarea.estado === "EN_REVISION") {
+    selectorEstado.disabled = true;
+    botonEstado.disabled = true;
+    const aviso = "En revisión: se aprueba o rechaza desde el detalle";
+    selectorEstado.title = aviso;
+    botonEstado.title = aviso;
+  }
+
   const selectorPrioridad = document.createElement("select");
   selectorPrioridad.id = `prioridad-${tarea.id_tarea}`;
   agregarOpciones(selectorPrioridad, [
