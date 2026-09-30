@@ -1,4 +1,5 @@
-// RF51, RF52, RF53 — Bandeja de notificaciones internas.
+// RF51, RF52, RF53 — Bandeja de notificaciones internas. RF46 agrega la
+// importancia: las críticas se destacan con una etiqueta de texto y un borde.
 //
 // Se monta desde topbar.js en todas las pantallas autenticadas. Muestra en la
 // barra superior el número de notificaciones no leídas y, al abrirla, las más
@@ -18,8 +19,16 @@
     ASIGNACION_TAREA: "Nueva asignación",
     REASIGNACION_TAREA: "Tarea asignada",
     CAMBIO_ESTADO_TAREA: "Cambio de estado",
+    REVISION_TAREA: "Revisión de tarea",
     VENCIMIENTO_PROXIMO: "Vencimiento próximo",
     SEGURIDAD: "Seguridad"
+  };
+
+  // RF46 — solo estos valores se convierten en clase CSS; cualquier otro se
+  // trata como normal. La importancia nunca se inserta como HTML.
+  const ETIQUETAS_IMPORTANCIA = {
+    CRITICA: "⚠ Crítica",
+    ALTA: "Alta"
   };
 
   let contenedor = null;
@@ -97,9 +106,21 @@
     const item = document.createElement("li");
     item.className = notificacion.leida ? "notificacion-item" : "notificacion-item no-leida";
 
+    const importancia = Object.prototype.hasOwnProperty.call(ETIQUETAS_IMPORTANCIA, notificacion.importancia)
+      ? notificacion.importancia
+      : "NORMAL";
+    if (importancia === "CRITICA") item.classList.add("critica");
+
     const tipo = document.createElement("span");
     tipo.className = "notificacion-tipo";
     tipo.textContent = ETIQUETAS_TIPO[notificacion.tipo] || notificacion.tipo;
+
+    if (importancia !== "NORMAL") {
+      const etiqueta = document.createElement("span");
+      etiqueta.className = `notificacion-importancia importancia-${importancia.toLowerCase()}`;
+      etiqueta.textContent = ETIQUETAS_IMPORTANCIA[importancia];
+      tipo.appendChild(etiqueta);
+    }
 
     const destino = enlaceInterno(notificacion.url_destino);
     const mensaje = document.createElement(destino ? "a" : "p");

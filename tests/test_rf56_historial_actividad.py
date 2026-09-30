@@ -114,6 +114,10 @@ def cliente(base, monkeypatch):
     monkeypatch.setattr(auth_routes, "get_connection", conexion_falsa)
     monkeypatch.setattr(auth_utils, "get_connection", conexion_falsa)
     monkeypatch.setattr(historial_routes, "get_connection", conexion_falsa)
+    # RF30 audita el inicio de sesión. Estas pruebas siembran el historial a
+    # mano y cuentan sus eventos, así que el login de la prueba no debe
+    # agregar uno; el LOGIN real se comprueba en test_rf30_historial_accesos.py.
+    monkeypatch.setattr(auth_routes, "registrar_auditoria", lambda *args, **kwargs: None)
 
     flask_app.config["TESTING"] = True
     with flask_app.test_client() as cliente_http:

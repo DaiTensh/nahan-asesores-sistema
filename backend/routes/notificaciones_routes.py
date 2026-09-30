@@ -11,6 +11,12 @@ usuario solo ve y marca sus propias notificaciones; una ajena responde 404,
 igual que una inexistente, para no revelar que existe. El contrato coincide
 con el previsto para RF46 (Incremento 3), que lo amplía con niveles de
 importancia y alertas en el panel.
+
+RF46: cada notificación lleva tipo e importancia. Los niveles son los de las
+fichas del sprint: CRITICA (se destaca en la bandeja), ALTA y NORMAL, que es
+el valor por defecto. Quien genera el aviso indica la importancia según el
+evento. Toda notificación se escribe con `crear_notificacion`: no hay otra
+vía de INSERT.
 """
 import logging
 
@@ -25,24 +31,41 @@ logger = logging.getLogger(__name__)
 LIMITE_POR_DEFECTO = 20
 LIMITE_MAXIMO = 100
 
+IMPORTANCIA_NORMAL = "NORMAL"
+IMPORTANCIA_ALTA = "ALTA"
+IMPORTANCIA_CRITICA = "CRITICA"
+IMPORTANCIAS = (IMPORTANCIA_NORMAL, IMPORTANCIA_ALTA, IMPORTANCIA_CRITICA)
 
-def crear_notificacion(cursor, id_usuario, tipo, mensaje, url_destino=None, id_usuario_actor=None):
+# Importancia que cada evento da a su aviso (fichas del Incremento 3):
+#   CRITICA: tarea enviada a revisión (a administradores) y seguridad.
+#   ALTA:    asignación y reasignación de tareas.
+#   NORMAL:  el resto (cambio de estado, resultado de la revisión, vencimiento).
+
+
+def crear_notificacion(cursor, id_usuario, tipo, mensaje, url_destino=None, id_usuario_actor=None,
+                       importancia=IMPORTANCIA_NORMAL):
     """Inserta un aviso en `notificacion` para `id_usuario`.
+
+    `importancia` es NORMAL (por defecto), ALTA o CRITICA; cualquier otro
+    valor es un error de programación y se rechaza antes de escribir.
 
     Si `id_usuario_actor` coincide con `id_usuario` no se inserta nada: el
     criterio de aceptación de RF52 pide no notificar a quien ejecuta la
     acción sobre sí mismo, y el mismo criterio es razonable para RF51 (no
     tiene sentido avisarle a alguien de un cambio que hizo él mismo).
     """
+    if importancia not in IMPORTANCIAS:
+        raise ValueError(f"Importancia de notificación no válida: {importancia!r}")
+
     if id_usuario_actor is not None and id_usuario_actor == id_usuario:
         return
 
     cursor.execute(
         """
-        INSERT INTO notificacion (id_usuario, tipo, mensaje, url_destino)
-        VALUES (%s, %s, %s, %s)
+        INSERT INTO notificacion (id_usuario, tipo, importancia, mensaje, url_destino)
+        VALUES (%s, %s, %s, %s, %s)
         """,
-        (id_usuario, tipo, mensaje, url_destino)
+        (id_usuario, tipo, importancia, mensaje, url_destino)
     )
 
 
@@ -81,7 +104,7 @@ def listar_notificaciones():
 
         cursor.execute(
             f"""
-            SELECT id_notificacion, tipo, mensaje, url_destino, fecha, leida
+            SELECT id_notificacion, tipo, importancia, mensaje, url_destino, fecha, leida
             FROM notificacion
             WHERE {" AND ".join(condiciones)}
             ORDER BY fecha DESC, id_notificacion DESC

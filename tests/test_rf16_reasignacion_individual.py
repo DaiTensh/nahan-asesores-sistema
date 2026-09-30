@@ -32,7 +32,7 @@ CREATE TABLE auditoria (
     fecha DATETIME DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE notificacion (
     id_notificacion INTEGER PRIMARY KEY AUTOINCREMENT, id_usuario INTEGER,
-    tipo TEXT, mensaje TEXT, url_destino TEXT, fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
+    tipo TEXT, importancia TEXT NOT NULL DEFAULT 'NORMAL', mensaje TEXT, url_destino TEXT, fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
     leida INTEGER DEFAULT 0);
 
 INSERT INTO rol (nombre_rol) VALUES ('ADMINISTRADOR'), ('USUARIO_AREA_CONTABLE');
@@ -116,6 +116,10 @@ def cliente(base, monkeypatch):
     conexion_falsa = lambda: _Conexion(base)
 
     monkeypatch.setattr(auth_routes, "get_connection", conexion_falsa)
+    # RF30 audita el inicio de sesión. Esta prueba no trata de sesiones y cuenta
+    # sus propios eventos, así que el login que usa como preparación no debe
+    # sumar uno; el LOGIN real se comprueba en test_rf30_historial_accesos.py.
+    monkeypatch.setattr(auth_routes, "registrar_auditoria", lambda *args, **kwargs: None)
     monkeypatch.setattr(auth_utils, "get_connection", conexion_falsa)
     monkeypatch.setattr(tareas_routes, "get_connection", conexion_falsa)
 

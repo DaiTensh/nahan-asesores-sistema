@@ -4,7 +4,8 @@ from mysql.connector import IntegrityError
 
 from flask import Blueprint, request, jsonify
 from backend.config.db import get_connection
-from backend.utils.auth import ROL_ADMINISTRADOR, login_required, roles_required
+from backend.utils.auditoria import registrar_auditoria
+from backend.utils.auth import ROL_ADMINISTRADOR, login_required, obtener_usuario_actual, roles_required
 from backend.utils.security import hash_password
 
 usuarios_bp = Blueprint("usuarios", __name__)
@@ -54,6 +55,27 @@ def resolver_area_para_rol(id_rol, id_area=None, validar_area=True):
 
 
 #Usuarios
+def _describir_usuario(id_rol, id_area, nombres, email, estado):
+    """Texto de los datos de un usuario para AUDITORIA (RF30).
+
+    Nunca incluye la contraseña ni su hash.
+    """
+    return (
+        f"nombres={nombres}, email={email}, id_rol={id_rol}, "
+        f"id_area={id_area}, estado={estado}"
+    )
+
+
+def _leer_usuario(cursor, id_usuario):
+    """Datos actuales del usuario como tupla (id_rol, id_area, nombres, email, estado), o None."""
+    cursor.execute(
+        "SELECT id_rol, id_area, nombres, email, estado FROM usuario WHERE id_usuario = %s",
+        (id_usuario,),
+    )
+    fila = cursor.fetchone()
+    return tuple(fila) if fila else None
+
+
 @usuarios_bp.route("/usuarios", methods=['POST'])
 @roles_required(ROL_ADMINISTRADOR)
 def create_usuario():
@@ -87,6 +109,13 @@ def create_usuario():
         values = (id_rol, id_area, nombres, email, password_hash)
 
         cursor.execute(sql, values)
+        id_nuevo = cursor.lastrowid
+
+        registrar_auditoria(
+            cursor, obtener_usuario_actual()["id_usuario"], "usuario", "USUARIO_CREADO",
+            id_registro=id_nuevo,
+            datos_nuevos=_describir_usuario(id_rol, id_area, nombres, email, "ACTIVO"),
+        )
         connection.commit()
 
         return jsonify({"message": "Usuario registrado correctamente"}), 201
@@ -284,6 +313,8 @@ def actualizar_usuario(id_usuario):
         connection = get_connection()
         cursor = connection.cursor()
 
+        anterior = _leer_usuario(cursor, id_usuario)
+
         sql = """
             UPDATE usuario
             SET
@@ -305,12 +336,21 @@ def actualizar_usuario(id_usuario):
         )
 
         cursor.execute(sql, values)
-        connection.commit()
 
-        if cursor.rowcount == 0:
-            cursor.execute("SELECT id_usuario FROM usuario WHERE id_usuario = %s", (id_usuario,))
-            if not cursor.fetchone():
-                return jsonify({"error": "Usuario no encontrado"}), 404
+        if cursor.rowcount == 0 and anterior is None:
+            connection.rollback()
+            return jsonify({"error": "Usuario no encontrado"}), 404
+
+        # RF30 — solo se audita un cambio efectivo, con el antes y el después.
+        nuevo = (id_rol, id_area, nombres, email, estado)
+        if anterior != nuevo:
+            registrar_auditoria(
+                cursor, obtener_usuario_actual()["id_usuario"], "usuario", "USUARIO_MODIFICADO",
+                id_registro=id_usuario,
+                datos_anteriores=_describir_usuario(*anterior) if anterior else None,
+                datos_nuevos=_describir_usuario(*nuevo),
+            )
+        connection.commit()
 
         return jsonify({
             "message": "Usuario actualizado correctamente"
@@ -354,6 +394,8 @@ def desactivar_usuario(id_usuario):
         connection = get_connection()
         cursor = connection.cursor()
 
+        anterior = _leer_usuario(cursor, id_usuario)
+
         sql = """
             UPDATE usuario
             SET estado = 'INACTIVO'
@@ -361,12 +403,20 @@ def desactivar_usuario(id_usuario):
         """
 
         cursor.execute(sql, (id_usuario,))
-        connection.commit()
 
-        if cursor.rowcount == 0:
-            cursor.execute("SELECT id_usuario FROM usuario WHERE id_usuario = %s", (id_usuario,))
-            if not cursor.fetchone():
-                return jsonify({"error": "Usuario no encontrado"}), 404
+        if cursor.rowcount == 0 and anterior is None:
+            connection.rollback()
+            return jsonify({"error": "Usuario no encontrado"}), 404
+
+        # RF30 — si ya estaba inactivo no hubo cambio que registrar.
+        if anterior is None or anterior[4] != "INACTIVO":
+            registrar_auditoria(
+                cursor, obtener_usuario_actual()["id_usuario"], "usuario", "USUARIO_DESACTIVADO",
+                id_registro=id_usuario,
+                datos_anteriores=f"estado={anterior[4]}" if anterior else None,
+                datos_nuevos="estado=INACTIVO",
+            )
+        connection.commit()
 
         return jsonify({
             "message": "Usuario deshabilitado correctamente"
@@ -411,6 +461,8 @@ def asignar_rol_usuario(id_usuario):
         connection = get_connection()
         cursor = connection.cursor()
 
+        anterior = _leer_usuario(cursor, id_usuario)
+
         sql = """
             UPDATE usuario
             SET id_rol = %s,
@@ -419,12 +471,20 @@ def asignar_rol_usuario(id_usuario):
         """
 
         cursor.execute(sql, (id_rol, id_area, id_usuario))
-        connection.commit()
 
-        if cursor.rowcount == 0:
-            cursor.execute("SELECT id_usuario FROM usuario WHERE id_usuario = %s", (id_usuario,))
-            if not cursor.fetchone():
-                return jsonify({"error": "Usuario no encontrado"}), 404
+        if cursor.rowcount == 0 and anterior is None:
+            connection.rollback()
+            return jsonify({"error": "Usuario no encontrado"}), 404
+
+        # RF30 — solo se audita un cambio efectivo de rol.
+        if anterior is None or (anterior[0], anterior[1]) != (id_rol, id_area):
+            registrar_auditoria(
+                cursor, obtener_usuario_actual()["id_usuario"], "usuario", "ROL_USUARIO_MODIFICADO",
+                id_registro=id_usuario,
+                datos_anteriores=f"id_rol={anterior[0]}, id_area={anterior[1]}" if anterior else None,
+                datos_nuevos=f"id_rol={id_rol}, id_area={id_area}",
+            )
+        connection.commit()
 
         return jsonify({
             "message": "Rol asignado correctamente"

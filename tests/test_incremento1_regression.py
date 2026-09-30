@@ -179,7 +179,12 @@ def test_auth_me_sin_sesion(client):
     assert data == {"error": "No autenticado"}
 
 
-def test_logout_destruye_sesion(client):
+def test_logout_destruye_sesion(client, fake_connection_factory, monkeypatch):
+    # RF30: el cierre de sesión se audita; la conexión va aislada para que la
+    # prueba nunca escriba en la base real.
+    connection = fake_connection_factory(lambda sql, params, cursor: [])
+    monkeypatch.setattr(auth_routes, "get_connection", lambda: connection)
+
     with client.session_transaction() as session:
         session["usuario_id"] = 1
         session["rol_id"] = 1
@@ -197,6 +202,8 @@ def test_logout_destruye_sesion(client):
         assert "rol_id" not in session
         assert "area_id" not in session
         assert "nombre" not in session
+    assert any("INSERT INTO auditoria" in sql and params[3] == "LOGOUT" for sql, params in connection.executed)
+    assert connection.commits == 1
 
 
 def test_listado_de_clientes(client, fake_connection_factory, monkeypatch, iniciar_sesion):
