@@ -29,8 +29,8 @@ Cada integrante necesita, en su equipo:
 |---|---|
 | `scripts/setup.ps1` (Windows) / `scripts/setup.sh` (macOS y Linux) | Buscan un Python 3.9+ y ejecutan `scripts/setup.py` |
 | `scripts/setup.py` | Instalador: entorno virtual `.venv`, dependencias, archivo `.env`, base de datos, migraciones, datos de prueba y comprobación final |
-| `database/nahan_asesores.sql` | Esquema completo vigente: 21 tablas, índices y datos base (roles, áreas, parámetros). Ya incluye lo de las migraciones 001–006 |
-| `database/migraciones/NNN_*.sql` | Cambios para bases creadas antes de cada incremento: 001 `token_recuperacion`, 002 parámetros de adjuntos, 003 `documento.tipo_documento` + `uq_documento_referencia`, 004 `observacion_cliente`, 005 `auditoria.id_registro` + 3 índices, 006 parámetros de sesión |
+| `database/nahan_asesores.sql` | Esquema completo vigente: 21 tablas, índices y datos base (roles, áreas, parámetros). Ya incluye lo de las migraciones 001–007 |
+| `database/migraciones/NNN_*.sql` | Cambios para bases creadas antes de cada incremento: 001 `token_recuperacion`, 002 parámetros de adjuntos, 003 `documento.tipo_documento` + `uq_documento_referencia`, 004 `observacion_cliente`, 005 `auditoria.id_registro` + 3 índices, 006 parámetros de sesión, 007 `notificacion.importancia` |
 | `database/migrar.py` | Revisa cada migración contra la base real (tablas, columnas, índices, parámetros) y ejecuta solo las que faltan. Si se repite, no hace nada |
 | `database/seed_dev.py` | Datos de prueba: 7 usuarios del equipo, 6 clientes, 12 tareas, tarifas y registros de tiempo. Idempotente: no duplica lo que ya existe |
 | `scripts/doctor.*` | Diagnóstico: Python, `.venv`, dependencias, `.env`, conexión con MySQL, base, migraciones, usuarios, puertos |
@@ -74,7 +74,7 @@ La aplicación lee la conexión desde el archivo **`.env`** en la raíz del repo
 | `DB_PASSWORD` | *(vacío)* | Contraseña de **tu** MySQL local. No se comparte ni se sube |
 | `DB_NAME` | `nahan_asesores` | **Nombre de la base esperado por el proyecto** |
 
-`setup` genera además `SECRET_KEY` y `JWT_SECRET` propios de tu equipo y completa el resto de claves de `.env.example` con valores de desarrollo. No hace falta tocarlas.
+`setup` genera además una `SECRET_KEY` propia de tu equipo y completa el resto de claves de `.env.example` con valores de desarrollo. No hace falta tocarlas.
 
 Para cambiar los datos de conexión más tarde, edita `.env` directamente. Si `DB_USER` y `DB_NAME` ya tienen valor, `setup` no vuelve a preguntar.
 
@@ -187,7 +187,7 @@ El comando ejecuta los siguientes pasos:
 5. Base:
    - si no existe, o existe pero está vacía, importa `database/nahan_asesores.sql` **sin `DROP DATABASE`** (21 tablas);
    - si existe con tablas, **la conserva**.
-6. Ejecuta `database/migrar.py`: revisa las migraciones 001–006 y aplica solo las que falten. En una base nueva todas figuran «ya aplicada».
+6. Ejecuta `database/migrar.py`: revisa las migraciones 001–007 y aplica solo las que falten. En una base nueva todas figuran «ya aplicada».
 7. Solo si la base es nueva: ejecuta `database/seed_dev.py` (datos de prueba).
 8. Comprueba que la API arranca y que el login de prueba responde 200.
 

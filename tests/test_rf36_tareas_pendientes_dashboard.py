@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 from tests.conftest import normalize_sql
 
 import backend.routes.tareas_routes as tareas_routes
@@ -5,11 +7,23 @@ import backend.routes.tareas_routes as tareas_routes
 URL = "/api/tareas/pendientes/resumen"
 
 
+def _mes_anterior(hoy=None):
+    """Primer y último día del mes anterior al de `hoy` (por defecto, hoy).
+
+    El resumen compara el mes en curso con el anterior; se calcula igual que
+    el endpoint para que la prueba no dependa del mes en que se ejecute
+    (incluido el paso de enero a diciembre del año previo).
+    """
+    hoy = hoy or date.today()
+    fin = hoy.replace(day=1) - timedelta(days=1)
+    return fin.replace(day=1).isoformat(), fin.isoformat()
+
+
 def _handler(sql, params, cursor):
     consulta = normalize_sql(sql)
 
     if "COUNT(*) AS total FROM tarea t WHERE" in consulta and "fecha_creacion" in consulta:
-        if params[:2] == ("2026-08-01", "2026-08-31"):
+        if params[:2] == _mes_anterior():
             return [{"total": 5}]
         return [{"total": 8}]
 
@@ -35,7 +49,7 @@ def _handler(sql, params, cursor):
         ]
 
     if "COUNT(*) AS total FROM tarea t WHERE" in consulta and "fecha_creacion" in consulta:
-        if params[:2] == ("2026-08-01", "2026-08-31"):
+        if params[:2] == _mes_anterior():
             return [{"total": 5}]
         return [{"total": 8}]
 

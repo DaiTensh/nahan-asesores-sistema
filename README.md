@@ -1,21 +1,62 @@
-# Sistema Web de Gestión Interna — Nahan Asesores
+# Nahan Asesores — Sistema Web de Gestión Interna
 
 Proyecto de Ingeniería de Software I y II · Grupo 22 · Universidad Andrés Bello
 
-Sistema web para la gestión interna de una empresa de servicios jurídicos y
-contables: clientes, tareas, usuarios y roles, control de horas, reportes y
-notificaciones.
+Nahan Asesores es una empresa de servicios jurídicos y contables. Este sistema
+web reemplaza la gestión manual de su operación diaria: concentra clientes,
+tareas, usuarios, control de horas, reportes y avisos en una sola aplicación,
+con acceso según el rol de cada persona.
 
-## Puesta en marcha en un equipo nuevo
+## Qué hace el sistema
 
-Necesitas **Python 3.9 o superior**, **MySQL 8** y **git**. Nada más.
+- **Clientes**: registro, edición, estados, asignación a áreas, ficha del
+  cliente con observaciones y referencias documentales, búsqueda avanzada y
+  exportación a Excel.
+- **Tareas**: creación, asignación y reasignación, prioridades, estados,
+  adjuntos, flujo de revisión (envío, aprobación y rechazo por un
+  administrador).
+- **Usuarios y roles**: administrador, usuario del área jurídica y usuario del
+  área contable; alta, edición, desactivación, cambio de rol y recuperación de
+  contraseña.
+- **Control de horas y cobros**: temporizador por tarea, tarifas por área y
+  cálculo de montos.
+- **Dashboard y reportes**: indicadores de tareas pendientes, vencidas y
+  finalizadas, carga por usuario, distribución por área, reportes por cliente,
+  responsable y área, exportación a PDF y Excel.
+- **Notificaciones**: avisos con importancia (normal, alta o crítica), campana
+  con contador y aviso de vencimientos.
+- **Auditoría e historial**: registro de accesos y modificaciones, historial
+  global filtrable (solo administradores) e historial por cliente.
+- **Búsqueda global** de clientes, tareas y usuarios, y **cierre automático de
+  sesión por inactividad** configurable.
+
+## Tecnologías
+
+- **Backend**: Python y Flask, con un blueprint por módulo bajo el prefijo
+  `/api`. Autenticación por sesión (cookie de Flask) y contraseñas con bcrypt.
+- **Base de datos**: MySQL 8, a través de `mysql-connector-python`.
+- **Frontend**: HTML, CSS y JavaScript sin frameworks.
+- **Exportaciones**: openpyxl (Excel) y reportlab (PDF).
+- **Pruebas**: pytest.
+- **Producción**: Gunicorn, Nginx y systemd sobre una instancia EC2 de AWS.
+
+## Requisitos previos
+
+- **Python 3.9 o superior**.
+- **MySQL Server 8**, instalado y en ejecución, y un usuario de MySQL con
+  permiso para crear bases de datos (por ejemplo, `root`).
+- **git**.
+
+## Puesta en marcha
+
+### 1. Clonar el repositorio
 
 ```bash
 git clone https://github.com/DaiTensh/nahan-asesores-sistema.git
 cd nahan-asesores-sistema
 ```
 
-Luego, según tu sistema:
+### 2. Instalar y configurar (un solo comando)
 
 ```bash
 bash scripts/setup.sh                                          # macOS y Linux
@@ -24,49 +65,72 @@ bash scripts/setup.sh                                          # macOS y Linux
 powershell -ExecutionPolicy Bypass -File scripts\setup.ps1     # Windows
 ```
 
-El instalador crea el entorno virtual, instala las dependencias, te pregunta los
-datos de tu MySQL local, genera el `.env` con claves propias de tu máquina,
-importa el esquema, carga datos de prueba y comprueba que la aplicación arranca.
+El instalador:
 
-El flujo normal puede repetirse: conserva una base existente, le aplica solo las
-migraciones de `database/migraciones/` que le falten y no vuelve a cargar datos
-de prueba. Guía completa de la base local (Windows incluido):
-[`docs/setup/CONFIGURACION_BASE_DATOS.md`](docs/setup/CONFIGURACION_BASE_DATOS.md). La opción explícita `--solo-bd` recrea el esquema y puede borrar
-los datos; no debe usarse para actualizar una instalación existente.
-Cuando solo quieras poner al día las dependencias sin tocar nada más:
+1. crea el entorno virtual `.venv` e instala las dependencias de
+   `requirements.txt` y `requirements-dev.txt`;
+2. te pregunta los datos de tu MySQL local y genera el archivo `.env` con
+   claves propias de tu equipo (la plantilla es `.env.example`);
+3. crea la base de datos `nahan_asesores` a partir de
+   `database/nahan_asesores.sql` (21 tablas) y aplica las migraciones de
+   `database/migraciones/` que falten;
+4. carga datos de demostración (`database/seed_dev.py`);
+5. comprueba que la aplicación arranca.
+
+Es repetible: si la base ya existe la conserva y solo aplica las migraciones
+pendientes. Opciones útiles: `--solo-deps` (solo dependencias), `--sin-datos`
+(no cargar datos de demostración) y `--si-a-todo` (no preguntar).
+
+> **Cuidado:** `database/nahan_asesores.sql` comienza con
+> `DROP DATABASE IF EXISTS nahan_asesores`. No lo importes a mano sobre una base
+> con datos; usa siempre `scripts/setup`.
+
+#### Instalación manual (alternativa)
 
 ```bash
-bash scripts/setup.sh --solo-deps                              # macOS y Linux
-powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 --solo-deps
+python3 -m venv .venv
+source .venv/bin/activate                  # Windows: .venv\Scripts\activate
+pip install -r requirements.txt -r requirements-dev.txt
+cp .env.example .env                       # Windows: copy .env.example .env
 ```
 
-Para levantar el sistema:
+Edita `.env` con los datos de tu MySQL (`DB_USER`, `DB_PASSWORD`; el nombre
+esperado de la base es `nahan_asesores`) y una `SECRET_KEY` propia. Después
+ejecuta `scripts/setup`: reutiliza el entorno virtual y el `.env` existentes y
+se encarga de la base de datos.
+
+### 3. Configuración (`.env`)
+
+`.env` **no se versiona** (está en `.gitignore`). `.env.example` documenta cada
+variable que usa el sistema: conexión a MySQL, `SECRET_KEY`, cookies de
+sesión, correo SMTP opcional (si se deja vacío, el enlace de restablecimiento
+de contraseña se registra en el log), carpeta de adjuntos y tamaño máximo de
+solicitudes. Nunca subas un `.env` real al repositorio.
+
+### 4. Ejecutar la aplicación
 
 ```bash
 bash scripts/dev.sh                                            # macOS y Linux
 powershell -ExecutionPolicy Bypass -File scripts\dev.ps1       # Windows
 ```
 
-El script imprime la dirección del frontend y la de la API, y abre el
-navegador solo. Normalmente el frontend queda en
-`http://127.0.0.1:5500/frontend/auth/login.html`; si ese puerto está tomado por
-Live Server, el script usa el siguiente libre y te lo dice. Usa siempre esa
-dirección: es la única que sabe en qué puerto quedó la API.
+El script levanta la API y el frontend, imprime ambas direcciones y abre el
+navegador. Normalmente el frontend queda en
+`http://127.0.0.1:5500/frontend/auth/login.html`; si ese puerto está ocupado
+usa el siguiente libre. Usa siempre la dirección que imprime.
 
-| | |
+### 5. Usuarios de demostración
+
+| Rol | Correo |
 |---|---|
 | Administrador | `renato.villalobos@nahan.local` |
-| Área jurídica | `elias.alarcon@nahan.local` |
-| Área contable | `carlos.castro@nahan.local` |
-| Contraseña | `Nahan.2026` |
+| Usuario área jurídica | `elias.alarcon@nahan.local` |
+| Usuario área contable | `carlos.castro@nahan.local` |
 
-Son datos de desarrollo local, generados por `database/seed_dev.py`. No existen
-en el servidor de producción.
-
-> Los comandos se dan siempre a través de los envoltorios de `scripts/`. No es
-> capricho: `python` a secas **no existe en macOS** —ahí solo está `python3`— y en
-> Windows ocurre lo contrario. Los envoltorios buscan el intérprete correcto y,
-> si el entorno virtual ya está creado, usan el suyo.
+La contraseña de todos es `Nahan.2026`. Son **credenciales exclusivas del
+entorno local de demostración**, generadas por `database/seed_dev.py`: no
+existen en producción y no deben reutilizarse nunca fuera de un equipo de
+desarrollo.
 
 ### Si algo falla
 
@@ -75,66 +139,70 @@ bash scripts/doctor.sh                                         # macOS y Linux
 powershell -ExecutionPolicy Bypass -File scripts\doctor.ps1    # Windows
 ```
 
-Revisa una por una las condiciones que el sistema necesita y, por cada cosa que
-falta, dice el comando exacto que la resuelve.
+Revisa una por una las condiciones que necesita el sistema (Python, entorno
+virtual, dependencias, `.env`, MySQL, base, migraciones, puertos) y, por cada
+una que falta, indica el comando que la resuelve.
 
-## Cómo se trabaja en el Incremento 2
-
-El reparto de responsabilidades, los criterios de aceptación y las interfaces
-compartidas están en [`docs/incremento2/README.md`](docs/incremento2/README.md).
-Consulta la ficha del módulo correspondiente antes de modificarlo.
-
-## Estructura
-
-```
-backend/            API en Flask, un blueprint por módulo en routes/
-  config/db.py      conexión a MySQL
-  utils/            autenticación y hash de contraseñas
-frontend/           HTML, CSS y JavaScript sin frameworks, una carpeta por módulo
-database/           esquema (nahan_asesores.sql) y datos de prueba (seed_dev.py)
-scripts/            instalador, diagnóstico y arranque
-deploy/             unidades de systemd y configuración de Nginx para el EC2
-docs/               arquitectura, convenciones, decisiones y reparto del incremento
-tests/              pruebas de regresión con pytest (bash scripts/test.sh)
-```
-
-## Arquitectura
-
-- **Backend**: Python + Flask, organizado en blueprints registrados en
-  `backend/app.py` con prefijo `/api`.
-- **Acceso a datos**: `mysql-connector-python` a través de `get_connection()`.
-  SQL siempre parametrizado.
-- **Autenticación**: sesión por cookie de Flask. Decoradores `login_required` y
-  `roles_required(*roles)` en `backend/utils/auth.py`. Roles: `ADMINISTRADOR`,
-  `USUARIO_AREA_JURIDICA`, `USUARIO_AREA_CONTABLE`.
-- **Frontend**: HTML, CSS y JavaScript puro. `frontend/assets/js/api_config.js`
-  decide la URL de la API según el origen: servido desde el puerto 5500 apunta a
-  `http://127.0.0.1:5000/api`; en producción, a `/api` detrás de Nginx. En
-  desarrollo, `scripts/dev.py` sirve una versión generada de ese archivo con el
-  puerto que le tocó realmente a la API, sin modificar el del repositorio.
-- **Producción**: Gunicorn + Nginx + systemd sobre una instancia EC2.
-
-Las convenciones de código están en [`docs/development.md`](docs/development.md).
+> Los comandos se dan siempre a través de los envoltorios de `scripts/`:
+> en macOS solo existe `python3` y en Windows `python`, y los envoltorios
+> buscan el intérprete correcto y usan el del entorno virtual si existe.
 
 ## Pruebas
 
 ```bash
 bash scripts/test.sh                                           # macOS y Linux
-powershell -ExecutionPolicy Bypass -File scripts\test.ps1       # Windows
+powershell -ExecutionPolicy Bypass -File scripts\test.ps1      # Windows
 ```
 
-Acepta los argumentos de pytest:
+Acepta los argumentos de pytest, por ejemplo:
 
 ```bash
 bash scripts/test.sh tests/test_rf26_restablecimiento.py -v
-bash scripts/test.sh -k restablecimiento
+bash scripts/test.sh -k historial
 ```
 
-`pytest` está en `requirements-dev.txt`, no en `requirements.txt`: es una
-dependencia de desarrollo y el servidor no la instala. `scripts/setup.sh` la
-instala junto con el resto.
+La suite (`tests/`, 564 pruebas) no usa tu base de datos real: trabaja con
+conexiones simuladas o con una base SQLite temporal. Cubre autenticación,
+autorización por rol, auditoría, flujo de revisión de tareas, notificaciones,
+reportes y exportaciones, entre otros requisitos funcionales. `pytest` está en
+`requirements-dev.txt`: es una dependencia de desarrollo y el servidor no la
+instala.
 
-## Advertencia
+## Estructura del proyecto
 
-`.env` no se versiona y no debe versionarse: contiene las credenciales de tu
-base de datos y las claves de sesión. Está en `.gitignore`.
+```
+backend/            API en Flask, un blueprint por módulo en routes/
+  config/db.py        conexión a MySQL
+  utils/              autenticación, hash de contraseñas, auditoría y correo
+  tareas_programadas.py   aviso de vencimientos (proceso programado)
+frontend/           HTML, CSS y JavaScript sin frameworks, una carpeta por módulo
+database/           esquema (nahan_asesores.sql), migraciones, migrar.py y seed_dev.py
+scripts/            instalador, diagnóstico, arranque y pruebas
+deploy/             Nginx y unidades de systemd para el servidor
+docs/               documentación técnica y de despliegue
+tests/              pruebas automáticas con pytest
+```
+
+## Documentación adicional
+
+- [`docs/architecture.md`](docs/architecture.md): arquitectura general.
+- [`docs/setup/CONFIGURACION_BASE_DATOS.md`](docs/setup/CONFIGURACION_BASE_DATOS.md):
+  guía detallada de MySQL y de las migraciones (incluye Windows).
+- [`docs/development.md`](docs/development.md): convenciones de código.
+- [`docs/design-system.md`](docs/design-system.md): criterios visuales del frontend.
+- [`docs/deploy_aws_demo.md`](docs/deploy_aws_demo.md): despliegue en AWS EC2.
+- [`docs/incremento2/`](docs/incremento2/README.md): fichas de trabajo del
+  Incremento 2 (referencia histórica).
+
+## Despliegue
+
+El sistema se desplegó en una instancia EC2 con Ubuntu, MySQL local, Gunicorn,
+Nginx y systemd. Los archivos de configuración están en `deploy/` y el
+procedimiento completo, en [`docs/deploy_aws_demo.md`](docs/deploy_aws_demo.md).
+En el servidor el proyecto vive en `/var/www/nahan-asesores-sistema`.
+
+## Seguridad
+
+`.env` contiene credenciales y claves de sesión: no se versiona y no debe
+versionarse. En producción `SECRET_KEY` es obligatoria (la aplicación no
+arranca sin ella) y las cookies de sesión se configuran desde `.env`.

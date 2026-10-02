@@ -37,8 +37,8 @@ sudo apt install -y git python3 python3-venv python3-pip build-essential
 sudo mkdir -p /var/www
 sudo chown ubuntu:www-data /var/www
 cd /var/www
-git clone <URL_DEL_REPOSITORIO> nahan-asesores
-cd /var/www/nahan-asesores
+git clone <URL_DEL_REPOSITORIO> nahan-asesores-sistema
+cd /var/www/nahan-asesores-sistema
 python3 -m venv venv
 source venv/bin/activate
 pip install --upgrade pip
@@ -253,7 +253,7 @@ sudo tail -f /var/log/nginx/error.log
 ## 14. Actualizacion futura mediante Git
 
 ```bash
-cd /var/www/nahan-asesores
+cd /var/www/nahan-asesores-sistema
 git pull
 source venv/bin/activate
 pip install -r requirements.txt
@@ -265,7 +265,7 @@ sudo systemctl reload nginx
 ## 15. Rollback
 
 ```bash
-cd /var/www/nahan-asesores
+cd /var/www/nahan-asesores-sistema
 git log --oneline
 git checkout <COMMIT_ANTERIOR>
 source venv/bin/activate

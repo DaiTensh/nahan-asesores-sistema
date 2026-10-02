@@ -143,7 +143,6 @@ def valores_por_defecto(actual):
         "FLASK_ENV": actual.get("FLASK_ENV", "development"),
         "DEBUG": actual.get("DEBUG", "true"),
         "SECRET_KEY": actual.get("SECRET_KEY") or secrets.token_urlsafe(48),
-        "JWT_SECRET": actual.get("JWT_SECRET") or secrets.token_urlsafe(48),
         "DB_HOST": actual.get("DB_HOST", "127.0.0.1"),
         "DB_PORT": actual.get("DB_PORT") or "3306",
         "DB_USER": actual.get("DB_USER", "root"),
@@ -229,7 +228,7 @@ def configurar_env(interactivo=True):
 
     valores = valores_por_defecto(preguntado)
     escribir_env(valores)
-    bien(".env escrito, con SECRET_KEY y JWT_SECRET propios de esta máquina")
+    bien(".env escrito, con una SECRET_KEY propia de esta máquina")
     return valores
 
 

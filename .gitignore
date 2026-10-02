@@ -3,13 +3,17 @@ venv/
 .venv/
 .mysql-data/
 __pycache__/
-*.pyc
+*.py[cod]
 .pytest_cache/
+.coverage
+htmlcov/
+env/
 
 # Variables sensibles
 .env
 .env.local
 .env.production
+.env.*
 !.env.example
 
 # RF54 — Adjuntando Archivos a Tareas. Los archivos subidos van al volumen
@@ -19,8 +23,9 @@ uploads/
 # Mac
 .DS_Store
 
-# VS Code
+# Editores
 .vscode/
+.idea/
 
 # Node
 node_modules/
@@ -30,3 +35,8 @@ node_modules/
 
 # Logs temporales
 *.log
+
+# Material de trabajo local, fuera del repositorio
+docs/ia/
+docs/incremento3/
+evidencias_incremento2_cierre/
