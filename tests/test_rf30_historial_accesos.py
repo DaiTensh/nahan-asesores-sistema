@@ -59,6 +59,8 @@ def _traducir(sql):
     sql = sql.replace("%s", "?")
     sql = sql.replace("DATE_ADD(NOW(), INTERVAL ? MINUTE)", "datetime('now', '+' || ? || ' minutes')")
     sql = re.sub(r"\bNOW\(\)", "datetime('now')", sql)
+    # SQLite no tiene bloqueos de fila (SEC-03 usa SELECT ... FOR UPDATE).
+    sql = re.sub(r"\s+FOR UPDATE\s*$", "", sql)
     return sql.replace("TRUE", "1").replace("FALSE", "0")
 
 
