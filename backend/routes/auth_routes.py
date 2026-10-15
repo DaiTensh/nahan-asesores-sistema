@@ -22,6 +22,18 @@ from backend.utils.auth import (
     segundos_restantes_sesion,
 )
 from backend.utils.correo import cuerpo_restablecimiento, enviar_correo
+from backend.utils.limitador_login import (
+    LimiteAlcanzado,
+    LimitadorNoDisponible,
+    calcular_clave_cuenta,
+    liberar_reserva,
+    normalizar_ip,
+    purgar_si_corresponde,
+    reservar_intento,
+    respuesta_limite,
+    respuesta_no_disponible,
+    verificar_cupo,
+)
 from backend.utils.security import check_password, hash_password
 
 auth_bp = Blueprint("auth", __name__)
@@ -65,6 +77,24 @@ def login():
         cursor.execute(sql, (email,))
         usuario = cursor.fetchone()
 
+        # SEC-02 — límite de intentos fallidos (backend/utils/limitador_login.py).
+        # Cada intento reserva cupo antes de comprobar la contraseña; la
+        # reserva se conserva si el intento falla y se borra si tiene éxito.
+        # No se mantiene ningún bloqueo ni transacción durante bcrypt.
+        ip_cliente = normalizar_ip(request.remote_addr)
+        if ip_cliente is None:
+            logger.warning(
+                "Login: IP de cliente no disponible o de loopback; se omiten los límites "
+                "por IP y por cuenta+IP (¿TRUST_PROXY?)"
+            )
+        clave_cuenta = calcular_clave_cuenta(cursor, email)
+        verificar_cupo(cursor, clave_cuenta, ip_cliente)
+        id_reserva = reservar_intento(
+            connection, cursor, clave_cuenta, ip_cliente,
+            usuario["id_usuario"] if usuario else None,
+        )
+        purgar_si_corresponde(connection, cursor, id_reserva)
+
         if not usuario:
             return jsonify({
                 "error": "Credenciales incorrectas"
@@ -85,6 +115,9 @@ def login():
         # RF30 — el inicio de sesión queda en AUDITORIA antes de abrir la
         # sesión: si no se puede registrar, no se inicia. Los intentos
         # fallidos no se registran (no hay un usuario identificado).
+        # SEC-02: un login exitoso no es un intento fallido; su reserva se
+        # borra en la misma transacción que el LOGIN.
+        liberar_reserva(cursor, id_reserva)
         registrar_auditoria(
             cursor, usuario["id_usuario"], "sesion", "LOGIN",
             id_registro=usuario["id_usuario"],
@@ -106,8 +139,21 @@ def login():
             "usuario": usuario
         }), 200
 
+    except LimiteAlcanzado as limite:
+        return respuesta_limite(limite.segundos)
+
+    except LimitadorNoDisponible as error:
+        return respuesta_no_disponible(error.segundos)
+
     except Exception:
         logger.exception("Error al iniciar sesión")
+        # SEC-02: si el login no se completa, se deshace el borrado de la
+        # reserva y el intento sigue contando como fallido.
+        if connection is not None:
+            try:
+                connection.rollback()
+            except Exception:
+                logger.warning("Login: no se pudo revertir la transacción")
         return jsonify({
             "error": "Error interno al iniciar sesión"
         }), 500

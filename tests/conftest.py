@@ -5,6 +5,7 @@ from flask import session as flask_session
 
 from backend.app import app as flask_app
 from backend.utils import auth as auth_module
+from tests import doble_mysql_sqlite
 
 
 class FakeCursor:
@@ -20,6 +21,12 @@ class FakeCursor:
         params = params or ()
         self.executed.append((sql, params))
         self.results = self.handler(sql, params, self) or []
+        if not self.results:
+            # SEC-02: sentencias del limitador de login que el handler de la
+            # prueba no conoce (cupo libre, bloqueos concedidos).
+            respuesta = doble_mysql_sqlite.respuesta_por_defecto(sql, params)
+            if respuesta is not None:
+                self.results = respuesta
 
     def fetchone(self):
         if not self.results:
@@ -125,6 +132,14 @@ class AuthConnection:
 
     def close(self):
         pass
+
+
+@pytest.fixture(autouse=True)
+def sqlite_con_limitador_de_login(monkeypatch):
+    """SEC-02: las bases SQLite en memoria de las pruebas traen la tabla del
+    limitador y las funciones de MySQL que usa (ver doble_mysql_sqlite). El
+    limitador NO se apaga: corre contra esa tabla."""
+    doble_mysql_sqlite.instalar(monkeypatch)
 
 
 @pytest.fixture(autouse=True)

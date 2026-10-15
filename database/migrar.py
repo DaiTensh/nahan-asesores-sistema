@@ -70,6 +70,15 @@ MARCADORES = {
     "006": [(_PARAMETRO, ("SESION_INACTIVIDAD_MINUTOS",)),
             (_PARAMETRO, ("SESION_AVISO_SEGUNDOS",))],
     "007": [(_COLUMNA, ("notificacion", "importancia"))],
+    "008": [(_TABLA, ("intento_login_fallido",)),
+            (_COLUMNA, ("intento_login_fallido", "id_intento")),
+            (_COLUMNA, ("intento_login_fallido", "clave_cuenta")),
+            (_COLUMNA, ("intento_login_fallido", "ip_cliente")),
+            (_COLUMNA, ("intento_login_fallido", "id_usuario")),
+            (_COLUMNA, ("intento_login_fallido", "fecha")),
+            (_INDICE, ("intento_login_fallido", "idx_ilf_cuenta")),
+            (_INDICE, ("intento_login_fallido", "idx_ilf_ip")),
+            (_INDICE, ("intento_login_fallido", "idx_ilf_fecha"))],
 }
 
 
