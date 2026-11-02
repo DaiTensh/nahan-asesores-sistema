@@ -24,6 +24,7 @@ document.addEventListener("DOMContentLoaded", () => {
   cargarDatosUsuario();
   cargarResumenUsuarios();
   cargarResumenClientes();
+  cargarClientesRecientes();
   cargarTareasVencidas();
   cargarTareasPrioritarias();
   cargarResumenTareas();
@@ -40,6 +41,10 @@ document.addEventListener("DOMContentLoaded", () => {
   if (selectAreaCargaTrabajo) {
     selectAreaCargaTrabajo.addEventListener("change", cargarCargaTrabajoPorUsuario);
   }
+});
+
+window.addEventListener("pageshow", event => {
+  if (event.persisted) cargarClientesRecientes();
 });
 
 function formatearRol(rol) {
@@ -276,6 +281,43 @@ function cargarTablaClientes(clientes) {
 
     tabla.appendChild(fila);
   });
+}
+
+async function cargarClientesRecientes() {
+  const estado = document.getElementById("estadoClientesRecientes");
+  const tabla = document.getElementById("tablaClientesRecientes");
+  try {
+    const response = await fetch(`${API_URL}/clientes/recientes`, {
+      credentials: window.API_CONFIG.credentials
+    });
+    const data = await leerRespuestaJson(response);
+    if (!response.ok) {
+      estado.textContent = data.error || "No se pudieron cargar los clientes recientes.";
+      return;
+    }
+
+    const clientes = data.clientes_recientes || [];
+    tabla.innerHTML = "";
+    if (clientes.length === 0) {
+      estado.textContent = "Todavía no has consultado fichas de clientes activos.";
+      return;
+    }
+
+    estado.textContent = "";
+    clientes.forEach(cliente => {
+      const fila = document.createElement("tr");
+      fila.innerHTML = `
+        <td>${escapeHtml(cliente.rut)}</td>
+        <td>${escapeHtml(cliente.razon_social)}</td>
+        <td>${escapeHtml(formatearFecha(cliente.fecha_interaccion))}</td>
+        <td><a href="../clientes/ficha_cliente.html?id=${encodeURIComponent(cliente.id_cliente)}">Ficha</a></td>
+      `;
+      tabla.appendChild(fila);
+    });
+  } catch (error) {
+    console.error(error);
+    estado.textContent = "No se pudieron cargar los clientes recientes.";
+  }
 }
 
 async function cargarTareasVencidas() {

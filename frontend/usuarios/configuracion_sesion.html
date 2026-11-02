@@ -50,6 +50,20 @@
 
         <p id="mensajeSesion" class="mensaje" aria-live="polite"></p>
       </section>
+
+      <section class="reportes-section">
+        <h2>Clientes recientes</h2>
+        <form id="formClientesRecientes" class="reportes-form">
+          <div class="form-group">
+            <label class="form-label" for="inputLimiteClientes">Máximo de clientes por usuario (1–20)</label>
+            <input type="number" id="inputLimiteClientes" class="form-input" min="1" max="20" step="1" required>
+          </div>
+          <div class="form-group reportes-form-actions">
+            <button type="submit" class="btn btn-primary">Guardar</button>
+          </div>
+        </form>
+        <p id="mensajeClientesRecientes" class="mensaje" aria-live="polite"></p>
+      </section>
     </main>
   </div>
 </div>
