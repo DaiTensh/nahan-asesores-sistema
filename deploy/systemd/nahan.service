@@ -7,7 +7,7 @@ User=ubuntu
 Group=www-data
 WorkingDirectory=/var/www/nahan-asesores-sistema
 EnvironmentFile=/var/www/nahan-asesores-sistema/.env
-ExecStart=/var/www/nahan-asesores-sistema/venv/bin/gunicorn --workers 2 --bind 127.0.0.1:8000 backend.app:app
+ExecStart=/var/www/nahan-asesores-sistema/venv/bin/gunicorn --workers 2 --timeout 300 --bind 127.0.0.1:8000 backend.app:app
 Restart=always
 RestartSec=5
 

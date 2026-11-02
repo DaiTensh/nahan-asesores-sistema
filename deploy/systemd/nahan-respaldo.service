@@ -1,0 +1,17 @@
+[Unit]
+Description=Nahan Asesores - Respaldo programado de la base de datos y los adjuntos (RF60)
+After=network.target mysql.service
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=www-data
+WorkingDirectory=/var/www/nahan-asesores-sistema
+EnvironmentFile=/var/www/nahan-asesores-sistema/.env
+# Los paquetes quedan legibles solo para el propietario (0600/0700).
+UMask=0077
+# El servidor tiene poca memoria y un solo disco: el respaldo no debe competir con la aplicación.
+Nice=19
+IOSchedulingClass=idle
+TimeoutStartSec=1800
+ExecStart=/var/www/nahan-asesores-sistema/venv/bin/python -m backend.respaldos_programados
