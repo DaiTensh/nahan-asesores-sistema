@@ -116,6 +116,9 @@ def create_app():
     def validar_cuerpo_json():
         if not request.path.startswith("/api/") or not request.is_json:
             return None
+        if not request.get_data(cache=True):
+            # Content-Type JSON sin cuerpo (por ejemplo, un POST de acción sin datos): no hay nada que validar.
+            return None
         datos = request.get_json(silent=True)
         if not isinstance(datos, dict):
             return jsonify({"error": "El cuerpo debe ser un objeto JSON válido"}), 400

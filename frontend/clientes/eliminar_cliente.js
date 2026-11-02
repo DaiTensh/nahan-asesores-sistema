@@ -65,12 +65,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const method = puedeEliminarDefinitivo ? "DELETE" : "PATCH";
 
     try {
+      // Sin cuerpo no se declara Content-Type: el backend valida todo cuerpo JSON.
       const response = await fetch(endpoint, {
         method,
-        credentials: window.API_CONFIG.credentials,
-        headers: {
-          "Content-Type": "application/json"
-        }
+        credentials: window.API_CONFIG.credentials
       });
 
       const data = await response.json();

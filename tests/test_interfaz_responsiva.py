@@ -91,3 +91,27 @@ def test_la_fecha_de_la_barra_superior_solo_capitaliza_la_primera_letra():
 def test_la_barra_superior_cabe_en_1024_px():
     css = leer(os.path.join(FRONTEND, "assets", "css", "topbar.css"))
     assert re.search(r"@media \(max-width: 1100px\)\s*\{\s*\.topbar-search\s*\{\s*min-width: 180px", css)
+
+
+def _fetch_con_json_sin_cuerpo(js):
+    """Llamadas fetch(...) que declaran Content-Type JSON pero no envían body."""
+    encontrados = []
+    for coincidencia in re.finditer(r"fetch\(", js):
+        profundidad, i = 1, coincidencia.end()
+        while i < len(js) and profundidad:
+            profundidad += {"(": 1, ")": -1}.get(js[i], 0)
+            i += 1
+        bloque = js[coincidencia.start():i]
+        if "application/json" in bloque and "body" not in bloque:
+            encontrados.append(js[:coincidencia.start()].count("\n") + 1)
+    return encontrados
+
+
+def test_ninguna_solicitud_del_frontend_declara_json_sin_enviar_cuerpo():
+    """Detener el temporizador y deshabilitar/eliminar clientes fallaban con 400 por esto."""
+    fallos = {}
+    for ruta in glob.glob(os.path.join(FRONTEND, "**", "*.js"), recursive=True):
+        lineas = _fetch_con_json_sin_cuerpo(leer(ruta))
+        if lineas:
+            fallos[nombre(ruta)] = lineas
+    assert fallos == {}
