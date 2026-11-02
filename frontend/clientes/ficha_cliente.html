@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Ficha del Cliente</title>
 
   <link rel="stylesheet" href="../assets/css/variables.css">
@@ -9,6 +10,7 @@
   <link rel="stylesheet" href="../assets/css/buttons.css">
   <link rel="stylesheet" href="../assets/css/forms.css">
   <link rel="stylesheet" href="../assets/css/cards.css">
+  <link rel="stylesheet" href="../assets/css/tables.css">
   <link rel="stylesheet" href="../assets/css/navigation.css">
   <link rel="stylesheet" href="../assets/css/topbar.css">
   <link rel="stylesheet" href="./clientes.css">
@@ -76,6 +78,7 @@
       <section class="clientes-section">
         <h2>Tareas y gestiones</h2>
 
+        <div class="table-responsive">
         <table class="clientes-table">
           <thead>
             <tr>
@@ -89,6 +92,7 @@
             <tr><td colspan="4" class="text-loading">Cargando tareas...</td></tr>
           </tbody>
         </table>
+        </div>
       </section>
 
       <section class="clientes-section">
@@ -121,6 +125,7 @@
           <p id="mensajeDocFeedback" class="mensaje"></p>
         </form>
 
+        <div class="table-responsive">
         <table class="clientes-table">
           <thead>
             <tr>
@@ -134,6 +139,7 @@
             <tr><td colspan="4" class="text-loading">Cargando documentos...</td></tr>
           </tbody>
         </table>
+        </div>
       </section>
 
       <section class="clientes-section" id="seccionObservaciones" hidden>
@@ -150,6 +156,7 @@
           <p id="mensajeObsFeedback" class="mensaje"></p>
         </form>
 
+        <div class="table-responsive">
         <table class="clientes-table">
           <thead>
             <tr>
@@ -162,6 +169,7 @@
             <tr><td colspan="3" class="text-loading">Cargando observaciones...</td></tr>
           </tbody>
         </table>
+        </div>
       </section>
 
       <section class="clientes-section" id="seccionHistorial" hidden>
@@ -195,6 +203,7 @@
           <p id="mensajeHistorialFeedback" class="mensaje"></p>
         </form>
 
+        <div class="table-responsive">
         <table class="clientes-table">
           <thead>
             <tr>
@@ -209,6 +218,7 @@
             <tr><td colspan="5" class="text-loading">Cargando historial...</td></tr>
           </tbody>
         </table>
+        </div>
 
         <div class="pagination">
           <button type="button" id="btnHistorialAnterior" class="btn btn-secondary btn-small" disabled>Anterior</button>

@@ -8,9 +8,11 @@
 
 .respaldos-verificaciones li {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 6px 10px;
   font-size: 14px;
+  overflow-wrap: anywhere;
 }
 
 .respaldos-resumen {
@@ -28,6 +30,8 @@
 .respaldos-resumen dd {
   margin: 0;
   font-size: 14px;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .respaldos-acciones {
@@ -53,4 +57,10 @@
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .respaldos-resumen {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

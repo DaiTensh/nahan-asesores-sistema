@@ -177,12 +177,14 @@ function obtenerSubtituloPagina() {
 }
 
 function fechaActualEnEspanol() {
-  return new Date().toLocaleDateString("es-CL", {
+  const fecha = new Date().toLocaleDateString("es-CL", {
     weekday: "long",
     day: "2-digit",
     month: "long",
     year: "numeric"
   });
+  // Solo la primera letra va en mayúscula: «Lunes, 02 de noviembre de 2026».
+  return fecha.charAt(0).toUpperCase() + fecha.slice(1);
 }
 
 // Carga un módulo complementario de la barra superior (assets/js/<nombre>.js)
@@ -213,7 +215,9 @@ async function cargarTopbar() {
   const contexto = document.createElement("div");
   contexto.className = "topbar-context";
 
-  const titulo = document.createElement("h1");
+  // El título principal de la página es el <h1> de <main>; este solo lo repite en la barra superior.
+  const titulo = document.createElement("div");
+  titulo.className = "topbar-titulo";
   titulo.textContent = obtenerTituloPagina();
 
   const subtituloTexto = obtenerSubtituloPagina();

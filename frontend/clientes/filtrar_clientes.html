@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Filtrar Clientes</title>
 
   <link rel="stylesheet" href="../assets/css/variables.css">
@@ -9,6 +10,7 @@
   <link rel="stylesheet" href="../assets/css/buttons.css">
   <link rel="stylesheet" href="../assets/css/forms.css">
   <link rel="stylesheet" href="../assets/css/cards.css">
+  <link rel="stylesheet" href="../assets/css/tables.css">
   <link rel="stylesheet" href="../assets/css/navigation.css">
   <link rel="stylesheet" href="../assets/css/topbar.css">
   <link rel="stylesheet" href="./clientes.css">
@@ -56,6 +58,7 @@
       <section class="clientes-section">
         <h2>Resultados</h2>
 
+        <div class="table-responsive">
         <table class="clientes-table">
           <thead>
             <tr>
@@ -70,6 +73,7 @@
             <tr><td colspan="5" class="text-loading">Consultando registros...</td></tr>
           </tbody>
         </table>
+        </div>
       </section>
     </main>
   </div>

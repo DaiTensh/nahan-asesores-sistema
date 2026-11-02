@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dashboard Principal</title>
 
   <link rel="stylesheet" href="../assets/css/variables.css">
@@ -363,6 +364,7 @@
       <section class="dashboard-section">
         <h2>Mis clientes recientes</h2>
         <p id="estadoClientesRecientes" aria-live="polite">Cargando clientes recientes...</p>
+        <div class="table-responsive">
         <table class="dashboard-table">
           <thead>
             <tr>
@@ -374,6 +376,7 @@
           </thead>
           <tbody id="tablaClientesRecientes"></tbody>
         </table>
+        </div>
       </section>
 
       <section class="dashboard-section" id="seccionCambiosRecientes">
@@ -396,6 +399,7 @@
         </div>
         <p id="estadoCambiosRecientes" class="rf49-estado" aria-live="polite">Cargando cambios recientes...</p>
         <div class="rf49-tabla-contenedor">
+          <div class="table-responsive">
           <table class="dashboard-table">
             <thead>
               <tr>
@@ -409,6 +413,7 @@
             </thead>
             <tbody id="tablaCambiosRecientes"></tbody>
           </table>
+          </div>
         </div>
       </section>
 

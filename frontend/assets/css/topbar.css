@@ -17,10 +17,12 @@
   min-width: 0;
 }
 
-.topbar-context h1 {
+.topbar-context .topbar-titulo {
   margin: 0;
+  color: var(--color-text-primary);
   font-size: 20px;
   line-height: 1.2;
+  font-weight: 700;
 }
 
 .topbar-context p {
@@ -39,7 +41,6 @@
 .topbar-date {
   color: var(--color-text-secondary);
   font-size: 13px;
-  text-transform: capitalize;
 }
 
 .topbar-search {
@@ -200,6 +201,16 @@
   margin-bottom: var(--spacing-3);
   color: var(--color-text-secondary);
   font-size: 13px;
+}
+
+@media (max-width: 1100px) {
+  .topbar-search {
+    min-width: 180px;
+  }
+
+  .topbar-search input {
+    min-width: 0;
+  }
 }
 
 @media (max-width: 900px) {

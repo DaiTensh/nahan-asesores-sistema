@@ -149,7 +149,12 @@ async function cargarNavegacion(rutaActiva = "") {
   if (!nav) return;
 
   const esAdmin = usuario.nombre_rol === "ADMINISTRADOR";
-  const sidebarColapsada = localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true";
+  // Sin preferencia guardada, en pantallas estrechas el menú arranca contraído
+  // para dejarle espacio al contenido.
+  const preferenciaSidebar = localStorage.getItem(SIDEBAR_STORAGE_KEY);
+  const sidebarColapsada = preferenciaSidebar === null
+    ? window.matchMedia("(max-width: 900px)").matches
+    : preferenciaSidebar === "true";
   aplicarEstadoSidebar(sidebarColapsada);
 
   nav.textContent = "";

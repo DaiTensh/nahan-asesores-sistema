@@ -272,6 +272,7 @@ function renderizarTabla(tareas, usuario) {
     if (puedeAdministrar) {
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
+      checkbox.setAttribute("aria-label", `Seleccionar la tarea ${idTarea}`);
       checkbox.checked = tareasSeleccionadas.has(idTarea);
       checkbox.addEventListener("change", () => alternarSeleccionTarea(idTarea, checkbox.checked, usuario));
       celdaSeleccion.appendChild(checkbox);
@@ -364,6 +365,7 @@ function accionesTarea(tarea, usuario) {
     responsable.id = `responsable-${tarea.id_tarea}`;
     responsable.setAttribute("list", "usuarios_responsables");
     responsable.placeholder = "Responsable";
+    responsable.setAttribute("aria-label", `Nuevo responsable de la tarea ${tarea.id_tarea}`);
     contenedor.appendChild(responsable);
 
     const botonAsignar = document.createElement("button");
@@ -375,6 +377,7 @@ function accionesTarea(tarea, usuario) {
 
   const selectorEstado = document.createElement("select");
   selectorEstado.id = `estado-${tarea.id_tarea}`;
+  selectorEstado.setAttribute("aria-label", `Estado de la tarea ${tarea.id_tarea}`);
   agregarOpciones(selectorEstado, ESTADOS_OPERATIVOS);
 
   if (puedeAdministrar) {
@@ -405,6 +408,7 @@ function accionesTarea(tarea, usuario) {
 
   const selectorPrioridad = document.createElement("select");
   selectorPrioridad.id = `prioridad-${tarea.id_tarea}`;
+  selectorPrioridad.setAttribute("aria-label", `Prioridad de la tarea ${tarea.id_tarea}`);
   agregarOpciones(selectorPrioridad, [
     ["BAJA", "Baja"],
     ["MEDIA", "Media"],
@@ -625,6 +629,7 @@ function crearFilaAdjuntos(idTarea) {
   const input = document.createElement("input");
   input.type = "file";
   input.id = `adjuntos-input-${idTarea}`;
+  input.setAttribute("aria-label", `Archivo adjunto de la tarea ${idTarea}`);
   form.appendChild(input);
 
   const botonSubir = document.createElement("button");
