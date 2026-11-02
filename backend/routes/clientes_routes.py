@@ -10,6 +10,9 @@ from backend.config.db import get_connection
 from backend.utils.auditoria import acciones_de_registros, registrar_auditoria, consultar_auditoria
 from backend.utils.auth import ROL_ADMINISTRADOR, ROLES_OPERATIVOS, obtener_usuario_actual, roles_required
 from backend.utils.clientes_recientes import leer_limite_clientes_recientes
+from backend.utils.validaciones_cliente import (
+    MENSAJE_RUT, error_de_contacto, normalizar_rut, rut_comparable,
+)
 
 clientes_blueprint = Blueprint('clientes_blueprint', __name__)
 logger = logging.getLogger(__name__)
@@ -48,6 +51,14 @@ def registrar_cliente():
         if not all([rut, razon_social]):
             return jsonify({"error": "RUT y Nombre de contacto 1 (Razón Social) son estrictamente obligatorios."}), 400
 
+        rut = normalizar_rut(rut)
+        if rut is None:
+            return jsonify({"error": MENSAJE_RUT}), 400
+
+        error_contacto = error_de_contacto(email, telefono)
+        if error_contacto:
+            return jsonify({"error": error_contacto}), 400
+
         if not areas:
             return jsonify({"error": "Debe asignar el cliente a por lo menos un área activa."}), 400
 
@@ -56,8 +67,12 @@ def registrar_cliente():
             return jsonify({"error": "Fallo interno de comunicación con la base de datos."}), 500
 
         with conexion.cursor() as cursor:
-            # Control preventivo de RUT duplicado
-            cursor.execute("SELECT id_cliente FROM cliente WHERE rut = %s", (rut,))
+            # Control preventivo de RUT duplicado, sin importar el formato con que se guardó
+            cursor.execute(
+                "SELECT id_cliente FROM cliente "
+                "WHERE REPLACE(REPLACE(UPPER(rut), '.', ''), '-', '') = %s",
+                (rut_comparable(rut),),
+            )
             if cursor.fetchone():
                 return jsonify({"error": "El RUT ingresado ya pertenece a un cliente registrado."}), 400
 
@@ -219,6 +234,10 @@ def modificar_cliente(id_cliente):
         if not razon_social:
             return jsonify({"error": "El campo Nombre contacto 1 es mandatorio."}), 400
 
+        error_contacto = error_de_contacto(email, telefono)
+        if error_contacto:
+            return jsonify({"error": error_contacto}), 400
+
         if not areas:
             return jsonify({"error": "Debe mantener al menos una asignación de área."}), 400
 
@@ -370,7 +389,12 @@ def deshabilitar_cliente_rf3(id_cliente):
             cursor.execute("UPDATE cliente SET estado = 'INACTIVO' WHERE id_cliente = %s", (id_cliente,))
 
             if cursor.rowcount == 0:
+                # MySQL informa 0 filas también cuando el valor ya era INACTIVO.
+                cursor.execute("SELECT estado FROM cliente WHERE id_cliente = %s", (id_cliente,))
+                existente = cursor.fetchone()
                 conexion.rollback()
+                if existente:
+                    return jsonify({"error": "El cliente ya se encuentra deshabilitado."}), 409
                 return jsonify({"error": "Cliente inexistente."}), 404
 
             # Grabar en historial (Tabla Auditoria de tu base de datos)

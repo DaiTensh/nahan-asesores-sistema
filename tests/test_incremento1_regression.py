@@ -2066,7 +2066,7 @@ def test_error_de_integridad_cliente_rechaza_sin_commit(client, iniciar_sesion, 
         return []
     conexion = fake_connection_factory(handler)
     monkeypatch.setattr(clientes_routes, 'get_connection', lambda: conexion)
-    respuesta = client.post('/api/clientes', json={'rut': '1-9', 'razon_social': 'Prueba', 'areas': [999]})
+    respuesta = client.post('/api/clientes', json={'rut': '11.111.111-1', 'razon_social': 'Prueba', 'areas': [999]})
     assert respuesta.status_code == esperado
     assert conexion.commits == 0
     assert conexion.rollbacks == 1
