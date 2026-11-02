@@ -162,9 +162,9 @@ def test_respaldo_con_privilegios_minimos_genera_un_paquete_valido_y_completo(mu
     manifiesto = resultado["manifiesto"]
     contadas = {tabla: len(filas) for tabla, filas in antes.items()}
     assert manifiesto["base_de_datos"]["tablas"] == contadas, "el manifiesto refleja exactamente la base respaldada"
-    assert "respaldo" not in manifiesto["base_de_datos"]["tablas"]
+    assert not {"respaldo", "intento_login_fallido"} & set(manifiesto["base_de_datos"]["tablas"])
     assert set(manifiesto["base_de_datos"]["tablas"]) == set(TABLAS_DE_NEGOCIO)
-    assert manifiesto["migraciones"] == ["001", "002", "003", "004", "005", "006", "007", "009", "010"]
+    assert manifiesto["migraciones"] == ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010"]
     assert list(manifiesto["adjuntos"]["archivos"]) == [ADJUNTO]
     assert "mysqldump" in manifiesto["herramienta"]
 
@@ -706,6 +706,20 @@ def test_el_conteo_de_filas_posterior_a_la_carga_detecta_diferencias(mundo, tmp_
     tablas["cliente"] += 1
     with pytest.raises(r.ErrorRespaldo, match="«cliente» quedó con 2 filas y el respaldo tiene 3"):
         r._cargar_volcado(config, str(carpeta / "base_de_datos.sql"), tablas)
+
+
+def test_los_intentos_de_login_fallidos_no_se_revierten_al_restaurar(mundo):
+    """SEC-02 es estado operativo: restaurar un respaldo antiguo no debe «perdonar» intentos recientes."""
+    respaldo = r.ejecutar_respaldo(r.TIPO_MANUAL, 1)
+    mundo.sql("INSERT INTO intento_login_fallido (clave_cuenta, ip_cliente, id_usuario, fecha) VALUES (%s, NULL, NULL, UTC_TIMESTAMP())",
+              (b"\x01" * 32,))
+    mutar(mundo)
+    r.ejecutar_restauracion(respaldo["id_respaldo"], 1)
+    cn = mundo.conectar()
+    cur = cn.cursor()
+    cur.execute("SELECT COUNT(*) FROM intento_login_fallido")
+    assert cur.fetchone()[0] == 1
+    cn.close()
 
 
 def test_la_restauracion_exige_que_el_servidor_pueda_confirmar_la_base_de_destino(mundo, monkeypatch):

@@ -68,7 +68,7 @@ class MySQLDesechable:
                 f"--socket={os.path.join(self.carpeta, 'm.sock')}",
                 f"--pid-file={os.path.join(self.carpeta, 'm.pid')}",
                 f"--log-error={os.path.join(self.carpeta, 'error.log')}",
-                "--skip-log-bin", "--innodb-buffer-pool-size=64M", "--max-connections=50",
+                "--skip-log-bin", "--innodb-buffer-pool-size=64M", "--max-connections=300",
             ],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )

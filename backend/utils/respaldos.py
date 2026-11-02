@@ -57,6 +57,10 @@ RAIZ_PROYECTO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 FORMATO_RESPALDO = 1
 APLICACION = "nahan-asesores"
 TABLA_HISTORIAL = "respaldo"
+# Estado operativo, no información de negocio: no viaja en el paquete y una
+# restauración no lo toca (el historial de respaldos debe sobrevivirla, y los
+# intentos de login fallidos de SEC-02 no deben «perdonarse» al restaurar).
+TABLAS_EXCLUIDAS = (TABLA_HISTORIAL, "intento_login_fallido")
 
 MIEMBRO_MANIFIESTO = "manifest.json"
 MIEMBRO_SQL = "base_de_datos.sql"
@@ -518,7 +522,7 @@ def _volcar_base(config, ruta_sql):
             "--skip-add-locks",
             "--set-gtid-purged=OFF",
             "--default-character-set=utf8mb4",
-            f"--ignore-table={config.db_nombre}.{TABLA_HISTORIAL}",
+            *[f"--ignore-table={config.db_nombre}.{tabla}" for tabla in TABLAS_EXCLUIDAS],
             config.db_nombre,
         ]
         try:
@@ -774,7 +778,7 @@ def _construir_paquete(config, tipo, ruta_zip, carpeta_trabajo):
                 "sha256": sha_sql,
                 "bytes": bytes_sql,
                 "tablas": tablas,
-                "excluidas": [TABLA_HISTORIAL],
+                "excluidas": list(TABLAS_EXCLUIDAS),
             },
             "adjuntos": {"cantidad": len(archivos), "archivos": archivos, "omitidos": sorted(omitidos)},
         }
@@ -1416,8 +1420,9 @@ def _base_tiene_tablas(config):
     cursor = connection.cursor()
     try:
         cursor.execute(
-            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name <> %s",
-            (TABLA_HISTORIAL,),
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() "
+            f"AND table_name NOT IN ({', '.join(['%s'] * len(TABLAS_EXCLUIDAS))})",
+            TABLAS_EXCLUIDAS,
         )
         return cursor.fetchone()[0] > 0
     finally:

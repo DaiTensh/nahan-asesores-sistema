@@ -353,6 +353,24 @@ CREATE TABLE token_recuperacion (
         FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
 );
 
+-- SEC-02 — Límite de intentos fallidos de inicio de sesión (migración 008).
+-- Una fila = un intento que consume cuota: se inserta antes de comprobar la
+-- contraseña, se conserva si falla y se borra si el login tiene éxito. No
+-- guarda contraseñas ni correos (clave_cuenta es un HMAC; ip_cliente va
+-- truncada) y no tiene claves foráneas a propósito.
+CREATE TABLE intento_login_fallido (
+    id_intento BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    clave_cuenta BINARY(32) NOT NULL,
+    ip_cliente VARBINARY(16) NULL,
+    id_usuario INT NULL,
+    fecha DATETIME NOT NULL,
+
+    PRIMARY KEY (id_intento),
+    KEY idx_ilf_cuenta (clave_cuenta, fecha),
+    KEY idx_ilf_ip (ip_cliente, fecha),
+    KEY idx_ilf_fecha (fecha)
+) ENGINE=InnoDB;
+
 -- RF60 — Respaldando históricamente la información (migración 010).
 -- Historial de respaldos y restauraciones. Sin clave foránea a usuario a
 -- propósito, y excluida de los paquetes de respaldo, para que el historial

@@ -392,7 +392,7 @@ def test_el_paquete_contiene_manifiesto_base_y_adjuntos(entorno):
     assert manifiesto["formato"] == 1 and manifiesto["aplicacion"] == "nahan-asesores"
     assert manifiesto["migraciones"] == ["001", "002"]
     assert manifiesto["base_de_datos"]["tablas"] == FILAS_BASE
-    assert manifiesto["base_de_datos"]["excluidas"] == ["respaldo"]
+    assert manifiesto["base_de_datos"]["excluidas"] == ["respaldo", "intento_login_fallido"]
     assert set(manifiesto["adjuntos"]["archivos"]) == {"a1b2c3.pdf", "sub/x.png"}
     assert manifiesto["adjuntos"]["archivos"]["a1b2c3.pdf"]["sha256"] == sha(b"%PDF ficticio")
 
@@ -644,6 +644,7 @@ def test_mysqldump_se_llama_sin_shell_ni_contrasena_en_los_argumentos(entorno, m
     assert argumentos[0] == "mysqldump" and argumentos[1].startswith("--defaults-file=")
     assert not any("clave" in a or "comillas" in a for a in argumentos)
     assert "--single-transaction" in argumentos and "--ignore-table=base_ficticia.respaldo" in argumentos
+    assert "--ignore-table=base_ficticia.intento_login_fallido" in argumentos
     assert argumentos[-1] == "base_ficticia"
     assert kwargs["stdin"] == subprocess.DEVNULL and kwargs["timeout"] == config.timeout
     assert set(kwargs["env"]) <= {"PATH", "SYSTEMROOT", "TEMP", "TMP", "LANG", "LC_ALL"}

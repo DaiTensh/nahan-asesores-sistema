@@ -27,6 +27,18 @@ from backend.utils.clientes_recientes import (
     validar_limite_clientes_recientes,
 )
 from backend.utils.correo import cuerpo_restablecimiento, enviar_correo
+from backend.utils.limitador_login import (
+    LimiteAlcanzado,
+    LimitadorNoDisponible,
+    calcular_clave_cuenta,
+    liberar_reserva,
+    normalizar_ip,
+    purgar_si_corresponde,
+    reservar_intento,
+    respuesta_limite,
+    respuesta_no_disponible,
+    verificar_cupo,
+)
 from backend.utils.security import check_password, hash_password
 
 auth_bp = Blueprint("auth", __name__)
@@ -70,6 +82,24 @@ def login():
         cursor.execute(sql, (email,))
         usuario = cursor.fetchone()
 
+        # SEC-02 — límite de intentos fallidos (backend/utils/limitador_login.py).
+        # Cada intento reserva cupo antes de comprobar la contraseña; la
+        # reserva se conserva si el intento falla y se borra si tiene éxito.
+        # No se mantiene ningún bloqueo ni transacción durante bcrypt.
+        ip_cliente = normalizar_ip(request.remote_addr)
+        if ip_cliente is None:
+            logger.warning(
+                "Login: IP de cliente no disponible o de loopback; se omiten los límites "
+                "por IP y por cuenta+IP (¿TRUST_PROXY?)"
+            )
+        clave_cuenta = calcular_clave_cuenta(cursor, email)
+        verificar_cupo(cursor, clave_cuenta, ip_cliente)
+        id_reserva = reservar_intento(
+            connection, cursor, clave_cuenta, ip_cliente,
+            usuario["id_usuario"] if usuario else None,
+        )
+        purgar_si_corresponde(connection, cursor, id_reserva)
+
         if not usuario:
             return jsonify({
                 "error": "Credenciales incorrectas"
@@ -90,6 +120,9 @@ def login():
         # RF30 — el inicio de sesión queda en AUDITORIA antes de abrir la
         # sesión: si no se puede registrar, no se inicia. Los intentos
         # fallidos no se registran (no hay un usuario identificado).
+        # SEC-02: un login exitoso no es un intento fallido; su reserva se
+        # borra en la misma transacción que el LOGIN.
+        liberar_reserva(cursor, id_reserva)
         registrar_auditoria(
             cursor, usuario["id_usuario"], "sesion", "LOGIN",
             id_registro=usuario["id_usuario"],
@@ -111,8 +144,21 @@ def login():
             "usuario": usuario
         }), 200
 
+    except LimiteAlcanzado as limite:
+        return respuesta_limite(limite.segundos)
+
+    except LimitadorNoDisponible as error:
+        return respuesta_no_disponible(error.segundos)
+
     except Exception:
         logger.exception("Error al iniciar sesión")
+        # SEC-02: si el login no se completa, se deshace el borrado de la
+        # reserva y el intento sigue contando como fallido.
+        if connection is not None:
+            try:
+                connection.rollback()
+            except Exception:
+                logger.warning("Login: no se pudo revertir la transacción")
         return jsonify({
             "error": "Error interno al iniciar sesión"
         }), 500
@@ -470,10 +516,68 @@ def _avisar_a_administradores(cursor, usuario):
         )
 
 
+# SEC-04 — límite de solicitudes efectivas (las que generan un token) por cuenta.
+#
+# Se cuenta sobre token_recuperacion, que ya guarda una fila por solicitud
+# efectiva y su fecha de emisión, así que no hace falta otro almacén y el
+# límite vale para todos los workers de Gunicorn y sobrevive a reinicios.
+#
+# Contar y luego insertar no basta: dos solicitudes simultáneas para la misma
+# cuenta leerían el mismo conteo y ambas pasarían. Por eso las solicitudes de
+# una misma cuenta se serializan con un bloqueo con nombre de MySQL
+# (GET_LOCK), que es del servidor, no de un proceso. Se eligió frente a
+# bloquear la fila de `usuario` con FOR UPDATE porque esa fila también la
+# toman, en modo compartido, las claves foráneas de las notificaciones a los
+# administradores: dos solicitudes sobre dos administradores distintos se
+# habrían bloqueado entre sí (interbloqueo).
+#
+# Solo hay un bloqueo por solicitud y sin otros bloqueos de fila encima de
+# él, de modo que no puede haber ciclos. Si no se obtiene en
+# SEGUNDOS_ESPERA_BLOQUEO se responde como al superar el límite (falla
+# cerrada).
+MAX_SOLICITUDES_RECUPERACION = 3
+VENTANA_SOLICITUDES_MINUTOS = 60
+SEGUNDOS_ESPERA_BLOQUEO = 5
+
+
+def _nombre_bloqueo_recuperacion(id_usuario):
+    return f"nahan:recuperar:{id_usuario}"
+
+
+def _adquirir_bloqueo_recuperacion(cursor, id_usuario):
+    cursor.execute(
+        "SELECT GET_LOCK(%s, %s) AS bloqueo",
+        (_nombre_bloqueo_recuperacion(id_usuario), SEGUNDOS_ESPERA_BLOQUEO),
+    )
+    fila = cursor.fetchone()
+    return bool(fila) and fila["bloqueo"] == 1
+
+
+def _liberar_bloqueo_recuperacion(cursor, id_usuario):
+    cursor.execute(
+        "SELECT RELEASE_LOCK(%s) AS liberado",
+        (_nombre_bloqueo_recuperacion(id_usuario),),
+    )
+    cursor.fetchone()
+
+
+def _solicitudes_recientes(cursor, id_usuario):
+    """Solicitudes efectivas de la cuenta dentro de la ventana móvil, según el
+    reloj de la base (el mismo que escribe fecha_emision)."""
+    cursor.execute(
+        "SELECT COUNT(*) AS total FROM token_recuperacion "
+        "WHERE id_usuario = %s AND fecha_emision > DATE_SUB(NOW(), INTERVAL %s MINUTE)",
+        (id_usuario, VENTANA_SOLICITUDES_MINUTOS),
+    )
+    fila = cursor.fetchone()
+    return int(fila["total"]) if fila else 0
+
+
 @auth_bp.route("/auth/recuperar", methods=["POST"])
 def solicitar_restablecimiento():
     connection = None
     cursor = None
+    id_con_bloqueo = None
     data = request.get_json(silent=True) or {}
     email = (data.get("email") or "").strip()
 
@@ -497,6 +601,23 @@ def solicitar_restablecimiento():
         # La respuesta es idéntica exista o no la cuenta. Solo cambia lo que
         # ocurre por dentro.
         if usuario:
+            # SEC-04: se serializan las solicitudes de la cuenta y se termina la
+            # transacción de lectura para que el conteo de abajo parta de una
+            # instantánea posterior a la última solicitud confirmada (el
+            # bloqueo se libera solo después del commit).
+            if not _adquirir_bloqueo_recuperacion(cursor, usuario["id_usuario"]):
+                logger.warning("No se obtuvo el bloqueo de recuperación (usuario %s)", usuario["id_usuario"])
+                return jsonify({"message": MENSAJE_SOLICITUD}), 200
+            id_con_bloqueo = usuario["id_usuario"]
+            connection.rollback()
+
+            if _solicitudes_recientes(cursor, id_con_bloqueo) >= MAX_SOLICITUDES_RECUPERACION:
+                # Misma respuesta que cualquier otra solicitud: sin token nuevo,
+                # sin invalidar el vigente, sin aviso a administradores y sin
+                # correo. Tampoco se usa 429 para no revelar que la cuenta existe.
+                logger.info("Solicitud de restablecimiento omitida por límite (usuario %s)", id_con_bloqueo)
+                return jsonify({"message": MENSAJE_SOLICITUD}), 200
+
             cursor.execute(
                 "UPDATE token_recuperacion SET utilizado = TRUE "
                 "WHERE id_usuario = %s AND utilizado = FALSE",
@@ -519,6 +640,10 @@ def solicitar_restablecimiento():
 
             _avisar_a_administradores(cursor, usuario)
             connection.commit()
+            # Liberar antes del envío: el SMTP puede tardar hasta 15 s y no debe
+            # retener a las demás solicitudes de la cuenta.
+            _liberar_bloqueo_recuperacion(cursor, id_con_bloqueo)
+            id_con_bloqueo = None
 
             enviar_correo(
                 usuario["email"],
@@ -538,6 +663,14 @@ def solicitar_restablecimiento():
         return jsonify({"error": "Error interno al procesar la solicitud"}), 500
 
     finally:
+        if cursor and id_con_bloqueo is not None:
+            # Caminos sin commit (límite, error): el cierre de la conexión también
+            # lo libera, esto solo evita retenerlo hasta entonces.
+            try:
+                _liberar_bloqueo_recuperacion(cursor, id_con_bloqueo)
+            except Exception:
+                logger.warning("No se pudo liberar el bloqueo de recuperación (usuario %s)", id_con_bloqueo)
+
         if cursor:
             cursor.close()
 
