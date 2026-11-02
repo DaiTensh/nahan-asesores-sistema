@@ -202,7 +202,7 @@ def test_registrar_cliente_deja_un_evento_con_el_cliente_creado(cliente, base):
 
     respuesta = cliente.post("/api/clientes", json={
         "rut": "33.333.333-3", "razon_social": "Cliente Nuevo", "email": "nuevo@cliente.cl",
-        "telefono": "333", "direccion": "Calle 3", "areas": [1, 2],
+        "telefono": "+56 9 3333 3333", "direccion": "Calle 3", "areas": [1, 2],
     })
 
     assert respuesta.status_code == 201
@@ -234,7 +234,7 @@ def test_modificar_cliente_deja_el_antes_y_el_despues(cliente, base):
 
     respuesta = cliente.put("/api/clientes/1", json={
         "razon_social": "Cliente Base Renombrado", "email": "base@cliente.cl",
-        "telefono": "999", "direccion": "Calle 1", "areas": [1, 2],
+        "telefono": "+56 9 9999 9999", "direccion": "Calle 1", "areas": [1, 2],
     })
 
     assert respuesta.status_code == 200
@@ -247,7 +247,7 @@ def test_modificar_cliente_deja_el_antes_y_el_despues(cliente, base):
     assert "telefono=111" in eventos[0]["datos_anteriores"]
     assert "areas=1" in eventos[0]["datos_anteriores"]
     assert "razon_social=Cliente Base Renombrado" in eventos[0]["datos_nuevos"]
-    assert "telefono=999" in eventos[0]["datos_nuevos"]
+    assert "telefono=+56 9 9999 9999" in eventos[0]["datos_nuevos"]
     assert "areas=1,2" in eventos[0]["datos_nuevos"]
 
 
@@ -355,7 +355,7 @@ def test_adjuntar_archivo_a_una_tarea_deja_evento(cliente, base):
 
     respuesta = cliente.post(
         "/api/tareas/1/documentos",
-        data={"archivo": (io.BytesIO(b"contenido"), "respaldo.pdf")},
+        data={"archivo": (io.BytesIO(b"%PDF-1.4 contenido"), "respaldo.pdf")},
         content_type="multipart/form-data",
     )
 
