@@ -78,6 +78,31 @@
   margin-bottom: 0;
 }
 
+.rf49-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.rf49-filtros .form-group {
+  min-width: 180px;
+}
+
+.rf49-estado {
+  min-height: 1.5em;
+  color: var(--color-text-light);
+}
+
+.rf49-tabla-contenedor {
+  overflow-x: auto;
+}
+
+.rf49-enlace-registro {
+  color: var(--color-primary);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .usuario-info p {
   margin-bottom: 10px;
 }

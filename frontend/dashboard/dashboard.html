@@ -364,6 +364,42 @@
         </table>
       </section>
 
+      <section class="dashboard-section" id="seccionCambiosRecientes">
+        <div class="dashboard-section-header">
+          <h2>Cambios recientes</h2>
+          <div class="rf49-filtros">
+            <div class="form-group">
+              <label class="form-label" for="filtroModuloCambios">Módulo</label>
+              <select id="filtroModuloCambios" class="form-input">
+                <option value="">Todos</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="filtroTipoCambio">Tipo de cambio</label>
+              <select id="filtroTipoCambio" class="form-input">
+                <option value="">Todos</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <p id="estadoCambiosRecientes" class="rf49-estado" aria-live="polite">Cargando cambios recientes...</p>
+        <div class="rf49-tabla-contenedor">
+          <table class="dashboard-table">
+            <thead>
+              <tr>
+                <th>Tipo de cambio</th>
+                <th>Módulo</th>
+                <th>Fecha</th>
+                <th>Hora</th>
+                <th>Usuario responsable</th>
+                <th>Registro</th>
+              </tr>
+            </thead>
+            <tbody id="tablaCambiosRecientes"></tbody>
+          </table>
+        </div>
+      </section>
+
     </main>
 
   </div>
@@ -376,6 +412,7 @@
 <script src="../assets/js/topbar.js"></script>
 <script src="../assets/js/permissions.js"></script>
 <script src="./dashboard.js"></script>
+<script src="./cambios_recientes.js"></script>
 
 <script>
   cargarNavegacion("dashboard");
