@@ -52,8 +52,51 @@
     }
   }
 
+  function mostrarMensajeClientesRecientes(texto, tipo) {
+    const mensaje = document.getElementById("mensajeClientesRecientes");
+    mensaje.textContent = texto || "";
+    mensaje.className = tipo ? `mensaje ${tipo}` : "mensaje";
+  }
+
+  async function cargarLimiteClientesRecientes() {
+    try {
+      const response = await fetch(`${API_URL}/parametros/clientes-recientes`, {
+        credentials: window.API_CONFIG.credentials
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      document.getElementById("inputLimiteClientes").value = data.limite;
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  async function guardarLimiteClientesRecientes(event) {
+    event.preventDefault();
+    const limite = Number(document.getElementById("inputLimiteClientes").value);
+    try {
+      const response = await fetch(`${API_URL}/parametros/clientes-recientes`, {
+        method: "PUT",
+        credentials: window.API_CONFIG.credentials,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ limite })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        mostrarMensajeClientesRecientes(data.error || "No fue posible guardar la configuración.", "error");
+        return;
+      }
+      mostrarMensajeClientesRecientes("Configuración guardada.", "success");
+    } catch (error) {
+      console.error(error);
+      mostrarMensajeClientesRecientes("No fue posible conectar con el servidor.", "error");
+    }
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("formSesion").addEventListener("submit", guardar);
+    document.getElementById("formClientesRecientes").addEventListener("submit", guardarLimiteClientesRecientes);
     cargar();
+    cargarLimiteClientesRecientes();
   });
 })();

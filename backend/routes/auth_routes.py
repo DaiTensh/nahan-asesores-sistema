@@ -21,6 +21,11 @@ from backend.utils.auth import (
     roles_required,
     segundos_restantes_sesion,
 )
+from backend.utils.clientes_recientes import (
+    CLIENTES_RECIENTES_DEFECTO,
+    PARAMETRO_CLIENTES_RECIENTES,
+    validar_limite_clientes_recientes,
+)
 from backend.utils.correo import cuerpo_restablecimiento, enviar_correo
 from backend.utils.security import check_password, hash_password
 
@@ -307,6 +312,81 @@ def actualizar_parametros_sesion():
         logger.exception("Error al actualizar la configuración de sesión")
         return jsonify({"error": "Error interno al guardar la configuración"}), 500
 
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
+@auth_bp.route("/parametros/clientes-recientes", methods=["GET"])
+@roles_required(ROL_ADMINISTRADOR)
+def obtener_parametros_clientes_recientes():
+    connection = None
+    cursor = None
+    try:
+        connection = get_connection()
+        if connection is None:
+            return jsonify({"error": "Error de conexión con la base de datos"}), 500
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT valor_parametro FROM parametros_sistema WHERE nombre_parametro = %s",
+            (PARAMETRO_CLIENTES_RECIENTES,),
+        )
+        fila = cursor.fetchone()
+        limite = validar_limite_clientes_recientes(
+            fila.get("valor_parametro") if fila else None
+        ) or CLIENTES_RECIENTES_DEFECTO
+        return jsonify({"limite": limite}), 200
+    except Exception:
+        logger.exception("Error al leer la configuración de clientes recientes")
+        return jsonify({"error": "No se pudo leer la configuración."}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
+@auth_bp.route("/parametros/clientes-recientes", methods=["PUT"])
+@roles_required(ROL_ADMINISTRADOR)
+def actualizar_parametros_clientes_recientes():
+    data = request.get_json(silent=True)
+    limite = validar_limite_clientes_recientes(
+        data.get("limite") if isinstance(data, dict) else None
+    )
+    if limite is None:
+        return jsonify({"error": "El límite debe ser un entero entre 1 y 20."}), 400
+
+    usuario = obtener_usuario_actual()
+    connection = None
+    cursor = None
+    try:
+        connection = get_connection()
+        if connection is None:
+            return jsonify({"error": "Error de conexión con la base de datos"}), 500
+        cursor = connection.cursor(dictionary=True)
+        valor_anterior = _guardar_parametro(
+            cursor,
+            PARAMETRO_CLIENTES_RECIENTES,
+            limite,
+            "Máximo global de clientes recientes mostrados por usuario",
+        )
+        registrar_auditoria(
+            cursor,
+            usuario["id_usuario"],
+            "parametros_sistema",
+            "CONFIGURAR_CLIENTES_RECIENTES",
+            datos_anteriores=f"{PARAMETRO_CLIENTES_RECIENTES}={valor_anterior}",
+            datos_nuevos=f"{PARAMETRO_CLIENTES_RECIENTES}={limite}",
+        )
+        connection.commit()
+        return jsonify({"message": "Configuración actualizada", "limite": limite}), 200
+    except Exception:
+        if connection:
+            connection.rollback()
+        logger.exception("Error al actualizar la configuración de clientes recientes")
+        return jsonify({"error": "No se pudo guardar la configuración."}), 500
     finally:
         if cursor:
             cursor.close()

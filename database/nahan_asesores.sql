@@ -47,6 +47,19 @@ CREATE TABLE cliente (
     fecha_creacion DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE cliente_reciente (
+    id_usuario INT NOT NULL,
+    id_cliente INT NOT NULL,
+    fecha_interaccion DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+
+    PRIMARY KEY (id_usuario, id_cliente),
+    INDEX idx_cliente_reciente_usuario_fecha (id_usuario, fecha_interaccion DESC, id_cliente DESC),
+    CONSTRAINT fk_cliente_reciente_usuario
+        FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario) ON DELETE CASCADE,
+    CONSTRAINT fk_cliente_reciente_cliente
+        FOREIGN KEY (id_cliente) REFERENCES cliente(id_cliente) ON DELETE CASCADE
+);
+
 CREATE TABLE cliente_area (
     id_cliente_area INT AUTO_INCREMENT PRIMARY KEY,
     id_cliente INT NOT NULL,
@@ -373,4 +386,5 @@ INSERT INTO parametros_sistema (nombre_parametro, valor_parametro, tipo_dato, de
 ('ADJUNTOS_TAMANO_MAXIMO_MB', '10', 'INT', 'Tamaño máximo, en MB, de un archivo adjunto a una tarea'),
 ('ADJUNTOS_EXTENSIONES_PERMITIDAS', 'pdf,doc,docx,xls,xlsx,ppt,pptx,jpg,jpeg,png', 'VARCHAR', 'Extensiones permitidas para adjuntos de tarea, separadas por coma'),
 ('SESION_INACTIVIDAD_MINUTOS', '30', 'INT', 'Minutos de inactividad antes de cerrar la sesión automáticamente'),
-('SESION_AVISO_SEGUNDOS', '60', 'INT', 'Segundos de anticipación con que se avisa el cierre por inactividad');
+('SESION_AVISO_SEGUNDOS', '60', 'INT', 'Segundos de anticipación con que se avisa el cierre por inactividad'),
+('CLIENTES_RECIENTES_LIMITE', '5', 'INT', 'Máximo global de clientes recientes mostrados por usuario');

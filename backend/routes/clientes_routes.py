@@ -9,6 +9,7 @@ from datetime import datetime
 from backend.config.db import get_connection
 from backend.utils.auditoria import acciones_de_registros, registrar_auditoria, consultar_auditoria
 from backend.utils.auth import ROL_ADMINISTRADOR, ROLES_OPERATIVOS, obtener_usuario_actual, roles_required
+from backend.utils.clientes_recientes import leer_limite_clientes_recientes
 
 clientes_blueprint = Blueprint('clientes_blueprint', __name__)
 logger = logging.getLogger(__name__)
@@ -138,6 +139,18 @@ def obtener_cliente(id_cliente):
             # Formateamos los IDs de las áreas en una lista simple: [1, 2]
             cliente['areas'] = [item['id_area'] for item in filas_areas]
 
+            if cliente["estado"] == "ACTIVO":
+                id_usuario = obtener_usuario_actual()["id_usuario"]
+                cursor.execute(
+                    """
+                    INSERT INTO cliente_reciente (id_usuario, id_cliente, fecha_interaccion)
+                    VALUES (%s, %s, CURRENT_TIMESTAMP(6))
+                    ON DUPLICATE KEY UPDATE fecha_interaccion = CURRENT_TIMESTAMP(6)
+                    """,
+                    (id_usuario, id_cliente),
+                )
+                conexion.commit()
+
         return jsonify(cliente), 200
 
     except Exception:
@@ -146,6 +159,43 @@ def obtener_cliente(id_cliente):
         logger.exception("Error al obtener cliente")
         return jsonify({"error": "Error interno del servidor."}), 500
 
+    finally:
+        if conexion:
+            conexion.close()
+
+
+@clientes_blueprint.route('/clientes/recientes', methods=['GET'])
+@roles_required(*ROLES_OPERATIVOS)
+def obtener_clientes_recientes():
+    conexion = None
+    try:
+        conexion = get_connection()
+        if conexion is None:
+            return jsonify({"error": "Fallo de conexión."}), 500
+
+        id_usuario = obtener_usuario_actual()["id_usuario"]
+        with conexion.cursor(dictionary=True) as cursor:
+            limite = leer_limite_clientes_recientes(cursor)
+            cursor.execute(
+                """
+                SELECT c.id_cliente, c.rut, c.razon_social, c.email, c.telefono,
+                       c.estado, r.fecha_interaccion
+                FROM cliente_reciente r
+                INNER JOIN cliente c ON c.id_cliente = r.id_cliente
+                WHERE r.id_usuario = %s AND c.estado = 'ACTIVO'
+                ORDER BY r.fecha_interaccion DESC, r.id_cliente DESC
+                LIMIT %s
+                """,
+                (id_usuario, limite),
+            )
+            clientes = cursor.fetchall()
+
+        return jsonify({"limite": limite, "clientes_recientes": clientes}), 200
+    except Exception:
+        if conexion:
+            conexion.rollback()
+        logger.exception("Error al consultar clientes recientes")
+        return jsonify({"error": "No se pudieron cargar los clientes recientes."}), 500
     finally:
         if conexion:
             conexion.close()

@@ -70,6 +70,8 @@ MARCADORES = {
     "006": [(_PARAMETRO, ("SESION_INACTIVIDAD_MINUTOS",)),
             (_PARAMETRO, ("SESION_AVISO_SEGUNDOS",))],
     "007": [(_COLUMNA, ("notificacion", "importancia"))],
+    "009": [(_TABLA, ("cliente_reciente",)),
+            (_PARAMETRO, ("CLIENTES_RECIENTES_LIMITE",))],
 }
 
 
