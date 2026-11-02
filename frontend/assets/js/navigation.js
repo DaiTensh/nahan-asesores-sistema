@@ -81,6 +81,12 @@ const ADMIN_ITEMS = [
     label: "Configuración de sesión",
     icon: "CS",
     href: "../usuarios/configuracion_sesion.html"
+  },
+  {
+    id: "respaldos",
+    label: "Respaldos",
+    icon: "RS",
+    href: "../respaldos/respaldos.html"
   }
 ];
 

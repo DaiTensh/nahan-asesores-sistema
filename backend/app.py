@@ -15,9 +15,11 @@ from backend.routes.documentos_routes import documentos_bp
 from backend.routes.historial_routes import historial_bp
 from backend.routes.notificaciones_routes import notificaciones_bp
 from backend.routes.reportes_routes import reportes_blueprint
+from backend.routes.respaldos_routes import respaldos_bp
 from backend.routes.tareas_routes import tareas_bp
 from backend.routes.usuarios_routes import usuarios_bp
 from backend.routes.busqueda_routes import busqueda_bp
+from backend.utils.respaldos import restauracion_en_curso
 
 
 DEFAULT_DEV_SECRET_KEY = "dev-secret-key-change-me"
@@ -95,6 +97,20 @@ def create_app():
     # debajo de este valor; deploy/nginx/nahan.conf usa el mismo techo.
     app.config["MAX_CONTENT_LENGTH"] = _int_env("MAX_CONTENT_LENGTH_MB", 64) * 1024 * 1024
     app.config["APP_TIMEZONE"] = _configurar_zona_horaria()
+
+    @app.before_request
+    def bloquear_durante_restauracion():
+        # RF60: mientras una restauración reemplaza los datos, el resto de la
+        # API no debe leer ni escribir sobre tablas a medio cargar.
+        if request.path.startswith("/api/") and restauracion_en_curso():
+            respuesta = jsonify({
+                "error": "El sistema está en mantenimiento por una restauración de respaldo. "
+                         "Intente nuevamente en unos minutos.",
+                "codigo": "MANTENIMIENTO",
+            })
+            respuesta.status_code = 503
+            respuesta.headers["Retry-After"] = "60"
+            return respuesta
 
     @app.before_request
     def validar_cuerpo_json():
@@ -186,6 +202,7 @@ def create_app():
     app.register_blueprint(historial_bp, url_prefix="/api")
     app.register_blueprint(notificaciones_bp, url_prefix="/api")
     app.register_blueprint(busqueda_bp, url_prefix="/api")
+    app.register_blueprint(respaldos_bp, url_prefix="/api")
 
     @app.route("/")
     def home():

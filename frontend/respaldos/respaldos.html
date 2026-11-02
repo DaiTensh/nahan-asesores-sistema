@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Respaldos</title>
+
+  <link rel="stylesheet" href="../assets/css/variables.css">
+  <link rel="stylesheet" href="../assets/css/global.css">
+  <link rel="stylesheet" href="../assets/css/buttons.css">
+  <link rel="stylesheet" href="../assets/css/forms.css">
+  <link rel="stylesheet" href="../assets/css/cards.css">
+  <link rel="stylesheet" href="../assets/css/tables.css">
+  <link rel="stylesheet" href="../assets/css/badges.css">
+  <link rel="stylesheet" href="../assets/css/navigation.css">
+  <link rel="stylesheet" href="../assets/css/topbar.css">
+  <link rel="stylesheet" href="../reportes/reportes.css">
+  <link rel="stylesheet" href="./respaldos.css">
+</head>
+<body>
+
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <div class="content-wrapper">
+    <header class="topbar" id="topbar"></header>
+
+    <main class="main-content">
+      <section class="reportes-header">
+        <div>
+          <h1>Respaldos</h1>
+          <p>Respaldo histórico de la base de datos y de los archivos adjuntos. Solo administradores.</p>
+        </div>
+      </section>
+
+      <section class="reportes-section">
+        <h2>Estado</h2>
+        <ul id="listaAlmacenamiento" class="respaldos-verificaciones"></ul>
+        <dl class="respaldos-resumen">
+          <dt>Último respaldo exitoso</dt>
+          <dd id="textoUltimo">-</dd>
+          <dt>Programación automática</dt>
+          <dd id="textoProgramacion">-</dd>
+          <dt>Restauración</dt>
+          <dd id="textoRestauracion">-</dd>
+        </dl>
+        <div class="respaldos-acciones">
+          <button type="button" id="btnRespaldar" class="btn btn-primary">Ejecutar respaldo ahora</button>
+        </div>
+        <p id="mensajeRespaldo" class="mensaje" aria-live="polite"></p>
+      </section>
+
+      <section class="reportes-section">
+        <div class="reportes-resultado-header">
+          <h2>Historial</h2>
+          <div class="respaldos-limite">
+            <label class="form-label" for="selectLimite">Mostrar</label>
+            <select id="selectLimite" class="form-input">
+              <option value="10">10</option>
+              <option value="20" selected>20</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Fecha y hora</th>
+                <th>Operación</th>
+                <th>Tipo</th>
+                <th>Estado</th>
+                <th>Usuario</th>
+                <th>Duración</th>
+                <th>Tamaño</th>
+                <th>Resultado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tablaRespaldos"></tbody>
+          </table>
+        </div>
+        <p id="mensajeHistorial" class="mensaje" aria-live="polite"></p>
+      </section>
+
+      <section class="reportes-section" id="seccionRestaurar" hidden>
+        <h2>Restaurar respaldo</h2>
+        <p id="textoRestaurar"></p>
+        <p class="mensaje warning">
+          Esta operación reemplaza los datos actuales por los del respaldo. Antes se guarda una copia
+          del estado actual y el sistema queda en mantenimiento mientras dura.
+        </p>
+
+        <form id="formRestaurar" class="reportes-form" autocomplete="off">
+          <div class="form-group">
+            <label class="form-label" for="inputConfirmacion">Escriba RESTAURAR para confirmar</label>
+            <input type="text" id="inputConfirmacion" class="form-input" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="inputClave">Su contraseña</label>
+            <input type="password" id="inputClave" class="form-input" autocomplete="current-password" required>
+          </div>
+
+          <div class="form-group reportes-form-actions respaldos-acciones">
+            <button type="submit" id="btnConfirmarRestaurar" class="btn btn-danger">Restaurar</button>
+            <button type="button" id="btnCancelarRestaurar" class="btn btn-secondary">Cancelar</button>
+          </div>
+        </form>
+        <p id="mensajeRestaurar" class="mensaje" aria-live="polite"></p>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script src="../assets/js/api_config.js"></script>
+<script src="../auth/logout.js"></script>
+<script src="../assets/js/navigation.js"></script>
+<script src="../assets/js/topbar.js"></script>
+<script src="../assets/js/permissions.js"></script>
+<script src="./respaldos.js"></script>
+
+<script>
+  protegerPagina(["ADMINISTRADOR"]);
+  cargarNavegacion("respaldos");
+  cargarTopbar();
+</script>
+
+</body>
+</html>
