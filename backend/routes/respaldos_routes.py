@@ -31,6 +31,13 @@ ACCION_RESPALDO_MANUAL = "RESPALDO_MANUAL"
 ACCION_RESPALDO_FALLIDO = "RESPALDO_MANUAL_FALLIDO"
 ACCION_RESTAURACION = "RESTAURACION_RESPALDO"
 ACCION_RESTAURACION_FALLIDA = "RESTAURACION_FALLIDA"
+ACCION_RESTAURACION_RECHAZADA = "RESTAURACION_RECHAZADA"
+
+# La contraseña de confirmación no puede adivinarse a ritmo ilimitado con una
+# sesión de administrador robada: tras este número de rechazos en la ventana, la
+# restauración se bloquea para ese usuario hasta que pase el tiempo.
+MAX_CONFIRMACIONES_RECHAZADAS = 5
+VENTANA_CONFIRMACIONES_MINUTOS = 15
 
 
 def _fecha(valor):
@@ -119,6 +126,30 @@ def _clave_valida(id_usuario, clave):
         cursor.execute("SELECT password_hash FROM usuario WHERE id_usuario = %s", (id_usuario,))
         fila = cursor.fetchone()
         return bool(fila) and check_password(clave, fila["password_hash"])
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
+def _confirmaciones_rechazadas_recientes(id_usuario):
+    """Rechazos de la contraseña de confirmación de este usuario en la ventana, o None si no se pudo contar."""
+    connection = cursor = None
+    try:
+        connection = get_connection()
+        if connection is None:
+            return None
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT COUNT(*) AS n FROM auditoria WHERE id_usuario = %s AND tabla_afectada = %s AND accion = %s "
+            "AND fecha > DATE_SUB(NOW(), INTERVAL %s MINUTE)",
+            (id_usuario, TABLA_AUDITADA, ACCION_RESTAURACION_RECHAZADA, VENTANA_CONFIRMACIONES_MINUTOS),
+        )
+        return int(cursor.fetchone()["n"])
+    except Exception:
+        logger.warning("No se pudo contar las confirmaciones rechazadas", exc_info=True)
+        return None
     finally:
         if cursor:
             cursor.close()
@@ -229,8 +260,20 @@ def restaurar_respaldo(id_respaldo):
         return jsonify({"error": "Ingrese su contraseña para confirmar la restauración."}), 400
 
     usuario = obtener_usuario_actual()
+    rechazadas = _confirmaciones_rechazadas_recientes(usuario["id_usuario"])
+    if rechazadas is None:
+        return jsonify({"error": "No se pudo comprobar el límite de intentos. Intente nuevamente."}), 503
+    if rechazadas >= MAX_CONFIRMACIONES_RECHAZADAS:
+        respuesta = jsonify({
+            "error": f"Demasiados intentos fallidos de confirmación. Espere {VENTANA_CONFIRMACIONES_MINUTOS} minutos.",
+            "codigo": "DEMASIADOS_INTENTOS",
+        })
+        respuesta.status_code = 429
+        respuesta.headers["Retry-After"] = str(VENTANA_CONFIRMACIONES_MINUTOS * 60)
+        return respuesta
     if not _clave_valida(usuario["id_usuario"], clave):
         logger.warning("Restauración rechazada: contraseña incorrecta del usuario %s", usuario["id_usuario"])
+        _auditar(usuario, ACCION_RESTAURACION_RECHAZADA, id_respaldo, "contraseña de confirmación incorrecta")
         return jsonify({"error": "La contraseña no es correcta."}), 403
 
     try:

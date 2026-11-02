@@ -450,7 +450,9 @@ def test_restauracion_por_api_exige_confirmacion_y_contrasena_y_queda_auditada(c
 
     assert client.post(ruta, json={"confirmacion": "RESTAURAR", "password": "equivocada"}).status_code == 403
     assert client.post(ruta, json={"confirmacion": "si", "password": CLAVE_ADMIN}).status_code == 400
-    assert mundo.estado() == mutado, "los intentos rechazados no tocan la base"
+    assert {k: v for k, v in mundo.estado().items() if k != "auditoria"} == {k: v for k, v in mutado.items() if k != "auditoria"}, \
+        "los intentos rechazados no tocan la base"
+    assert [e["accion"] for e in mundo.auditoria()] == ["RESTAURACION_RECHAZADA"], "el intento con contraseña errónea queda auditado"
     assert [f["operacion"] for f in mundo.historial()] == ["RESPALDO"]
 
     respuesta = client.post(ruta, json={"confirmacion": "RESTAURAR", "password": CLAVE_ADMIN})
@@ -465,6 +467,26 @@ def test_restauracion_por_api_exige_confirmacion_y_contrasena_y_queda_auditada(c
     listado = client.get("/api/respaldos").get_json()["respaldos"]
     assert [f["operacion"] for f in listado] == ["RESPALDO", "RESTAURACION", "RESPALDO"]
     assert client.post(f"/api/respaldos/{respaldo['id_respaldo']}/verificar").status_code == 200
+
+
+def test_el_limite_de_confirmaciones_rechazadas_se_aplica_con_mysql_real(client, iniciar_sesion, mundo):
+    iniciar_sesion(usuario_id=1, rol_id=1)
+    respaldo = r.ejecutar_respaldo(r.TIPO_MANUAL, 1)
+    mutar(mundo)
+    mutado = mundo.estado()
+    ruta = f"/api/respaldos/{respaldo['id_respaldo']}/restaurar"
+    mala = {"confirmacion": "RESTAURAR", "password": "equivocada"}
+    buena = {"confirmacion": "RESTAURAR", "password": CLAVE_ADMIN}
+
+    assert [client.post(ruta, json=mala).status_code for _ in range(5)] == [403] * 5
+    assert client.post(ruta, json=mala).status_code == 429
+    bloqueada = client.post(ruta, json=buena)
+    assert bloqueada.status_code == 429 and bloqueada.headers["Retry-After"] == "900"
+    assert {k: v for k, v in mundo.estado().items() if k != "auditoria"} == {k: v for k, v in mutado.items() if k != "auditoria"}
+    assert [e["accion"] for e in mundo.auditoria()] == ["RESTAURACION_RECHAZADA"] * 5
+
+    mundo.sql("UPDATE auditoria SET fecha = DATE_SUB(NOW(), INTERVAL 20 MINUTE) WHERE accion = 'RESTAURACION_RECHAZADA'")
+    assert client.post(ruta, json=buena).status_code == 200, "pasada la ventana, la contraseña correcta vuelve a funcionar"
 
 
 def test_la_restauracion_deshabilitada_no_toca_nada(client, iniciar_sesion, mundo, monkeypatch):

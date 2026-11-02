@@ -63,6 +63,12 @@ def auditoria(monkeypatch, fake_connection_factory):
     return registradas
 
 
+@pytest.fixture(autouse=True)
+def sin_rechazos_previos(monkeypatch):
+    """Por defecto el usuario no tiene confirmaciones rechazadas recientes; las pruebas del límite lo cambian."""
+    monkeypatch.setattr(rutas, "_confirmaciones_rechazadas_recientes", lambda id_usuario: 0)
+
+
 def admin(iniciar_sesion, usuario_id=1):
     iniciar_sesion(usuario_id=usuario_id, rol_id=1, area_id=3, nombre="Admin Ficticia")
 
@@ -364,14 +370,19 @@ def test_una_contrasena_incorrecta_impide_restaurar(client, iniciar_sesion, monk
     consultas = []
 
     def handler(sql, params, cursor):
-        consultas.append(params)
-        return [{"password_hash": hash_password("la-contraseña-real")}]
+        if "password_hash" in sql:
+            consultas.append(params)
+            return [{"password_hash": hash_password("la-contraseña-real")}]
+        return []
     conexion = fake_connection_factory(handler)
     monkeypatch.setattr(rutas, "get_connection", lambda: conexion)
 
     respuesta = client.post("/api/respaldos/7/restaurar", json={"confirmacion": "RESTAURAR", "password": "otra-distinta"})
     assert respuesta.status_code == 403 and respuesta.get_json()["error"] == "La contraseña no es correcta."
     assert consultas == [(3,)] and prohibido.llamadas == []
+    rechazo = [p for s, p in conexion.executed if "INSERT INTO auditoria" in s]
+    assert [(p[0], p[1], p[2], p[3]) for p in rechazo] == [(3, "respaldo", 7, "RESTAURACION_RECHAZADA")]
+    assert "otra-distinta" not in str(rechazo)
 
 
 def test_una_contrasena_correcta_permite_restaurar(client, iniciar_sesion, monkeypatch, fake_connection_factory):
@@ -617,3 +628,57 @@ def test_rf60_no_agrega_dependencias():
     with open(os.path.join(RAIZ, "requirements.txt"), encoding="utf-8") as archivo:
         paquetes = {l.split("==")[0].strip().lower() for l in archivo if l.strip()}
     assert not paquetes & {"boto3", "apscheduler", "celery", "schedule", "paramiko", "sqlalchemy"}
+
+
+# ---------------------------------------------------------------------------
+# Límite de intentos de la contraseña de confirmación
+# ---------------------------------------------------------------------------
+
+def test_tras_cinco_confirmaciones_rechazadas_la_restauracion_se_bloquea(client, iniciar_sesion, monkeypatch, auditoria):
+    prohibido = ServicioProhibido(monkeypatch)
+    admin(iniciar_sesion, usuario_id=3)
+    monkeypatch.setattr(rutas, "_confirmaciones_rechazadas_recientes", lambda id_usuario: rutas.MAX_CONFIRMACIONES_RECHAZADAS)
+    monkeypatch.setattr(rutas, "_clave_valida", lambda *a: pytest.fail("no debe comprobar la contraseña bloqueado"))
+
+    respuesta = client.post("/api/respaldos/7/restaurar", json=CUERPO_RESTAURAR)
+    assert respuesta.status_code == 429 and respuesta.get_json()["codigo"] == "DEMASIADOS_INTENTOS"
+    assert respuesta.headers["Retry-After"] == "900"
+    assert prohibido.llamadas == [] and auditoria == []
+
+
+@pytest.mark.parametrize("rechazadas", [0, 1, 4])
+def test_por_debajo_del_limite_se_sigue_comprobando_la_contrasena(client, iniciar_sesion, monkeypatch, auditoria, rechazadas):
+    admin(iniciar_sesion, usuario_id=3)
+    monkeypatch.setattr(rutas, "_confirmaciones_rechazadas_recientes", lambda id_usuario: rechazadas)
+    monkeypatch.setattr(rutas, "_clave_valida", lambda *a: False)
+    assert client.post("/api/respaldos/7/restaurar", json=CUERPO_RESTAURAR).status_code == 403
+    assert [p[3] for p in auditoria] == ["RESTAURACION_RECHAZADA"]
+
+
+def test_si_no_se_puede_contar_el_limite_la_restauracion_se_rechaza(client, iniciar_sesion, monkeypatch):
+    """Falla cerrada: sin saber cuántos intentos hubo, no se comprueba la contraseña ni se restaura."""
+    prohibido = ServicioProhibido(monkeypatch)
+    admin(iniciar_sesion)
+    monkeypatch.setattr(rutas, "_confirmaciones_rechazadas_recientes", lambda id_usuario: None)
+    monkeypatch.setattr(rutas, "_clave_valida", lambda *a: pytest.fail("no debe comprobar la contraseña"))
+    assert client.post("/api/respaldos/7/restaurar", json=CUERPO_RESTAURAR).status_code == 503
+    assert prohibido.llamadas == []
+
+
+def test_el_conteo_de_rechazos_es_por_usuario_y_por_ventana(monkeypatch, fake_connection_factory):
+    monkeypatch.undo()
+    capturado = []
+
+    def handler(sql, params, cursor):
+        capturado.append((" ".join(sql.split()), params))
+        return [{"n": 4}]
+    conexion = fake_connection_factory(handler)
+    monkeypatch.setattr(rutas, "get_connection", lambda: conexion)
+    assert rutas._confirmaciones_rechazadas_recientes(9) == 4
+    consulta, parametros = capturado[0]
+    assert "WHERE id_usuario = %s AND tabla_afectada = %s AND accion = %s" in consulta
+    assert "DATE_SUB(NOW(), INTERVAL %s MINUTE)" in consulta
+    assert parametros == (9, "respaldo", "RESTAURACION_RECHAZADA", 15)
+
+    monkeypatch.setattr(rutas, "get_connection", lambda: None)
+    assert rutas._confirmaciones_rechazadas_recientes(9) is None
