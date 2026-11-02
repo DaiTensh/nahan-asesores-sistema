@@ -15,12 +15,14 @@ from backend.config.db import get_connection
 from backend.routes.reportes_routes import _validar_periodo
 from backend.utils.auditoria import consultar_auditoria, modulos_disponibles, tablas_de_modulo
 from backend.utils.auth import ROL_ADMINISTRADOR, roles_required
+from backend.utils.auditoria import modulo_de_tabla
 
 historial_bp = Blueprint("historial", __name__)
 logger = logging.getLogger(__name__)
 
 POR_PAGINA_DEFECTO = 25
 POR_PAGINA_MAXIMO = 100
+CAMBIOS_RECIENTES_LIMITE = 10
 
 # Las acciones son constantes en MAYÚSCULAS con guion bajo (LOGIN,
 # CLIENTE_CREADO...). Validar la forma evita filtros con texto arbitrario;
@@ -142,6 +144,130 @@ def opciones_filtros_historial():
         logger.exception("Error al consultar los filtros del historial")
         return jsonify({"error": "Error interno al consultar los filtros"}), 500
 
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
+def _leer_filtros_cambios_recientes(args):
+    modulo = (args.get("modulo") or "").strip()
+    accion = (args.get("accion") or "").strip()
+
+    if modulo and modulo not in modulos_disponibles():
+        return None, "El módulo indicado no existe."
+    if accion and not PATRON_ACCION.fullmatch(accion):
+        return None, "La acción indicada no es válida."
+
+    tablas = tablas_de_modulo(modulo) if modulo else None
+    return {"tablas": tablas, "accion": accion or None}, None
+
+
+def _formatear_fecha_cambio(valor):
+    if hasattr(valor, "strftime"):
+        return valor.strftime("%Y-%m-%d"), valor.strftime("%H:%M:%S")
+    fecha_hora = str(valor or "")
+    return fecha_hora[:10], fecha_hora[11:19] if len(fecha_hora) >= 19 else ""
+
+
+@historial_bp.route("/cambios-recientes", methods=["GET"])
+@roles_required(ROL_ADMINISTRADOR)
+def listar_cambios_recientes():
+    filtros, error = _leer_filtros_cambios_recientes(request.args)
+    if error:
+        return jsonify({"error": error}), 400
+
+    condiciones = []
+    parametros = []
+    if filtros["tablas"] is not None:
+        condiciones.append(
+            f"a.tabla_afectada IN ({', '.join(['%s'] * len(filtros['tablas']))})"
+        )
+        parametros.extend(filtros["tablas"])
+    if filtros["accion"]:
+        condiciones.append("a.accion = %s")
+        parametros.append(filtros["accion"])
+    where = f"WHERE {' AND '.join(condiciones)}" if condiciones else ""
+
+    connection = None
+    cursor = None
+    try:
+        connection = get_connection()
+        if connection is None:
+            return jsonify({"error": "Error de conexión con la base de datos"}), 500
+
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            f"""
+            SELECT a.id_auditoria, a.fecha, u.nombres AS usuario,
+                   a.tabla_afectada, a.id_registro, a.accion,
+                   c.id_cliente AS cliente_disponible,
+                   t.id_tarea AS tarea_disponible
+            FROM auditoria a
+            LEFT JOIN usuario u ON u.id_usuario = a.id_usuario
+            LEFT JOIN cliente c
+              ON a.tabla_afectada = 'cliente' AND c.id_cliente = a.id_registro
+            LEFT JOIN tarea t
+              ON a.tabla_afectada = 'tarea' AND t.id_tarea = a.id_registro
+            {where}
+            ORDER BY a.fecha DESC, a.id_auditoria DESC
+            LIMIT %s
+            """,
+            tuple(parametros + [CAMBIOS_RECIENTES_LIMITE]),
+        )
+        filas = cursor.fetchall()
+
+        cambios = []
+        for fila in filas:
+            fecha, hora = _formatear_fecha_cambio(fila.get("fecha"))
+            tabla = fila.get("tabla_afectada")
+            id_registro = fila.get("id_registro")
+            tipo_registro = None
+            if tabla == "cliente" and fila.get("cliente_disponible") is not None:
+                tipo_registro = "cliente"
+            elif tabla == "tarea" and fila.get("tarea_disponible") is not None:
+                tipo_registro = "tarea"
+
+            cambios.append({
+                "id_auditoria": fila.get("id_auditoria"),
+                "tipo": fila.get("accion"),
+                "modulo": modulo_de_tabla(tabla),
+                "fecha": fecha,
+                "hora": hora,
+                "usuario": fila.get("usuario") or "Usuario no disponible",
+                "tipo_registro": tipo_registro,
+                "id_registro": id_registro if tipo_registro else None,
+            })
+
+        return jsonify({"cambios": cambios, "limite": CAMBIOS_RECIENTES_LIMITE}), 200
+    except Exception:
+        logger.exception("Error al consultar cambios recientes")
+        return jsonify({"error": "Error interno al consultar cambios recientes"}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
+@historial_bp.route("/cambios-recientes/filtros", methods=["GET"])
+@roles_required(ROL_ADMINISTRADOR)
+def opciones_filtros_cambios_recientes():
+    connection = None
+    cursor = None
+    try:
+        connection = get_connection()
+        if connection is None:
+            return jsonify({"error": "Error de conexión con la base de datos"}), 500
+
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT DISTINCT accion FROM auditoria ORDER BY accion")
+        acciones = [fila["accion"] for fila in cursor.fetchall()]
+        return jsonify({"modulos": modulos_disponibles(), "tipos": acciones}), 200
+    except Exception:
+        logger.exception("Error al consultar filtros de cambios recientes")
+        return jsonify({"error": "Error interno al consultar filtros"}), 500
     finally:
         if cursor:
             cursor.close()
