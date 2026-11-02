@@ -72,6 +72,7 @@ MARCADORES = {
     "007": [(_COLUMNA, ("notificacion", "importancia"))],
     "009": [(_TABLA, ("cliente_reciente",)),
             (_PARAMETRO, ("CLIENTES_RECIENTES_LIMITE",))],
+    "010": [(_TABLA, ("respaldo",))],
 }
 
 

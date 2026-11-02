@@ -353,6 +353,31 @@ CREATE TABLE token_recuperacion (
         FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
 );
 
+-- RF60 — Respaldando históricamente la información (migración 010).
+-- Historial de respaldos y restauraciones. Sin clave foránea a usuario a
+-- propósito, y excluida de los paquetes de respaldo, para que el historial
+-- sobreviva a una restauración.
+CREATE TABLE respaldo (
+    id_respaldo INT AUTO_INCREMENT PRIMARY KEY,
+    operacion ENUM('RESPALDO','RESTAURACION') NOT NULL DEFAULT 'RESPALDO',
+    tipo ENUM('MANUAL','PROGRAMADO','PREVIO_RESTAURACION') NOT NULL,
+    estado ENUM('EN_CURSO','EXITOSO','FALLIDO') NOT NULL DEFAULT 'EN_CURSO',
+    fecha_inicio DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha_fin DATETIME NULL,
+    duracion_segundos DECIMAL(10,2) NULL,
+    id_usuario INT NULL,
+    id_relacionado INT NULL,
+    nombre_archivo VARCHAR(120) NULL,
+    tamano_bytes BIGINT NULL,
+    sha256 CHAR(64) NULL,
+    detalle VARCHAR(500) NULL,
+    mensaje_error VARCHAR(500) NULL,
+    archivo_eliminado_en DATETIME NULL,
+
+    INDEX idx_respaldo_fecha (fecha_inicio, id_respaldo),
+    INDEX idx_respaldo_estado (estado, operacion)
+);
+
 CREATE INDEX idx_cliente_rut ON cliente(rut);
 CREATE INDEX idx_tarea_estado ON tarea(estado);
 CREATE INDEX idx_auditoria_tabla_registro ON auditoria (tabla_afectada, id_registro);
