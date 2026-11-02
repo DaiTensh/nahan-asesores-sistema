@@ -90,7 +90,9 @@ def test_la_fecha_de_la_barra_superior_solo_capitaliza_la_primera_letra():
 
 def test_la_barra_superior_cabe_en_1024_px():
     css = leer(os.path.join(FRONTEND, "assets", "css", "topbar.css"))
-    assert re.search(r"@media \(max-width: 1100px\)\s*\{\s*\.topbar-search\s*\{\s*min-width: 180px", css)
+    bloque = css[css.index("@media (max-width: 1100px)"):]
+    assert "flex-direction: column" in bloque, "la barra se apila antes de que el título se encime con la fecha"
+    assert re.search(r"\.topbar-search\s*\{\s*min-width: 0;\s*flex: 1 1 220px", bloque)
 
 
 def _fetch_con_json_sin_cuerpo(js):
@@ -115,3 +117,16 @@ def test_ninguna_solicitud_del_frontend_declara_json_sin_enviar_cuerpo():
         if lineas:
             fallos[nombre(ruta)] = lineas
     assert fallos == {}
+
+
+PAGINAS_SOLO_ADMINISTRADOR = [
+    "historial/historial.html", "reportes/reportes.html", "reportes/productividad.html", "reportes/historial_consolidado.html",
+    "respaldos/respaldos.html", "usuarios/usuarios.html", "usuarios/modificar_usuario.html", "usuarios/desactivar_usuario.html",
+    "usuarios/asignar_rol.html", "usuarios/configuracion_sesion.html", "clientes/eliminar_cliente.html", "clientes/cambiar_estado.html",
+]
+
+
+@pytest.mark.parametrize("pagina", PAGINAS_SOLO_ADMINISTRADOR)
+def test_las_pantallas_de_administrador_redirigen_a_quien_no_lo_es(pagina):
+    """El backend ya responde 403; la pantalla no debe mostrarse vacía a un usuario operativo."""
+    assert 'protegerPagina(["ADMINISTRADOR"])' in leer(os.path.join(FRONTEND, pagina))

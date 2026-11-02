@@ -203,17 +203,9 @@
   font-size: 13px;
 }
 
+/* Con el menú lateral abierto el contenido mide ~750 px a 1024 px de pantalla:
+   la barra se apila antes para que el título no se encime con la fecha. */
 @media (max-width: 1100px) {
-  .topbar-search {
-    min-width: 180px;
-  }
-
-  .topbar-search input {
-    min-width: 0;
-  }
-}
-
-@media (max-width: 900px) {
   .topbar {
     align-items: flex-start;
     flex-direction: column;
@@ -227,11 +219,17 @@
 
   .topbar-search {
     min-width: 0;
-    flex: 1 1 100%;
-    order: 3;
+    flex: 1 1 220px;
   }
 
   .topbar-search input {
     min-width: 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .topbar-search {
+    flex: 1 1 100%;
+    order: 3;
   }
 }
