@@ -1,8 +1,11 @@
+import logging
 import os
 import mysql.connector
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 def get_connection():
     try:
@@ -14,5 +17,5 @@ def get_connection():
             database=os.getenv("DB_NAME")
         )
     except mysql.connector.Error as error:
-        print(f"Error de conexión a MySQL: {error}")
+        logger.error("Error de conexión a MySQL: %s", error)
         return None

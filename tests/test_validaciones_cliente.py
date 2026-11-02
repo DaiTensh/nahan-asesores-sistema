@@ -102,7 +102,6 @@ def test_deshabilitar_distingue_cliente_ya_inactivo_de_inexistente(client, inici
                                                                     fila_existente, estado, mensaje):
     """MySQL informa 0 filas afectadas al «actualizar» un cliente que ya estaba INACTIVO."""
     iniciar_sesion(usuario_id=1, rol_id=1)
-    conexion_ref = {}
 
     def handler(sql, params, cursor):
         if sql.startswith("UPDATE cliente"):

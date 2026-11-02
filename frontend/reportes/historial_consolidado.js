@@ -113,7 +113,7 @@
       fila.appendChild(celda(formatearFechaIso(evento.fecha)));
       fila.appendChild(celda(evento.usuario));
       fila.appendChild(celda(evento.modulo));
-      fila.appendChild(celda(evento.accion));
+      fila.appendChild(celda(window.etiquetaAccionAuditoria(evento.accion)));
       fila.appendChild(celdaDetalle(evento));
       tabla.appendChild(fila);
     });

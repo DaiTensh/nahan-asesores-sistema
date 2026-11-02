@@ -88,7 +88,7 @@
       (data.acciones || []).forEach(accion => {
         const opcion = document.createElement("option");
         opcion.value = accion;
-        opcion.textContent = accion;
+        opcion.textContent = window.etiquetaAccionAuditoria(accion);
         selectAccion.appendChild(opcion);
       });
 
@@ -152,7 +152,7 @@
         fila.appendChild(celda(formatearFecha(evento.fecha)));
         fila.appendChild(celda(evento.usuario));
         fila.appendChild(celda(evento.modulo));
-        fila.appendChild(celda(evento.accion));
+        fila.appendChild(celda(window.etiquetaAccionAuditoria(evento.accion)));
         fila.appendChild(celdaDetalle(evento));
         tabla.appendChild(fila);
       });

@@ -130,3 +130,31 @@ PAGINAS_SOLO_ADMINISTRADOR = [
 def test_las_pantallas_de_administrador_redirigen_a_quien_no_lo_es(pagina):
     """El backend ya responde 403; la pantalla no debe mostrarse vacía a un usuario operativo."""
     assert 'protegerPagina(["ADMINISTRADOR"])' in leer(os.path.join(FRONTEND, pagina))
+
+
+def _acciones_que_registra_el_backend():
+    codigos = set()
+    for ruta in glob.glob(os.path.join(RAIZ, "backend", "**", "*.py"), recursive=True):
+        texto = leer(ruta)
+        codigos |= set(re.findall(r'registrar_auditoria\(\s*[^,]+,\s*[^,]+,\s*"[a-z_]+",\s*"([A-Z_0-9]+)"', texto))
+        codigos |= set(re.findall(r'^ACCION_[A-Z_]+ = "([A-Z_0-9]+)"', texto, re.M))
+    return codigos
+
+
+def test_toda_accion_de_auditoria_tiene_un_nombre_legible():
+    """Cada acción nueva debe agregarse a assets/js/etiquetas_auditoria.js; si no, la pantalla muestra el código interno."""
+    js = leer(os.path.join(FRONTEND, "assets", "js", "etiquetas_auditoria.js"))
+    etiquetadas = set(re.findall(r"^\s{4}([A-Z_0-9]+): \"", js, re.M))
+    codigos = _acciones_que_registra_el_backend()
+    assert len(codigos) >= 30
+    assert codigos - etiquetadas == set()
+
+
+@pytest.mark.parametrize("pagina,script", [
+    ("dashboard/dashboard.html", "cambios_recientes.js"), ("historial/historial.html", "historial.js"),
+    ("reportes/historial_consolidado.html", "historial_consolidado.js"),
+])
+def test_las_pantallas_de_auditoria_usan_los_nombres_legibles(pagina, script):
+    html = leer(os.path.join(FRONTEND, pagina))
+    assert html.index("etiquetas_auditoria.js") < html.index(script), "el helper se carga antes que el script de la pantalla"
+    assert "window.etiquetaAccionAuditoria(" in leer(os.path.join(FRONTEND, pagina.split("/")[0], script))

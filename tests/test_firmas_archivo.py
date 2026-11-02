@@ -1,6 +1,4 @@
 """RF54: el contenido de un adjunto debe corresponder a su extensión, y su nombre caber en la base."""
-import io
-
 import pytest
 
 from backend.utils.firmas_archivo import contenido_corresponde_a_extension as coincide
