@@ -152,7 +152,7 @@ def test_toda_accion_de_auditoria_tiene_un_nombre_legible():
 
 @pytest.mark.parametrize("pagina,script", [
     ("dashboard/dashboard.html", "cambios_recientes.js"), ("historial/historial.html", "historial.js"),
-    ("reportes/historial_consolidado.html", "historial_consolidado.js"),
+    ("reportes/historial_consolidado.html", "historial_consolidado.js"), ("clientes/ficha_cliente.html", "ficha_cliente.js"),
 ])
 def test_las_pantallas_de_auditoria_usan_los_nombres_legibles(pagina, script):
     html = leer(os.path.join(FRONTEND, pagina))
@@ -166,3 +166,9 @@ def test_la_pantalla_de_tarifas_no_inserta_html_y_no_declara_json_sin_cuerpo():
         assert prohibido not in js
     assert 'pedir(`/tarifas/areas/${area.id_area}`, { method: "DELETE" })' in js
     assert 'id: "tarifas"' in leer(os.path.join(FRONTEND, "assets", "js", "navigation.js"))
+
+
+def test_la_ficha_del_cliente_no_repite_el_mapa_de_etiquetas_de_auditoria():
+    """Un mapa propio en la ficha dejaba sin nombre legible a cualquier acción nueva."""
+    js = leer(os.path.join(FRONTEND, "clientes", "ficha_cliente.js"))
+    assert "ETIQUETAS_ACCION_HISTORIAL" not in js and "Cliente creado" not in js

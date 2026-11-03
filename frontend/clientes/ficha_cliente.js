@@ -276,26 +276,6 @@ document.addEventListener("DOMContentLoaded", () => {
   // RF13 — Historial completo del cliente. Solo lectura: la sección consulta
   // GET /clientes/<id>/historial-completo y no ofrece edición ni borrado.
   const HISTORIAL_POR_PAGINA = 20;
-  const ETIQUETAS_ACCION_HISTORIAL = {
-    CLIENTE_CREADO: "Cliente creado",
-    CLIENTE_MODIFICADO: "Datos del cliente modificados",
-    CAMBIO_ESTADO: "Cambio de estado del cliente",
-    DESHABILITAR: "Cliente deshabilitado",
-    OBSERVACION_CREADA: "Observación registrada",
-    TAREA_CREADA: "Tarea creada",
-    EDICION: "Tarea editada",
-    CAMBIO_ESTADO_TAREA: "Cambio de estado de la tarea",
-    REASIGNACION: "Tarea reasignada",
-    REASIGNACION_MASIVA: "Tarea reasignada (masivo)",
-    ENVIO_REVISION: "Tarea enviada a revisión",
-    APROBAR_REVISION: "Revisión aprobada",
-    RECHAZAR_REVISION: "Revisión rechazada",
-    COMPLETAR_TAREA: "Tarea completada",
-    CANCELAR_TAREA: "Tarea cancelada",
-    DOCUMENTO_REFERENCIADO: "Documento referenciado",
-    DOCUMENTO_ADJUNTADO: "Documento adjuntado",
-    DESCARGA: "Documento descargado"
-  };
 
   const seccionHistorial = document.getElementById("seccionHistorial");
   const tbodyHistorial = document.getElementById("tablaHistorialCuerpo");
@@ -307,10 +287,9 @@ document.addEventListener("DOMContentLoaded", () => {
   let paginaHistorial = 1;
   let totalPaginasHistorial = 1;
 
+  // Los nombres legibles de las acciones viven en assets/js/etiquetas_auditoria.js.
   function etiquetaAccionHistorial(accion) {
-    if (ETIQUETAS_ACCION_HISTORIAL[accion]) return ETIQUETAS_ACCION_HISTORIAL[accion];
-    const texto = String(accion || "").replace(/_/g, " ").toLowerCase();
-    return texto ? texto.charAt(0).toUpperCase() + texto.slice(1) : "-";
+    return window.etiquetaAccionAuditoria(accion);
   }
 
   function formatearFechaHistorial(fecha) {
