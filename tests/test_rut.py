@@ -179,3 +179,9 @@ def test_el_revisor_de_ruts_reporta_sin_modificar():
     assert any("normalizado" in m for m in por_cliente[2]) and any("normalizado" in m for m in por_cliente[6])
     assert por_cliente[3] == [MENSAJE_RUT_DIGITO] and por_cliente[4] == [MENSAJE_RUT]
     assert revisar_ruts.revisar([(1, "12.345.678-5", "x"), (2, "11.111.111-1", "y")]) == []
+
+
+def test_el_formulario_borra_el_mensaje_anterior_antes_de_validar_de_nuevo():
+    """Tras corregir el RUT y cancelar la confirmación seguía a la vista el error anterior."""
+    js = open(os.path.join(RAIZ, "frontend", "clientes", "registrar_clientes.js"), encoding="utf-8").read()
+    assert js.index('mostrarMensaje("");') < js.index("window.Rut.validar(")

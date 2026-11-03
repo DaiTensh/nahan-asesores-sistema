@@ -12,6 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    mostrarMensaje("");
     const validacionRut = window.Rut.validar(document.getElementById("rut").value);
     if (!validacionRut.valido) {
       mostrarMensaje(validacionRut.mensaje, "error");
