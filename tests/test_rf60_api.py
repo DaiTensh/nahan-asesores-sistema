@@ -639,6 +639,30 @@ def test_el_temporizador_activa_la_unidad_de_respaldo_y_usa_rutas_absolutas():
     assert int(servicio["TimeoutStartSec"]) >= 600
 
 
+def _leer_como_systemd(ruta):
+    """Reglas de EnvironmentFile= (systemd.exec): «#» o «;» al inicio comentan, sin comentarios al final de la línea."""
+    valores = {}
+    for linea in open(ruta, encoding="utf-8").read().splitlines():
+        linea = linea.strip()
+        if not linea or linea[0] in "#;":
+            continue
+        clave, _, valor = linea.partition("=")
+        valor = valor.strip()
+        if len(valor) >= 2 and valor[0] == valor[-1] and valor[0] in "\"'":
+            valor = valor[1:-1]
+        valores[clave.strip()] = valor
+    return valores
+
+
+def test_el_env_de_ejemplo_se_lee_igual_con_systemd_y_con_dotenv():
+    """El servicio de respaldo carga .env con EnvironmentFile=; la aplicación, con python-dotenv. Si un valor
+    llevara un comentario al final de la línea, systemd lo conservaría completo y dotenv no."""
+    from dotenv import dotenv_values
+    ruta = os.path.join(RAIZ, ".env.example")
+    con_dotenv = {k: v or "" for k, v in dotenv_values(ruta).items()}
+    assert _leer_como_systemd(ruta) == con_dotenv
+
+
 def test_gunicorn_admite_operaciones_largas_de_respaldo():
     assert re.search(r"--timeout (\d+)", leer("deploy", "systemd", "nahan.service")).group(1) == "300"
 
