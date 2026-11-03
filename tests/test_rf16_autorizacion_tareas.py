@@ -35,7 +35,7 @@ CREATE TABLE tarea (
     id_responsable INTEGER, id_creador INTEGER, titulo TEXT, descripcion TEXT,
     estado TEXT DEFAULT 'PENDIENTE', prioridad TEXT DEFAULT 'MEDIA',
     fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP, fecha_vencimiento DATE,
-    fecha_finalizacion DATETIME);
+    fecha_inicio DATETIME, fecha_finalizacion DATETIME);
 CREATE TABLE auditoria (
     id_auditoria INTEGER PRIMARY KEY AUTOINCREMENT, id_usuario INTEGER,
     tabla_afectada TEXT, id_registro INTEGER, accion TEXT, datos_anteriores TEXT, datos_nuevos TEXT,

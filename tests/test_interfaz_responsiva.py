@@ -209,3 +209,14 @@ def test_los_decimales_visibles_usan_coma(ruta):
 def test_las_etiquetas_de_accesibilidad_llevan_tilde():
     """Un lector de pantalla pronuncia mal «Seleccion»; el corrector del sistema lo marcaba."""
     assert 'aria-label="Selección de tarea"' in leer(os.path.join(FRONTEND, "control_horas", "control_horas.html"))
+
+
+def test_la_fecha_de_inicio_de_rf14_esta_en_el_alta_la_edicion_y_el_detalle():
+    """RF14 pide fecha de inicio y fecha límite al crear una tarea; se puede corregir y se muestra."""
+    for pagina in ("tareas/tareas.html", "tareas/editar_tarea.html"):
+        assert 'id="fecha_inicio"' in leer(os.path.join(FRONTEND, pagina)), pagina
+    assert 'id="detalleFechaInicio"' in leer(os.path.join(FRONTEND, "tareas", "detalle_tarea.html"))
+    for script in ("tareas.js", "editar_tarea.js"):
+        js = leer(os.path.join(FRONTEND, "tareas", script))
+        assert "fecha_inicio: fechaInicio" in js and "fechaInicio > fechaVencimiento" in js, script
+    assert "detalleFechaInicio" in leer(os.path.join(FRONTEND, "tareas", "detalle_tarea.js"))

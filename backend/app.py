@@ -127,7 +127,7 @@ def create_app():
         campos_texto = {
             "email", "password", "token", "nombres", "rut", "razon_social",
             "telefono", "direccion", "titulo", "descripcion", "prioridad", "estado",
-            "nuevo_estado", "fecha_vencimiento", "nombre_documento", "tipo_documento",
+            "nuevo_estado", "fecha_inicio", "fecha_vencimiento", "nombre_documento", "tipo_documento",
             "ubicacion_referencia", "observaciones", "texto",
         }
         largos_maximos = {

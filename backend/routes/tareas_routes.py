@@ -221,6 +221,20 @@ def _contar_tareas_finalizadas(cursor, fecha_inicio, fecha_fin, usuario):
     return int((fila or {}).get("total", 0) or 0)
 
 
+def _leer_fecha_tarea(valor, nombre):
+    """RF14 — Valida una fecha opcional de tarea (AAAA-MM-DD). Devuelve (date o None, error).
+
+    Una fecha ausente es válida: ni la fecha de inicio ni la de vencimiento son
+    obligatorias, de modo que las tareas existentes (con la columna en NULL) siguen siendo válidas.
+    """
+    if not valor:
+        return None, None
+    try:
+        return datetime.strptime(valor, "%Y-%m-%d").date(), None
+    except (TypeError, ValueError):
+        return None, f"La fecha de {nombre} no es válida"
+
+
 @tareas_bp.route("/tareas", methods=["POST"])
 @login_required
 def crear_tarea():
@@ -236,6 +250,7 @@ def crear_tarea():
     titulo = data.get("titulo")
     descripcion = data.get("descripcion")
     prioridad = data.get("prioridad", "MEDIA")
+    fecha_inicio = data.get("fecha_inicio") or None
     fecha_vencimiento = data.get("fecha_vencimiento")
 
     if areas is None:
@@ -254,11 +269,14 @@ def crear_tarea():
 
     if prioridad not in ("BAJA", "MEDIA", "ALTA", "URGENTE"):
         return jsonify({"error": "Prioridad no válida"}), 400
-    if fecha_vencimiento:
-        try:
-            datetime.strptime(fecha_vencimiento, "%Y-%m-%d")
-        except ValueError:
-            return jsonify({"error": "La fecha de vencimiento no es válida"}), 400
+    fecha_inicio_valor, error_fecha = _leer_fecha_tarea(fecha_inicio, "inicio")
+    if error_fecha:
+        return jsonify({"error": error_fecha}), 400
+    fecha_vencimiento_valor, error_fecha = _leer_fecha_tarea(fecha_vencimiento, "vencimiento")
+    if error_fecha:
+        return jsonify({"error": error_fecha}), 400
+    if fecha_inicio_valor and fecha_vencimiento_valor and fecha_inicio_valor > fecha_vencimiento_valor:
+        return jsonify({"error": "La fecha de inicio no puede ser posterior a la fecha de vencimiento"}), 400
 
     try:
         connection = get_connection()
@@ -290,9 +308,10 @@ def crear_tarea():
                 titulo,
                 descripcion,
                 prioridad,
-                fecha_vencimiento
+                fecha_vencimiento,
+                fecha_inicio
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
 
         for area in areas:
@@ -304,7 +323,8 @@ def crear_tarea():
                 titulo,
                 descripcion,
                 prioridad,
-                fecha_vencimiento
+                fecha_vencimiento,
+                fecha_inicio
             )
 
             cursor.execute(sql, values)
@@ -319,6 +339,7 @@ def crear_tarea():
                     f"id_tarea={id_tarea}, id_cliente={id_cliente}, id_area={area}, "
                     f"id_responsable={id_responsable}, titulo={titulo}, "
                     f"prioridad={prioridad}, estado=PENDIENTE"
+                    + (f", fecha_inicio={fecha_inicio}" if fecha_inicio else "")
                 ),
             )
 
@@ -827,6 +848,9 @@ def editar_tarea(id_tarea):
     id_responsable = data.get("id_responsable")
     prioridad = data.get("prioridad")
     fecha_vencimiento = data.get("fecha_vencimiento") or None
+    # RF14: quien no envía la clave conserva la fecha de inicio que ya tenía.
+    actualiza_inicio = "fecha_inicio" in data
+    fecha_inicio = (data.get("fecha_inicio") or None) if actualiza_inicio else None
 
     prioridades_validas = ["BAJA", "MEDIA", "ALTA", "URGENTE"]
 
@@ -844,11 +868,12 @@ def editar_tarea(id_tarea):
     if prioridad not in prioridades_validas:
         return jsonify({"error": "Prioridad no válida"}), 400
 
-    if fecha_vencimiento:
-        try:
-            fecha_vencimiento_valor = datetime.strptime(fecha_vencimiento, "%Y-%m-%d").date()
-        except ValueError:
-            return jsonify({"error": "La fecha de vencimiento no es válida"}), 400
+    fecha_vencimiento_valor, error_fecha = _leer_fecha_tarea(fecha_vencimiento, "vencimiento")
+    if error_fecha:
+        return jsonify({"error": error_fecha}), 400
+    fecha_inicio_nueva, error_fecha = _leer_fecha_tarea(fecha_inicio, "inicio")
+    if error_fecha:
+        return jsonify({"error": error_fecha}), 400
 
     try:
         connection = get_connection()
@@ -857,7 +882,7 @@ def editar_tarea(id_tarea):
         cursor.execute(
             """
             SELECT id_tarea, id_responsable, titulo, descripcion, estado,
-                   prioridad, fecha_vencimiento, fecha_creacion
+                   prioridad, fecha_vencimiento, fecha_inicio, fecha_creacion
             FROM tarea
             WHERE id_tarea = %s
             """,
@@ -889,6 +914,13 @@ def editar_tarea(id_tarea):
                     "error": "La fecha de vencimiento no puede ser anterior a la fecha de creación"
                 }), 400
 
+        fecha_inicio_anterior = _fecha_a_date(tarea["fecha_inicio"]) if tarea["fecha_inicio"] else None
+        fecha_inicio_final = fecha_inicio_nueva if actualiza_inicio else fecha_inicio_anterior
+        if fecha_inicio_final and fecha_vencimiento and fecha_inicio_final > fecha_vencimiento_valor:
+            return jsonify({
+                "error": "La fecha de inicio no puede ser posterior a la fecha de vencimiento"
+            }), 400
+
         cursor.execute(
             """
             SELECT id_usuario, estado
@@ -913,16 +945,18 @@ def editar_tarea(id_tarea):
             ("prioridad", tarea["prioridad"], prioridad),
             ("fecha_vencimiento", valor_anterior_vencimiento, fecha_vencimiento),
         ]
+        columnas = "titulo = %s, descripcion = %s, id_responsable = %s, prioridad = %s, fecha_vencimiento = %s"
+        valores = [titulo, descripcion, id_responsable, prioridad, fecha_vencimiento]
+        if actualiza_inicio:
+            cambios.append((
+                "fecha_inicio",
+                fecha_inicio_anterior.isoformat() if fecha_inicio_anterior else None,
+                fecha_inicio,
+            ))
+            columnas += ", fecha_inicio = %s"
+            valores.append(fecha_inicio)
 
-        cursor.execute(
-            """
-            UPDATE tarea
-            SET titulo = %s, descripcion = %s, id_responsable = %s,
-                prioridad = %s, fecha_vencimiento = %s
-            WHERE id_tarea = %s
-            """,
-            (titulo, descripcion, id_responsable, prioridad, fecha_vencimiento, id_tarea)
-        )
+        cursor.execute(f"UPDATE tarea SET {columnas} WHERE id_tarea = %s", (*valores, id_tarea))
 
         for campo, valor_anterior, valor_nuevo in cambios:
             if valor_anterior == valor_nuevo:

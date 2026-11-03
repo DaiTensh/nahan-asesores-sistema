@@ -29,7 +29,7 @@
       <section class="tareas-header">
         <div>
           <h1>Editar tarea</h1>
-          <p>Modifica título, descripción, responsable, prioridad y fecha límite.</p>
+          <p>Modifica título, descripción, responsable, prioridad y las fechas de inicio y de vencimiento.</p>
         </div>
 
         <div class="tareas-header-actions">
@@ -64,7 +64,12 @@
             </div>
 
             <div class="form-group">
-              <label class="form-label" for="fecha_vencimiento">Fecha vencimiento</label>
+              <label class="form-label" for="fecha_inicio">Fecha de inicio</label>
+              <input type="date" id="fecha_inicio" class="form-input">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="fecha_vencimiento">Fecha de vencimiento</label>
               <input type="date" id="fecha_vencimiento" class="form-input">
             </div>
 

@@ -100,6 +100,14 @@ formTarea.addEventListener("submit", async (event) => {
     return;
   }
 
+  const fechaInicio = document.getElementById("fecha_inicio").value || null;
+  const fechaVencimiento = document.getElementById("fecha_vencimiento").value || null;
+
+  if (fechaInicio && fechaVencimiento && fechaInicio > fechaVencimiento) {
+    mostrarMensaje("La fecha de inicio no puede ser posterior a la fecha de vencimiento", "error");
+    return;
+  }
+
   const confirmar = confirm("¿Desea crear esta nueva tarea?");
 
   if (!confirmar) return;
@@ -111,7 +119,8 @@ formTarea.addEventListener("submit", async (event) => {
     titulo: document.getElementById("titulo").value.trim(),
     descripcion: document.getElementById("descripcion").value.trim(),
     prioridad: document.getElementById("prioridad").value,
-    fecha_vencimiento: document.getElementById("fecha_vencimiento").value || null
+    fecha_inicio: fechaInicio,
+    fecha_vencimiento: fechaVencimiento
   };
 
   try {
