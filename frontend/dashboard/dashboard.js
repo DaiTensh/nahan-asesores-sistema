@@ -20,6 +20,11 @@ function formatearFecha(fecha) {
   return Number.isNaN(valor.getTime()) ? String(fecha) : valor.toLocaleDateString("es-CL", { timeZone: "UTC" });
 }
 
+// Porcentaje con coma decimal («33,3»), como se escribe en español de Chile.
+function formatearPorcentaje(porcentaje) {
+  return porcentaje.toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+
 // Lo que muestran estos bloques (usuarios registrados, carga por usuario y
 // distribución por área) solo lo entrega el backend al administrador: al resto de
 // los roles se les oculta en lugar de dejarlos vacíos y no se les pide.
@@ -558,7 +563,7 @@ async function cargarResumenTareasFinalizadas() {
     document.getElementById("totalTareasFinalizadas").textContent = data.total_finalizadas ?? 0;
     document.getElementById("totalTareasAsignadas").textContent = data.total_asignadas ?? 0;
     const porcentaje = Number(data.porcentaje_cumplimiento ?? 0);
-    document.getElementById("cumplimientoTareasFinalizadas").textContent = `${porcentaje.toFixed(1)}%`;
+    document.getElementById("cumplimientoTareasFinalizadas").textContent = `${formatearPorcentaje(porcentaje)}%`;
 
     const diferenciaElemento = document.getElementById("diferenciaFinalizadas");
     if (data.comparacion && data.comparacion.disponible) {
@@ -631,7 +636,7 @@ function renderizarDistribucionArea(idContenedor, areas, claveCantidad, clavePor
     const nombre = document.createElement("span");
     nombre.textContent = area.nombre_area;
     const valor = document.createElement("strong");
-    valor.textContent = `${cantidad} (${porcentaje.toFixed(1)}%)`;
+    valor.textContent = `${cantidad} (${formatearPorcentaje(porcentaje)}%)`;
     encabezado.append(nombre, valor);
 
     const pista = document.createElement("div");

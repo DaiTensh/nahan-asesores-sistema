@@ -195,3 +195,12 @@ def test_la_ficha_del_cliente_cabe_en_360_px():
     assert "grid-template-columns: minmax(0, 1fr);" in regla[:regla.index("}")]
     pagination = css[css.index(".pagination {"):css.index("}", css.index(".pagination {"))]
     assert "flex-wrap: wrap" in pagination
+
+
+@pytest.mark.parametrize("ruta", ["respaldos/respaldos.js", "dashboard/dashboard.js"])
+def test_los_decimales_visibles_usan_coma(ruta):
+    """`toFixed` escribe «7.2 KB»; en español de Chile corresponde «7,2 KB» (toLocaleString("es-CL")). Los atributos
+    numéricos de ARIA (aria-valuenow) sí llevan punto y no van dentro de una plantilla de texto."""
+    js = leer(os.path.join(FRONTEND, ruta))
+    assert re.findall(r"\$\{[^}]*toFixed\(", js) == []
+    assert 'toLocaleString("es-CL"' in js

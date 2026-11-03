@@ -30,11 +30,16 @@
     return `${dia}-${mes}-${anio} ${hora.substring(0, 8)}`;
   }
 
+  // Con coma decimal, como se escribe en español de Chile («7,2 KB», «0,1 s»).
+  function formatearDecimal(numero) {
+    return numero.toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  }
+
   function formatearTamano(bytes) {
     if (bytes === null || bytes === undefined) return "-";
     if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    if (bytes < 1024 * 1024) return `${formatearDecimal(bytes / 1024)} KB`;
+    return `${formatearDecimal(bytes / (1024 * 1024))} MB`;
   }
 
   function insignia(texto, clase) {
@@ -115,7 +120,7 @@
     fila.appendChild(tdEstado);
 
     fila.appendChild(celda(respaldo.usuario || (respaldo.tipo === "PROGRAMADO" ? "Automático" : "-")));
-    fila.appendChild(celda(respaldo.duracion_segundos !== null ? `${respaldo.duracion_segundos.toFixed(1)} s` : "-"));
+    fila.appendChild(celda(respaldo.duracion_segundos !== null ? `${formatearDecimal(respaldo.duracion_segundos)} s` : "-"));
     fila.appendChild(celda(formatearTamano(respaldo.tamano_bytes)));
 
     const tdResultado = celda(respaldo.mensaje_error || respaldo.detalle || "-");
