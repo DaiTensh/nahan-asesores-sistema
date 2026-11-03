@@ -100,7 +100,7 @@ formTarea.addEventListener("submit", async (event) => {
     return;
   }
 
-  const confirmar = confirm("Desea crear esta nueva tarea?");
+  const confirmar = confirm("¿Desea crear esta nueva tarea?");
 
   if (!confirmar) return;
 
@@ -457,7 +457,7 @@ async function asignarTarea(idTarea) {
     return;
   }
 
-  const confirmar = confirm("Desea asignar esta tarea a otro usuario?");
+  const confirmar = confirm("¿Desea asignar esta tarea a otro usuario?");
 
   if (!confirmar) return;
 
@@ -506,7 +506,7 @@ async function actualizarEstado(idTarea) {
     return;
   }
 
-  const confirmar = confirm("Desea actualizar el estado de esta tarea?");
+  const confirmar = confirm("¿Desea actualizar el estado de esta tarea?");
 
   if (!confirmar) return;
 
@@ -539,7 +539,7 @@ async function actualizarEstado(idTarea) {
 async function actualizarPrioridad(idTarea) {
   const prioridad = document.getElementById(`prioridad-${idTarea}`).value;
 
-  const confirmar = confirm("Desea actualizar la prioridad de esta tarea?");
+  const confirmar = confirm("¿Desea actualizar la prioridad de esta tarea?");
 
   if (!confirmar) return;
 
@@ -884,7 +884,7 @@ async function redistribuirSeleccionadas() {
   await mostrarCargaTrabajo();
 
   const confirmar = confirm(
-    `Desea reasignar ${tareasSeleccionadas.size} tarea(s) seleccionada(s) al responsable indicado?`
+    `¿Desea reasignar ${tareasSeleccionadas.size} tarea(s) seleccionada(s) al responsable indicado?`
   );
 
   if (!confirmar) return;

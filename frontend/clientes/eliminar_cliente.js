@@ -54,7 +54,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function procesarCliente() {
     const accion = puedeEliminarDefinitivo ? "eliminar definitivamente" : "deshabilitar";
-    const confirmar = confirm(`Desea ${accion} este cliente?`);
+    const confirmar = confirm(`¿Desea ${accion} este cliente?`);
 
     if (!confirmar) return;
 

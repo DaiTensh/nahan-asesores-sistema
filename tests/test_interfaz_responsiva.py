@@ -172,3 +172,15 @@ def test_la_ficha_del_cliente_no_repite_el_mapa_de_etiquetas_de_auditoria():
     """Un mapa propio en la ficha dejaba sin nombre legible a cualquier acción nueva."""
     js = leer(os.path.join(FRONTEND, "clientes", "ficha_cliente.js"))
     assert "ETIQUETAS_ACCION_HISTORIAL" not in js and "Cliente creado" not in js
+
+
+def test_toda_pregunta_de_confirmacion_abre_con_signo_de_interrogacion():
+    """El español escribe «¿Desea…?»: nueve confirmaciones llevaban solo el cierre."""
+    fallos = []
+    for ruta in glob.glob(os.path.join(FRONTEND, "**", "*.js"), recursive=True):
+        texto = leer(ruta)
+        for coincidencia in re.finditer(r"confirm\(\s*([`\"'])((?:\\.|(?!\1).)*)\1", texto, re.S):
+            mensaje = coincidencia.group(2)
+            if "?" in mensaje and "¿" not in mensaje:
+                fallos.append(f"{nombre(ruta)}: {mensaje[:60]}")
+    assert fallos == []
