@@ -22,6 +22,8 @@ nahan-respaldo-AAAAMMDDTHHMMSSZ-xxxxxxxx.zip
 nahan-respaldo-….zip.sha256   huella del paquete (referencia que no depende de la base de datos)
 ```
 
+Tampoco se incluye `intento_login_fallido` (SEC-02): es estado operativo y restaurar no debe «perdonar» intentos recientes.
+
 Respaldar solo MySQL no alcanza: los adjuntos viven en disco y `documento.url_archivo` solo guarda su nombre. La tabla `respaldo` se excluye a propósito para que el historial sobreviva a una restauración.
 
 ## C. Archivos
@@ -91,7 +93,7 @@ y, en AWS, que el volumen de destino sea distinto del volumen raíz (o que el de
 
 ## G. Seguridad
 
-Autenticación y rol de administrador en cada ruta; restauración con confirmación escrita y contraseña; validación de parámetros (límite cerrado `10/20/50/100`, id entero); sin shell y con la contraseña de MySQL solo en un archivo temporal 0600 que se borra (nunca en argumentos ni en registros); nombres de paquete generados por el sistema y validados con expresión anclada; paquete validado contra la huella registrada y contra el manifiesto, sin rutas absolutas ni `..`, enlaces simbólicos, cifrado, duplicados ni miembros sin declarar; el volcado solo admite `DROP/CREATE TABLE` e `INSERT` (se reproduce con mysql-connector, sin el cliente `mysql`, para que `\!` o `source` no existan); un único respaldo/restauración por vez entre todos los procesos (bloqueo de archivo) y las operaciones huérfanas se cierran como fallidas; auditoría con `registrar_auditoria()` (`RESPALDO_MANUAL`, `RESPALDO_MANUAL_FALLIDO`, `RESTAURACION_RESPALDO`, `RESTAURACION_FALLIDA`).
+Autenticación y rol de administrador en cada ruta; restauración con confirmación escrita y contraseña (cinco rechazos en 15 minutos la bloquean con 429 y quedan en `auditoria` como `RESTAURACION_RECHAZADA`); validación de parámetros (límite cerrado `10/20/50/100`, id entero); sin shell y con la contraseña de MySQL solo en un archivo temporal 0600 que se borra (nunca en argumentos ni en registros); nombres de paquete generados por el sistema y validados con expresión anclada; paquete validado contra la huella registrada y contra el manifiesto, sin rutas absolutas ni `..`, enlaces simbólicos, cifrado, duplicados ni miembros sin declarar; el volcado solo admite `DROP/CREATE TABLE` e `INSERT` (se reproduce con mysql-connector, sin el cliente `mysql`, para que `\!` o `source` no existan); un único respaldo/restauración por vez entre todos los procesos (bloqueo de archivo) y las operaciones huérfanas se cierran como fallidas; auditoría con `registrar_auditoria()` (`RESPALDO_MANUAL`, `RESPALDO_MANUAL_FALLIDO`, `RESTAURACION_RESPALDO`, `RESTAURACION_FALLIDA`).
 
 ## H. Limitaciones conocidas
 
@@ -100,7 +102,7 @@ Autenticación y rol de administrador en cada ruta; restauración con confirmaci
 - El respaldo no se cifra: la protección es la carpeta 0700. Si el destino sale de la máquina, cifrar en el destino.
 - Los triggers y rutinas no están soportados (el esquema no tiene): si se agregan, el respaldo falla con un mensaje explícito en lugar de producir un paquete irrecuperable.
 - Un respaldo de un esquema anterior se restaura con aviso (hay que ejecutar `database/migrar.py`); uno de una versión más nueva se rechaza.
-- Migraciones: `008` (seguridad) sigue fuera de `main`; la `010` no depende de ella.
+- Migraciones: `008` (seguridad, SEC-02) y `010` son independientes; en la rama de cierre del Incremento 4 conviven las dos.
 
 ## I. Pruebas
 

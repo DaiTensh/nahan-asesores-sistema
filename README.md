@@ -18,8 +18,8 @@ con acceso según el rol de cada persona.
 - **Usuarios y roles**: administrador, usuario del área jurídica y usuario del
   área contable; alta, edición, desactivación, cambio de rol y recuperación de
   contraseña.
-- **Control de horas y cobros**: temporizador por tarea, tarifas por área y
-  cálculo de montos.
+- **Control de horas y cobros**: temporizador por tarea, tarifa general y por
+  área definidas por el administrador (RF74) y cálculo de montos.
 - **Dashboard y reportes**: indicadores de tareas pendientes, vencidas y
   finalizadas, carga por usuario, distribución por área, reportes por cliente,
   responsable y área, exportación a PDF y Excel.
@@ -29,6 +29,9 @@ con acceso según el rol de cada persona.
   global filtrable (solo administradores) e historial por cliente.
 - **Búsqueda global** de clientes, tareas y usuarios, y **cierre automático de
   sesión por inactividad** configurable.
+- **Respaldos (RF60)**: respaldo diario programado y manual de la base de datos
+  y los adjuntos, historial de cada ejecución y restauración controlada, solo
+  para administradores (detalles en `docs/RF60_INFORME_IMPLEMENTACION.md`).
 
 ## Tecnologías
 
@@ -72,7 +75,7 @@ El instalador:
 2. te pregunta los datos de tu MySQL local y genera el archivo `.env` con
    claves propias de tu equipo (la plantilla es `.env.example`);
 3. crea la base de datos `nahan_asesores` a partir de
-   `database/nahan_asesores.sql` (21 tablas) y aplica las migraciones de
+   `database/nahan_asesores.sql` (24 tablas) y aplica las migraciones de
    `database/migraciones/` que falten;
 4. carga datos de demostración (`database/seed_dev.py`);
 5. comprueba que la aplicación arranca.
@@ -105,7 +108,8 @@ se encarga de la base de datos.
 variable que usa el sistema: conexión a MySQL, `SECRET_KEY`, cookies de
 sesión, correo SMTP opcional (si se deja vacío, el enlace de restablecimiento
 de contraseña se registra en el log), carpeta de adjuntos y tamaño máximo de
-solicitudes. Nunca subas un `.env` real al repositorio.
+solicitudes y, desde el Incremento 4, la carpeta de respaldos (`RESPALDO_DIR`) y
+la habilitación de la restauración. Nunca subas un `.env` real al repositorio.
 
 ### 4. Ejecutar la aplicación
 
