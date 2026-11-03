@@ -29,3 +29,13 @@ def test_los_recursos_estaticos_se_revalidan_en_lugar_de_cachearse_dias():
     """Con «expires 7d» un usuario conservaba JS y CSS viejos hasta una semana después de un despliegue."""
     conf = _conf()
     assert "expires 7d" not in conf and 'add_header Cache-Control "no-cache";' in conf
+
+
+def test_nginx_espera_a_gunicorn_tanto_como_este_admite_para_los_respaldos():
+    """Con el valor por defecto de Nginx (60 s) un respaldo largo daba error en pantalla aunque terminara."""
+    with open(os.path.join(RAIZ, "deploy", "systemd", "nahan.service"), encoding="utf-8") as archivo:
+        gunicorn = int(re.search(r"--timeout (\d+)", archivo.read()).group(1))
+    conf = _conf()
+    bloque_api = conf[conf.index("location /api/ {"):conf.index("location = / {")]
+    espera = int(re.search(r"proxy_read_timeout (\d+)s;", bloque_api).group(1))
+    assert espera >= gunicorn
