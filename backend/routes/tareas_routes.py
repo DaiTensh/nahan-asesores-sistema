@@ -436,6 +436,7 @@ def listar_tareas_pendientes():
         sql = f"""
             SELECT
                 t.id_tarea,
+                t.id_cliente,
                 t.id_responsable,
                 t.titulo,
                 t.descripcion,

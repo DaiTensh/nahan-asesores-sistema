@@ -132,6 +132,16 @@
         <h2>Tareas pendientes</h2>
 
         <div class="tareas-filtros">
+          <div class="form-group tareas-filtro-agrupacion">
+            <label class="form-label" for="agruparPor">Agrupar por</label>
+            <select id="agruparPor" class="form-input">
+              <option value="">Sin agrupar</option>
+              <option value="cliente">Cliente</option>
+              <option value="prioridad">Prioridad</option>
+              <option value="responsable">Responsable</option>
+            </select>
+          </div>
+
           <div class="form-group tareas-filtro-estado">
             <label class="form-label" for="filtroEstado">Filtrar por estado</label>
             <select id="filtroEstado" class="form-input">
@@ -203,6 +213,7 @@
 <script src="../assets/js/permissions.js"></script>
 <script src="../assets/js/clientes_autocomplete.js"></script>
 <script src="../assets/js/usuarios_autocomplete.js"></script>
+<script src="../assets/js/agrupar_tareas.js"></script>
 <script src="./tareas.js"></script>
 
 <script>

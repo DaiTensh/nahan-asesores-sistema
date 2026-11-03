@@ -227,6 +227,11 @@
   margin-bottom: 0;
 }
 
+.tareas-filtro-agrupacion {
+  max-width: 240px;
+  margin-bottom: 0;
+}
+
 .tareas-filtro-responsable {
   margin-bottom: 0;
 }
@@ -321,4 +326,14 @@
   .tarea-card h2 {
     font-size: 28px;
   }
+}
+
+/* RF18 — encabezado de cada grupo del listado de tareas */
+.tareas-table .fila-grupo th {
+  background: var(--color-surface-secondary);
+  color: var(--color-text);
+  text-align: left;
+  font-weight: 700;
+  font-size: 14px;
+  border-top: 2px solid var(--color-border);
 }

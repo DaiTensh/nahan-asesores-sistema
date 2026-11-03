@@ -26,6 +26,9 @@ const tareasSeleccionadas = new Set();
 // que no correspondía al filtro visible.
 let ultimaCargaTareas = 0;
 
+// RF18 — criterio de agrupación del listado ("", "cliente", "prioridad" o "responsable").
+let agrupacionActual = "";
+
 document.addEventListener("DOMContentLoaded", () => {
   ClientesAutocomplete.configurarSelectorCliente({
     inputId: "cliente_busqueda",
@@ -51,6 +54,11 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("seleccionarTodas").addEventListener("change", alternarSeleccionarTodas);
   document.getElementById("btnVerCarga").addEventListener("click", mostrarCargaTrabajo);
   document.getElementById("btnRedistribuir").addEventListener("click", redistribuirSeleccionadas);
+
+  document.getElementById("agruparPor").addEventListener("change", event => {
+    agrupacionActual = event.target.value;
+    obtenerUsuarioActual().then(usuario => usuario && renderizarTabla(tareasCache, usuario));
+  });
 
   document.getElementById("filtroEstado").addEventListener("change", event => {
     filtroEstadoActual = event.target.value;
@@ -273,7 +281,7 @@ function renderizarTabla(tareas, usuario) {
 
   const puedeAdministrar = usuario.nombre_rol === "ADMINISTRADOR";
 
-  tareas.forEach(tarea => {
+  const dibujarTarea = tarea => {
     const idTarea = Number(tarea.id_tarea);
     const fila = document.createElement("tr");
 
@@ -303,7 +311,30 @@ function renderizarTabla(tareas, usuario) {
 
     tablaTareas.appendChild(fila);
     tablaTareas.appendChild(crearFilaAdjuntos(idTarea));
+  };
+
+  if (!agrupacionActual) {
+    tareas.forEach(dibujarTarea);
+    return;
+  }
+
+  AgruparTareas.agrupar(tareas, agrupacionActual).forEach(grupo => {
+    tablaTareas.appendChild(crearFilaGrupo(grupo));
+    grupo.tareas.forEach(dibujarTarea);
   });
+}
+
+// RF18 — encabezado de cada grupo: criterio, valor y cantidad de tareas.
+function crearFilaGrupo(grupo) {
+  const fila = document.createElement("tr");
+  fila.className = "fila-grupo";
+  const celda = document.createElement("th");
+  celda.colSpan = 10;
+  celda.scope = "colgroup";
+  const cantidad = grupo.tareas.length;
+  celda.textContent = `${AgruparTareas.nombreCriterio(agrupacionActual)}: ${grupo.etiqueta} · ${cantidad} ${cantidad === 1 ? "tarea" : "tareas"}`;
+  fila.appendChild(celda);
+  return fila;
 }
 
 function alternarSeleccionarTodas(event) {
