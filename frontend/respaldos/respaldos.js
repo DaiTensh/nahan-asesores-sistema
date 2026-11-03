@@ -77,7 +77,7 @@
     restauracionHabilitada = estado.restauracion_habilitada;
     document.getElementById("textoRestauracion").textContent = restauracionHabilitada
       ? `Habilitada (destino: ${estado.base_de_destino})`
-      : "Deshabilitada en este entorno (RESTAURACION_HABILITADA).";
+      : "No disponible: la restauración está deshabilitada en este entorno. Solo la habilita quien administra el servidor (variable RESTAURACION_HABILITADA).";
     document.getElementById("btnRespaldar").disabled = !almacenamiento.apto || estado.operacion_en_curso;
   }
 

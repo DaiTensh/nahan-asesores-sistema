@@ -210,12 +210,19 @@ def create_usuario():
 
 
 
-#Lista de usuarios
+# Lista de usuarios (RF25).
+#
+# El administrador recibe la lista completa. Los usuarios operativos la necesitan
+# para elegir responsables al crear o editar tareas, pero no para ver correos,
+# roles ni fechas de alta: reciben solo las personas activas, con su nombre y
+# área. Con esa respuesta limitada tampoco pueden usar el filtro por rol ni el
+# orden por fecha de registro para deducir datos que no se les muestran.
 @usuarios_bp.route("/usuarios", methods=["GET"])
 @login_required
 def listar_usuarios():
     connection = None
     cursor = None
+    es_administrador = obtener_usuario_actual()["nombre_rol"] == ROL_ADMINISTRADOR
 
     try:
         id_rol = request.args.get("id_rol", type=int)
@@ -235,6 +242,13 @@ def listar_usuarios():
         if estado and estado not in ("ACTIVO", "INACTIVO"):
             return jsonify({"error": "El estado seleccionado no es válido"}), 400
 
+        if not es_administrador:
+            if request.args.get("id_rol"):
+                return jsonify({"error": "No tiene permisos para filtrar usuarios por rol"}), 403
+            if estado == "INACTIVO":
+                return jsonify([]), 200
+            ordenar_por = direccion = ""
+
         columnas_orden = {
             "nombre": "u.nombres",
             "fecha_registro": "u.fecha_creacion",
@@ -247,21 +261,29 @@ def listar_usuarios():
         connection = get_connection()
         cursor = connection.cursor(dictionary=True)
 
-        sql = """
-            SELECT 
-                u.id_usuario,
-                u.id_rol,
-                u.id_area,
-                u.nombres,
-                u.email,
-                u.estado,
-                u.fecha_creacion,
-                r.nombre_rol,
-                a.nombre_area
-            FROM usuario u
-            INNER JOIN rol r ON u.id_rol = r.id_rol
-            LEFT JOIN area a ON u.id_area = a.id_area
-        """
+        if es_administrador:
+            sql = """
+                SELECT 
+                    u.id_usuario,
+                    u.id_rol,
+                    u.id_area,
+                    u.nombres,
+                    u.email,
+                    u.estado,
+                    u.fecha_creacion,
+                    r.nombre_rol,
+                    a.nombre_area
+                FROM usuario u
+                INNER JOIN rol r ON u.id_rol = r.id_rol
+                LEFT JOIN area a ON u.id_area = a.id_area
+            """
+        else:
+            sql = """
+                SELECT u.id_usuario, u.nombres, u.id_area, a.nombre_area, u.estado
+                FROM usuario u
+                LEFT JOIN area a ON u.id_area = a.id_area
+            """
+            estado = "ACTIVO"
         filtros = []
         parametros = []
         if id_rol is not None:
@@ -280,8 +302,10 @@ def listar_usuarios():
             columna = columnas_orden[ordenar_por]
             direccion_sql = direccion or ("ASC" if ordenar_por == "nombre" else "DESC")
             sql += f" ORDER BY {columna} {direccion_sql}, u.id_usuario DESC"
-        else:
+        elif es_administrador:
             sql += " ORDER BY u.id_usuario DESC"
+        else:
+            sql += " ORDER BY u.nombres ASC, u.id_usuario ASC"
 
         cursor.execute(sql, tuple(parametros))
         usuarios = cursor.fetchall()

@@ -20,22 +20,37 @@ function formatearFecha(fecha) {
   return Number.isNaN(valor.getTime()) ? String(fecha) : valor.toLocaleDateString("es-CL", { timeZone: "UTC" });
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+// Lo que muestran estos bloques (usuarios registrados, carga por usuario y
+// distribución por área) solo lo entrega el backend al administrador: al resto de
+// los roles se les oculta en lugar de dejarlos vacíos y no se les pide.
+async function ocultarBloquesDeAdministrador() {
+  const usuario = await obtenerUsuarioActual();
+  const esAdministrador = Boolean(usuario) && usuario.nombre_rol === "ADMINISTRADOR";
+  if (!esAdministrador) {
+    document.querySelectorAll("[data-solo-admin]").forEach(bloque => { bloque.hidden = true; });
+  }
+  return esAdministrador;
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
   cargarDatosUsuario();
-  cargarResumenUsuarios();
   cargarResumenClientes();
   cargarClientesRecientes();
   cargarTareasVencidas();
   cargarTareasPrioritarias();
   cargarResumenTareas();
-  cargarCargaTrabajoPorUsuario();
+  const esAdministrador = await ocultarBloquesDeAdministrador();
+  if (esAdministrador) {
+    cargarResumenUsuarios();
+    cargarCargaTrabajoPorUsuario();
+  }
 
   const inputDias = document.getElementById("inputDiasPorVencer");
   cargarTareasPorVencer(inputDias.value);
   inputDias.addEventListener("change", () => cargarTareasPorVencer(inputDias.value));
   cargarResumenTareasPendientes();
   cargarResumenTareasFinalizadas();
-  cargarDistribucionPorArea();
+  if (esAdministrador) cargarDistribucionPorArea();
 
   const selectAreaCargaTrabajo = document.getElementById("selectAreaCargaTrabajo");
   if (selectAreaCargaTrabajo) {

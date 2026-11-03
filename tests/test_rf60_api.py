@@ -682,3 +682,20 @@ def test_el_conteo_de_rechazos_es_por_usuario_y_por_ventana(monkeypatch, fake_co
 
     monkeypatch.setattr(rutas, "get_connection", lambda: None)
     assert rutas._confirmaciones_rechazadas_recientes(9) is None
+
+
+@pytest.mark.parametrize("valor", [None, "", "false", "False", "0", "no", "off", "talvez", " "])
+def test_la_restauracion_solo_se_habilita_con_un_valor_afirmativo_explicito(valor):
+    entorno = {} if valor is None else {"RESTAURACION_HABILITADA": valor}
+    assert servicio.ConfigRespaldo(entorno).restauracion_habilitada is False
+
+
+@pytest.mark.parametrize("valor", ["true", "True", "1", "yes", "on", " TRUE "])
+def test_valores_afirmativos_habilitan_la_restauracion(valor):
+    assert servicio.ConfigRespaldo({"RESTAURACION_HABILITADA": valor}).restauracion_habilitada is True
+
+
+def test_la_pantalla_explica_que_la_restauracion_no_esta_disponible_y_oculta_el_boton():
+    js = leer("frontend", "respaldos", "respaldos.js")
+    assert "No disponible: la restauración está deshabilitada en este entorno" in js
+    assert "if (restauracionHabilitada)" in js, "el botón Restaurar solo se crea con la función habilitada"
