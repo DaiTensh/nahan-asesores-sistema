@@ -120,3 +120,26 @@ def test_un_usuario_operativo_no_cambia_ninguna_tarifa(client, iniciar_sesion, m
     assert client.delete("/api/tarifas/areas/1").status_code == 403
     assert mundo.vigente(1) == Decimal("30000")
     assert mundo.consulta("SELECT COUNT(*) AS n FROM auditoria")[0]["n"] == 0
+
+
+def test_el_monto_de_un_registro_es_la_duracion_por_la_tarifa_vigente_al_iniciar(client, iniciar_sesion, mundo, servidor):
+    """90 minutos a la tarifa del área: 90/60 × 36 000 = 54 000; un cambio posterior de tarifa no lo altera."""
+    iniciar_sesion(usuario_id=1, rol_id=1)
+    assert client.put("/api/tarifas/areas/1", json={"valor_hora": 36000}).status_code == 200
+    assert client.post("/api/control-horas/iniciar", json={"id_tarea": 1}).status_code in (200, 201)
+
+    cn = servidor.conectar(base=BASE_APP)
+    cn.cursor().execute("UPDATE registro_tiempo SET fecha = DATE(NOW() - INTERVAL 90 MINUTE), "
+                        "hora_inicio = TIME(NOW() - INTERVAL 90 MINUTE) WHERE hora_fin IS NULL")
+    cn.commit()
+    cn.close()
+    assert client.post("/api/control-horas/detener").status_code == 200
+
+    fila = mundo.consulta("SELECT duracion_minutos, tarifa_hora, monto FROM registro_tiempo ORDER BY id_registro DESC LIMIT 1")[0]
+    assert (float(fila["duracion_minutos"]) // 1, fila["tarifa_hora"]) == (90.0, Decimal("36000.00"))
+    assert abs(fila["monto"] - Decimal("54000.00")) <= Decimal("30.00"), "90 minutos y unos segundos de ejecución"
+    assert client.put("/api/tarifas/areas/1", json={"valor_hora": 99000}).status_code == 200
+    assert mundo.consulta("SELECT monto FROM registro_tiempo ORDER BY id_registro DESC LIMIT 1")[0]["monto"] == fila["monto"]
+
+    resumen = client.get("/api/control-horas/registros").get_json()["resumen"]
+    assert float(resumen["monto_acumulado"]) == float(fila["monto"])
