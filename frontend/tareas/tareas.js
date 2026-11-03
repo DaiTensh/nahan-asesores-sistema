@@ -335,7 +335,12 @@ function crearFilaGrupo(grupo) {
   celda.colSpan = 10;
   celda.scope = "colgroup";
   const cantidad = grupo.tareas.length;
-  celda.textContent = `${AgruparTareas.nombreCriterio(agrupacionActual)}: ${grupo.etiqueta} · ${cantidad} ${cantidad === 1 ? "tarea" : "tareas"}`;
+  // La etiqueta queda fija a la izquierda: la tabla es más ancha que su contenedor
+  // y, al desplazarla hacia las acciones, el nombre del grupo no debe salirse de la vista.
+  const etiqueta = document.createElement("span");
+  etiqueta.className = "etiqueta-grupo";
+  etiqueta.textContent = `${AgruparTareas.nombreCriterio(agrupacionActual)}: ${grupo.etiqueta} · ${cantidad} ${cantidad === 1 ? "tarea" : "tareas"}`;
+  celda.appendChild(etiqueta);
   fila.appendChild(celda);
   return fila;
 }

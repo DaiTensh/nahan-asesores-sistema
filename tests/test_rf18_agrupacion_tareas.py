@@ -153,3 +153,12 @@ def test_agrupar_no_hace_consultas_nuevas_ni_inserta_html():
     funcion = js[js.index("function crearFilaGrupo"):js.index("function alternarSeleccionarTodas")]
     assert "innerHTML" not in funcion and 'scope = "colgroup"' in funcion
     assert "innerHTML" not in _leer("assets", "js", "agrupar_tareas.js")
+
+
+def test_el_nombre_del_grupo_queda_fijo_a_la_izquierda_al_desplazar_la_tabla():
+    """La tabla es más ancha que su contenedor: sin esto el nombre del grupo se sale de la vista."""
+    css = _leer("tareas", "tareas.css")
+    regla = css[css.index(".tareas-table .fila-grupo .etiqueta-grupo"):]
+    assert "position: sticky" in regla[:regla.index("}")]
+    assert ".table-responsive .tareas-table" in css and "overflow: visible" in css, "tables.css recorta la tabla y anularía el sticky"
+    assert 'className = "etiqueta-grupo"' in _leer("tareas", "tareas.js")

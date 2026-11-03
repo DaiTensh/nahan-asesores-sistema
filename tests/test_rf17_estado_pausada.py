@@ -239,4 +239,5 @@ def test_las_pantallas_ofrecen_y_nombran_el_estado_pausada():
     assert '<option value="PAUSADA">Pausada</option>' in _leer("tareas", "tareas.html")
     assert 'id="totalPausadas"' in _leer("tareas", "tareas.html") and 'id="resumenPausada"' in _leer("dashboard", "dashboard.html")
     assert "por_estado.PAUSADA" in _leer("dashboard", "dashboard.js") and "resumen.PAUSADA" in _leer("dashboard", "dashboard.js")
+    assert "repeat(5, minmax(0, 1fr))" in _leer("tareas", "tareas.css"), "cinco tarjetas de resumen caben en una fila"
     assert ".badge.estado-pausada" in _leer("tareas", "tareas.css") and "estado-pausada" in _leer("assets", "css", "badges.css")
