@@ -83,6 +83,12 @@ const ADMIN_ITEMS = [
     href: "../usuarios/configuracion_sesion.html"
   },
   {
+    id: "tarifas",
+    label: "Tarifas",
+    icon: "TF",
+    href: "../tarifas/tarifas.html"
+  },
+  {
     id: "respaldos",
     label: "Respaldos",
     icon: "RS",

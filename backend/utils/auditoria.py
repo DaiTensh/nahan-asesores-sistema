@@ -25,6 +25,7 @@ MODULO_POR_TABLA = {
     "reporte": "Reportes",
     "parametros_sistema": "Configuración",
     "respaldo": "Respaldos",
+    "tarifa_hora": "Configuración",
 }
 
 MODULO_DESCONOCIDO = "Otros"

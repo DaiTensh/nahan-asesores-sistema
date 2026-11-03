@@ -121,7 +121,7 @@ def test_ninguna_solicitud_del_frontend_declara_json_sin_enviar_cuerpo():
 
 PAGINAS_SOLO_ADMINISTRADOR = [
     "historial/historial.html", "reportes/reportes.html", "reportes/productividad.html", "reportes/historial_consolidado.html",
-    "respaldos/respaldos.html", "usuarios/usuarios.html", "usuarios/modificar_usuario.html", "usuarios/desactivar_usuario.html",
+    "respaldos/respaldos.html", "tarifas/tarifas.html", "usuarios/usuarios.html", "usuarios/modificar_usuario.html", "usuarios/desactivar_usuario.html",
     "usuarios/asignar_rol.html", "usuarios/configuracion_sesion.html", "clientes/eliminar_cliente.html", "clientes/cambiar_estado.html",
 ]
 
@@ -158,3 +158,11 @@ def test_las_pantallas_de_auditoria_usan_los_nombres_legibles(pagina, script):
     html = leer(os.path.join(FRONTEND, pagina))
     assert html.index("etiquetas_auditoria.js") < html.index(script), "el helper se carga antes que el script de la pantalla"
     assert "window.etiquetaAccionAuditoria(" in leer(os.path.join(FRONTEND, pagina.split("/")[0], script))
+
+
+def test_la_pantalla_de_tarifas_no_inserta_html_y_no_declara_json_sin_cuerpo():
+    js = leer(os.path.join(FRONTEND, "tarifas", "tarifas.js"))
+    for prohibido in ("innerHTML", "outerHTML", "insertAdjacentHTML", "eval(", "document.write"):
+        assert prohibido not in js
+    assert 'pedir(`/tarifas/areas/${area.id_area}`, { method: "DELETE" })' in js
+    assert 'id: "tarifas"' in leer(os.path.join(FRONTEND, "assets", "js", "navigation.js"))

@@ -16,6 +16,7 @@ from backend.routes.historial_routes import historial_bp
 from backend.routes.notificaciones_routes import notificaciones_bp
 from backend.routes.reportes_routes import reportes_blueprint
 from backend.routes.respaldos_routes import respaldos_bp
+from backend.routes.tarifas_routes import tarifas_bp
 from backend.routes.tareas_routes import tareas_bp
 from backend.routes.usuarios_routes import usuarios_bp
 from backend.routes.busqueda_routes import busqueda_bp
@@ -206,6 +207,7 @@ def create_app():
     app.register_blueprint(notificaciones_bp, url_prefix="/api")
     app.register_blueprint(busqueda_bp, url_prefix="/api")
     app.register_blueprint(respaldos_bp, url_prefix="/api")
+    app.register_blueprint(tarifas_bp, url_prefix="/api")
 
     @app.route("/")
     def home():
