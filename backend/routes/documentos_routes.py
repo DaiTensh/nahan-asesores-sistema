@@ -277,7 +277,7 @@ def registrar_referencia_documento(id_cliente):
     cursor = None
     usuario = obtener_usuario_actual()
 
-    datos = request.json or {}
+    datos = request.get_json(silent=True) or {}
     nombre_documento = (datos.get("nombre_documento") or "").strip()
     tipo_documento = (datos.get("tipo_documento") or "").strip()
     ubicacion_referencia = (datos.get("ubicacion_referencia") or "").strip()

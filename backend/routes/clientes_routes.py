@@ -36,7 +36,7 @@ def _describir_cliente(razon_social, email, telefono, direccion, areas, rut=None
 def registrar_cliente():
     conexion = None
     try:
-        datos = request.json
+        datos = request.get_json(silent=True) or {}
         id_usuario = obtener_usuario_actual()["id_usuario"]
         
         rut = (datos.get('rut') or '').strip()
@@ -222,7 +222,7 @@ def obtener_clientes_recientes():
 def modificar_cliente(id_cliente):
     conexion = None
     try:
-        datos = request.json
+        datos = request.get_json(silent=True) or {}
         id_usuario = obtener_usuario_actual()["id_usuario"]
         razon_social = (datos.get('razon_social') or '').strip()
         email = (datos.get('email') or '').strip()
@@ -614,7 +614,7 @@ def filtrar_clientes_combinado():
 def cambiar_estado_cliente_rf10(id_cliente):
     conexion = None
     try:
-        datos = request.json
+        datos = request.get_json(silent=True) or {}
         nuevo_estado = (datos.get('nuevo_estado') or '').strip().upper()
         id_usuario = obtener_usuario_actual()["id_usuario"]
 
@@ -909,7 +909,7 @@ def listar_observaciones_cliente(id_cliente):
 def registrar_observacion_cliente(id_cliente):
     conexion = None
     try:
-        datos = request.json or {}
+        datos = request.get_json(silent=True) or {}
         texto = (datos.get('texto') or '').strip()
         id_usuario = obtener_usuario_actual()["id_usuario"]
 
