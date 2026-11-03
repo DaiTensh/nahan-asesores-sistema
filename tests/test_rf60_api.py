@@ -588,6 +588,57 @@ def test_las_unidades_de_respaldo_siguen_el_patron_de_las_de_vencimientos():
         assert linea in base and linea in unidad
 
 
+_DIRECTIVAS_CONOCIDAS = {
+    "Unit": {"Description", "After", "Requires", "Wants"},
+    "Service": {"Type", "User", "Group", "WorkingDirectory", "EnvironmentFile", "UMask", "Nice", "IOSchedulingClass",
+                "TimeoutStartSec", "ExecStart", "Restart", "RestartSec"},
+    "Timer": {"OnCalendar", "Persistent", "Unit"},
+    "Install": {"WantedBy"},
+}
+
+
+def _directivas(unidad):
+    """Lee una unidad sin systemd: {sección: [(clave, valor)]}. Falla ante líneas que systemd rechazaría."""
+    secciones, actual = {}, None
+    for numero, linea in enumerate(unidad.splitlines(), 1):
+        linea = linea.strip()
+        if not linea or linea.startswith(("#", ";")):
+            continue
+        cabecera = re.fullmatch(r"\[([A-Za-z]+)\]", linea)
+        if cabecera:
+            actual = cabecera.group(1)
+            secciones.setdefault(actual, [])
+            continue
+        clave, separador, valor = linea.partition("=")
+        assert actual and separador and clave.isidentifier(), f"línea {numero} no es una directiva válida: {linea!r}"
+        secciones[actual].append((clave, valor))
+    return secciones
+
+
+@pytest.mark.parametrize("archivo", ["nahan-respaldo.service", "nahan-respaldo.timer"])
+def test_las_unidades_de_respaldo_solo_usan_directivas_conocidas(archivo):
+    """Comprobación ESTÁTICA (no hay systemd en el entorno de pruebas): detecta claves mal escritas o secciones inválidas.
+
+    No reemplaza `systemd-analyze verify` ni un ciclo real del temporizador, que quedan documentados como pendientes en AWS.
+    """
+    secciones = _directivas(leer("deploy", "systemd", archivo))
+    assert set(secciones) <= set(_DIRECTIVAS_CONOCIDAS)
+    for seccion, directivas in secciones.items():
+        claves = [clave for clave, _ in directivas]
+        assert set(claves) <= _DIRECTIVAS_CONOCIDAS[seccion], f"{archivo}: directiva desconocida en [{seccion}]"
+        assert len(claves) == len(set(claves)), f"{archivo}: directiva repetida en [{seccion}]"
+
+
+def test_el_temporizador_activa_la_unidad_de_respaldo_y_usa_rutas_absolutas():
+    servicio = dict(_directivas(leer("deploy", "systemd", "nahan-respaldo.service"))["Service"])
+    timer = _directivas(leer("deploy", "systemd", "nahan-respaldo.timer"))
+    assert "Unit" not in dict(timer["Timer"]), "sin Unit=, systemd activa nahan-respaldo.service por tener el mismo nombre"
+    assert servicio["ExecStart"].startswith("/") and servicio["WorkingDirectory"].startswith("/")
+    assert servicio["EnvironmentFile"].startswith("/") and not servicio["EnvironmentFile"].startswith("-"), \
+        "sin el prefijo «-» el servicio falla si falta el .env, en vez de respaldar con valores por defecto"
+    assert int(servicio["TimeoutStartSec"]) >= 600
+
+
 def test_gunicorn_admite_operaciones_largas_de_respaldo():
     assert re.search(r"--timeout (\d+)", leer("deploy", "systemd", "nahan.service")).group(1) == "300"
 
