@@ -14,7 +14,7 @@ ROLES_PERMITIDOS = {
     "USUARIO_AREA_JURIDICA",
     "USUARIO_AREA_CONTABLE",
 }
-ESTADOS_TAREA_OPERATIVOS = ("PENDIENTE", "EN_PROCESO", "EN_REVISION")
+ESTADOS_TAREA_OPERATIVOS = ("PENDIENTE", "EN_PROCESO", "PAUSADA", "EN_REVISION")
 TARIFA_GLOBAL_DEFAULT = Decimal("30000.00")
 
 
@@ -249,7 +249,7 @@ def obtener_contexto():
             return jsonify({"error": error_usuario}), 403
 
         condiciones = [
-            "t.estado IN ('PENDIENTE', 'EN_PROCESO', 'EN_REVISION')",
+            "t.estado IN ('PENDIENTE', 'EN_PROCESO', 'PAUSADA', 'EN_REVISION')",
             "c.estado = 'ACTIVO'",
         ]
         parametros = []
@@ -338,7 +338,7 @@ def iniciar_temporizador():
 
         condiciones = [
             "t.id_tarea = %s",
-            "t.estado IN ('PENDIENTE', 'EN_PROCESO', 'EN_REVISION')",
+            "t.estado IN ('PENDIENTE', 'EN_PROCESO', 'PAUSADA', 'EN_REVISION')",
             "c.estado = 'ACTIVO'",
         ]
         parametros = [id_tarea]

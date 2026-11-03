@@ -26,7 +26,7 @@ MENSAJE_SIN_COMPLETADAS = "No se registran tareas completadas en el período sel
 MENSAJE_SIN_HORAS_COBRABLES = "No se registran horas trabajadas para este cliente en el período seleccionado"
 
 # RF45 — una tarea está activa mientras no llega a un estado final.
-ESTADOS_TAREA_ACTIVA = ("PENDIENTE", "EN_PROCESO", "EN_REVISION")
+ESTADOS_TAREA_ACTIVA = ("PENDIENTE", "EN_PROCESO", "PAUSADA", "EN_REVISION")
 
 # ==========================================================================
 # Contrato de respuesta del módulo de reportes (RF31 / RF32).
@@ -880,6 +880,7 @@ def carga_por_usuario():
                 SELECT u.id_usuario,
                        SUM(CASE WHEN t.estado = 'PENDIENTE' THEN 1 ELSE 0 END) AS PENDIENTE,
                        SUM(CASE WHEN t.estado = 'EN_PROCESO' THEN 1 ELSE 0 END) AS EN_PROCESO,
+                       SUM(CASE WHEN t.estado = 'PAUSADA' THEN 1 ELSE 0 END) AS PAUSADA,
                        SUM(CASE WHEN t.estado = 'EN_REVISION' THEN 1 ELSE 0 END) AS EN_REVISION,
                        SUM(CASE WHEN t.estado = 'COMPLETADA' THEN 1 ELSE 0 END) AS COMPLETADA,
                        SUM(CASE WHEN t.estado = 'CANCELADA' THEN 1 ELSE 0 END) AS CANCELADA
@@ -895,6 +896,7 @@ def carga_por_usuario():
                 conteos[fila["id_usuario"]] = {
                     "PENDIENTE": int(fila.get("PENDIENTE") or 0),
                     "EN_PROCESO": int(fila.get("EN_PROCESO") or 0),
+                    "PAUSADA": int(fila.get("PAUSADA") or 0),
                     "EN_REVISION": int(fila.get("EN_REVISION") or 0),
                     "COMPLETADA": int(fila.get("COMPLETADA") or 0),
                     "CANCELADA": int(fila.get("CANCELADA") or 0),
@@ -907,6 +909,7 @@ def carga_por_usuario():
                     {
                         "PENDIENTE": 0,
                         "EN_PROCESO": 0,
+                        "PAUSADA": 0,
                         "EN_REVISION": 0,
                         "COMPLETADA": 0,
                         "CANCELADA": 0,

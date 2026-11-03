@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """RF50 — Resumiendo por Estado de Tareas.
 
-GET /api/tareas/resumen: conteo por cada uno de los cinco estados, incluidos
+GET /api/tareas/resumen: conteo por cada uno de los estados, incluidos
 los que estén en cero (mismo patrón que resumen_clientes_dashboard).
 """
 from tests.conftest import normalize_sql
@@ -17,7 +17,7 @@ def _handler(conteos):
     return handler
 
 
-def test_incluye_los_cinco_estados_aunque_alguno_este_en_cero(client, monkeypatch, iniciar_sesion, fake_connection_factory):
+def test_incluye_todos_los_estados_aunque_alguno_este_en_cero(client, monkeypatch, iniciar_sesion, fake_connection_factory):
     iniciar_sesion(usuario_id=1, rol_id=1)
 
     connection = fake_connection_factory(_handler({"PENDIENTE": 3, "EN_PROCESO": 1}))
@@ -28,6 +28,7 @@ def test_incluye_los_cinco_estados_aunque_alguno_este_en_cero(client, monkeypatc
     assert data == {
         "PENDIENTE": 3,
         "EN_PROCESO": 1,
+        "PAUSADA": 0,
         "EN_REVISION": 0,
         "COMPLETADA": 0,
         "CANCELADA": 0,

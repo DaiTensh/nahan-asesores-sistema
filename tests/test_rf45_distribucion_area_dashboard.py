@@ -91,7 +91,7 @@ def test_distribuye_clientes_y_tareas_con_areas_dinamicas_y_proporciones(
     assert "estado" not in normalize_sql(sql_clientes)
     # Documento 0, Tabla 7.45: «Muestra distribución de tareas activas por
     # área». La consulta de tareas sí debe filtrar por estado.
-    assert "WHERE estado IN (%s, %s, %s)" in normalize_sql(sql_tareas)
+    assert "WHERE estado IN (%s, %s, %s, %s)" in normalize_sql(sql_tareas), "activas = pendiente, en proceso, pausada y en revisión"
     assert "estado" not in normalize_sql(sql_areas)
 
 

@@ -1314,7 +1314,7 @@ def test_control_horas_inicio_filtra_tarea_inactiva_o_finalizada(
         if "rt.hora_fin IS NULL" in normalized:
             return []
         if "SELECT t.id_tarea" in normalized and "WHERE t.id_tarea" in normalized:
-            assert "t.estado IN ('PENDIENTE', 'EN_PROCESO', 'EN_REVISION')" in normalized
+            assert "t.estado IN ('PENDIENTE', 'EN_PROCESO', 'PAUSADA', 'EN_REVISION')" in normalized
             assert "c.estado = 'ACTIVO'" in normalized
             return []
         return []

@@ -194,6 +194,11 @@
   color: #d97706;
 }
 
+.badge.estado-pausada {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
 .badge.estado-en_revision {
   background: #dbeafe;
   color: #2563eb;

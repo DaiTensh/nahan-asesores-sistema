@@ -338,7 +338,7 @@ def verificar_vinculos_cliente(id_cliente):
             # 2. Contar tareas en proceso o pendientes según tus ENUM de BD
             query_tareas = """
                 SELECT COUNT(*) as conteo FROM tarea 
-                WHERE id_cliente = %s AND estado IN ('PENDIENTE', 'EN_PROCESO', 'EN_REVISION')
+                WHERE id_cliente = %s AND estado IN ('PENDIENTE', 'EN_PROCESO', 'PAUSADA', 'EN_REVISION')
             """
             cursor.execute(query_tareas, (id_cliente,))
             total_tareas = cursor.fetchone()['conteo']

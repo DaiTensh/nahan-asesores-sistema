@@ -3,6 +3,7 @@ const API_URL = window.API_CONFIG.API_URL;
 const ESTADOS_TEXTO = {
   PENDIENTE: "Pendiente",
   EN_PROCESO: "En proceso",
+  PAUSADA: "Pausada",
   EN_REVISION: "En revisión",
   COMPLETADA: "Completada",
   CANCELADA: "Cancelada"

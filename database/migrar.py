@@ -55,6 +55,10 @@ _COLUMNA = ("SELECT COUNT(*) FROM information_schema.columns "
 _INDICE = ("SELECT COUNT(*) FROM information_schema.statistics "
            "WHERE table_schema = DATABASE() AND table_name = %s AND index_name = %s")
 _PARAMETRO = "SELECT COUNT(*) FROM parametros_sistema WHERE nombre_parametro = %s"
+# La columna ENUM ya incluye el valor (tabla, columna, valor).
+_VALOR_ENUM = ("SELECT COUNT(*) FROM information_schema.columns "
+               "WHERE table_schema = DATABASE() AND table_name = %s AND column_name = %s "
+               "AND column_type LIKE CONCAT('%%', %s, '%%')")
 
 MARCADORES = {
     "001": [(_TABLA, ("token_recuperacion",))],
@@ -82,6 +86,7 @@ MARCADORES = {
     "009": [(_TABLA, ("cliente_reciente",)),
             (_PARAMETRO, ("CLIENTES_RECIENTES_LIMITE",))],
     "010": [(_TABLA, ("respaldo",))],
+    "011": [(_VALOR_ENUM, ("tarea", "estado", "PAUSADA"))],
 }
 
 

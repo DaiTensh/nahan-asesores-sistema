@@ -1,4 +1,4 @@
-"""Migraciones 001–010 contra un MySQL real y desechable.
+"""Migraciones 001–011 contra un MySQL real y desechable.
 
 Comprueba que una instalación limpia (database/nahan_asesores.sql) y la
 actualización de una instalación anterior (el esquema entregado en v1.0.0 más
@@ -97,6 +97,8 @@ def entorno():
     cur.execute("INSERT INTO usuario (id_rol, id_area, nombres, email, password_hash) VALUES (1, 3, 'Admin Ficticia', 'a@ejemplo.invalid', 'h')")
     cur.execute("INSERT INTO cliente (rut, razon_social) VALUES ('11.111.111-1', 'Cliente Ficticio')")
     cur.execute("INSERT INTO auditoria (id_usuario, tabla_afectada, accion) VALUES (1, 'cliente', 'CLIENTE_CREADO')")
+    cur.execute("INSERT INTO tarea (id_cliente, id_area, id_responsable, id_creador, titulo, estado) VALUES "
+                "(1, 3, 1, 1, 'Tarea anterior', 'EN_PROCESO'), (1, 3, 1, 1, 'Tarea cerrada', 'COMPLETADA')")
     anterior.commit()
     yield SimpleNamespace(servidor=servidor, limpia=limpia, anterior=anterior)
     limpia.close()
@@ -108,13 +110,13 @@ def entorno():
 def test_la_instalacion_limpia_reconoce_todas_las_migraciones_como_aplicadas(entorno):
     migrar = _migrar()
     cur = entorno.limpia.cursor()
-    assert [n for n, _, _ in migrar.migraciones()] == ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010"]
+    assert [n for n, _, _ in migrar.migraciones()] == ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011"]
     assert migrar.pendientes(cur) == []
 
 
 def test_una_instalacion_de_v1_0_0_tiene_pendientes_exactamente_las_migraciones_nuevas(entorno):
     migrar = _migrar()
-    assert migrar.pendientes(entorno.anterior.cursor()) == ["008", "009", "010"]
+    assert migrar.pendientes(entorno.anterior.cursor()) == ["008", "009", "010", "011"]
 
 
 def test_actualizar_aplica_las_pendientes_sin_perder_datos_y_en_orden(entorno):
@@ -133,6 +135,9 @@ def test_actualizar_aplica_las_pendientes_sin_perder_datos_y_en_orden(entorno):
     assert cur.fetchall() == [("Cliente Ficticio",)]
     cur.execute("SELECT accion FROM auditoria")
     assert cur.fetchall() == [("CLIENTE_CREADO",)]
+    cur.execute("SELECT titulo, estado FROM tarea ORDER BY id_tarea")
+    assert cur.fetchall() == [("Tarea anterior", "EN_PROCESO"), ("Tarea cerrada", "COMPLETADA")], \
+        "ampliar el ENUM de estado no altera las tareas existentes"
 
 
 def test_actualizar_y_instalar_desde_cero_llegan_a_la_misma_estructura(entorno):
@@ -148,7 +153,7 @@ def test_aplicar_dos_veces_es_inofensivo(entorno):
     test_actualizar_aplica_las_pendientes_sin_perder_datos_y_en_orden(entorno)
     migrar = _migrar()
     for numero, nombre, ruta in migrar.migraciones():
-        if numero in ("008", "009", "010"):
+        if numero in ("008", "009", "010", "011"):
             migrar.aplicar(entorno.anterior, ruta)  # no debe lanzar: los «ya existe» se toleran
     assert migrar.pendientes(entorno.anterior.cursor()) == []
 

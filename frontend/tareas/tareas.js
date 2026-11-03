@@ -6,6 +6,7 @@ const tablaTareas = document.getElementById("tablaTareas");
 const ESTADOS_OPERATIVOS = [
   ["PENDIENTE", "Pendiente"],
   ["EN_PROCESO", "En proceso"],
+  ["PAUSADA", "Pausada"],
   ["EN_REVISION", "En revisión"]
 ];
 const ESTADOS_FINALES = [
@@ -255,11 +256,13 @@ function actualizarBarraRedistribucion(usuario) {
 function actualizarResumen(tareas) {
   const pendientes = tareas.filter(t => t.estado === "PENDIENTE").length;
   const proceso = tareas.filter(t => t.estado === "EN_PROCESO").length;
+  const pausadas = tareas.filter(t => t.estado === "PAUSADA").length;
   const revision = tareas.filter(t => t.estado === "EN_REVISION").length;
   const urgentes = tareas.filter(t => t.prioridad === "URGENTE").length;
 
   document.getElementById("totalPendientes").textContent = pendientes;
   document.getElementById("totalProceso").textContent = proceso;
+  document.getElementById("totalPausadas").textContent = pausadas;
   document.getElementById("totalRevision").textContent = revision;
   document.getElementById("totalUrgentes").textContent = urgentes;
 }
@@ -613,6 +616,7 @@ function formatearEstado(estado) {
   const estados = {
     PENDIENTE: "Pendiente",
     EN_PROCESO: "En proceso",
+    PAUSADA: "Pausada",
     EN_REVISION: "En revisión",
     COMPLETADA: "Completada",
     CANCELADA: "Cancelada"

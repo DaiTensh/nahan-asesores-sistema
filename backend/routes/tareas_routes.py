@@ -16,8 +16,9 @@ tareas_bp = Blueprint("tareas", __name__)
 logger = logging.getLogger(__name__)
 
 ESTADOS_FINALES = {"COMPLETADA", "CANCELADA"}
-ESTADOS_VALIDOS = ["PENDIENTE", "EN_PROCESO", "EN_REVISION", "COMPLETADA", "CANCELADA"]
-ESTADOS_PENDIENTE = ("PENDIENTE", "EN_PROCESO", "EN_REVISION")
+# RF17: pendiente, en proceso, pausada o finalizada (más la revisión de RF76 y la cancelación).
+ESTADOS_VALIDOS = ["PENDIENTE", "EN_PROCESO", "PAUSADA", "EN_REVISION", "COMPLETADA", "CANCELADA"]
+ESTADOS_PENDIENTE = ("PENDIENTE", "EN_PROCESO", "PAUSADA", "EN_REVISION")
 
 
 def _validar_rango_tareas(args):
@@ -64,7 +65,7 @@ def _rango_periodo_anterior(fecha_inicio, fecha_fin):
 
 def _contar_tareas_pendientes(cursor, fecha_inicio, fecha_fin, usuario):
     condiciones = [
-        "t.estado IN ('PENDIENTE', 'EN_PROCESO', 'EN_REVISION')",
+        "t.estado IN ('PENDIENTE', 'EN_PROCESO', 'PAUSADA', 'EN_REVISION')",
         "t.fecha_creacion >= %s",
         "t.fecha_creacion < DATE_ADD(%s, INTERVAL 1 DAY)",
     ]
@@ -418,7 +419,7 @@ def listar_tareas_pendientes():
             condiciones = ["t.estado = %s"]
             parametros = [estado_filtro]
         else:
-            condiciones = ["t.estado IN ('PENDIENTE', 'EN_PROCESO', 'EN_REVISION')"]
+            condiciones = ["t.estado IN ('PENDIENTE', 'EN_PROCESO', 'PAUSADA', 'EN_REVISION')"]
             parametros = []
 
         # Un usuario no administrador solo debe ver sus propias tareas: el
@@ -493,7 +494,7 @@ def resumen_tareas_pendientes_dashboard():
         connection = get_connection()
         cursor = connection.cursor(dictionary=True)
 
-        condiciones = ["t.estado IN ('PENDIENTE', 'EN_PROCESO', 'EN_REVISION')"]
+        condiciones = ["t.estado IN ('PENDIENTE', 'EN_PROCESO', 'PAUSADA', 'EN_REVISION')"]
         parametros = []
 
         if usuario["nombre_rol"] != ROL_ADMINISTRADOR:
@@ -1749,7 +1750,7 @@ def tareas_prioritarias():
 def resumen_tareas_dashboard():
     """RF50 — Resumiendo por Estado de Tareas.
 
-    Conteo por cada uno de los cinco estados, incluidos los que estén en
+    Conteo por cada uno de los estados, incluidos los que estén en
     cero (mismo patrón que resumen_clientes_dashboard en clientes_routes.py).
     Un ADMINISTRADOR ve el total del sistema; el resto, solo lo suyo.
     """

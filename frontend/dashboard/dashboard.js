@@ -169,7 +169,7 @@ async function cargarCargaTrabajoPorUsuario() {
     tabla.innerHTML = "";
 
     if (!data.usuarios || data.usuarios.length === 0) {
-      tabla.innerHTML = '<tr><td colspan="8">No hay usuarios activos para los criterios seleccionados.</td></tr>';
+      tabla.innerHTML = '<tr><td colspan="9">No hay usuarios activos para los criterios seleccionados.</td></tr>';
       return;
     }
 
@@ -180,6 +180,7 @@ async function cargarCargaTrabajoPorUsuario() {
         <td>${escapeHtml(usuario.nombre_area || "-")}</td>
         <td>${escapeHtml(usuario.por_estado.PENDIENTE ?? 0)}</td>
         <td>${escapeHtml(usuario.por_estado.EN_PROCESO ?? 0)}</td>
+        <td>${escapeHtml(usuario.por_estado.PAUSADA ?? 0)}</td>
         <td>${escapeHtml(usuario.por_estado.EN_REVISION ?? 0)}</td>
         <td>${escapeHtml(usuario.por_estado.COMPLETADA ?? 0)}</td>
         <td>${escapeHtml(usuario.por_estado.CANCELADA ?? 0)}</td>
@@ -540,6 +541,7 @@ async function cargarResumenTareas() {
 
     document.getElementById("resumenPendiente").textContent = resumen.PENDIENTE ?? 0;
     document.getElementById("resumenEnProceso").textContent = resumen.EN_PROCESO ?? 0;
+    document.getElementById("resumenPausada").textContent = resumen.PAUSADA ?? 0;
     document.getElementById("resumenEnRevision").textContent = resumen.EN_REVISION ?? 0;
     document.getElementById("resumenCompletada").textContent = resumen.COMPLETADA ?? 0;
     document.getElementById("resumenCancelada").textContent = resumen.CANCELADA ?? 0;

@@ -47,6 +47,11 @@
         </div>
 
         <div class="tarea-card">
+          <p>Pausadas</p>
+          <h2 id="totalPausadas">0</h2>
+        </div>
+
+        <div class="tarea-card">
           <p>En revisión</p>
           <h2 id="totalRevision">0</h2>
         </div>
@@ -145,9 +150,10 @@
           <div class="form-group tareas-filtro-estado">
             <label class="form-label" for="filtroEstado">Filtrar por estado</label>
             <select id="filtroEstado" class="form-input">
-              <option value="">Pendientes, en proceso y en revisión</option>
+              <option value="">Pendientes, en proceso, pausadas y en revisión</option>
               <option value="PENDIENTE">Pendiente</option>
               <option value="EN_PROCESO">En proceso</option>
+              <option value="PAUSADA">Pausada</option>
               <option value="EN_REVISION">En revisión</option>
               <option value="COMPLETADA">Completada</option>
               <option value="CANCELADA">Cancelada</option>

@@ -1032,7 +1032,7 @@ def test_un_paquete_reemplazado_por_otro_valido_se_detecta_por_la_huella_registr
 
 def test_compatibilidad_de_version_del_esquema():
     conocidas = r._migraciones_conocidas()
-    assert conocidas and conocidas[-1] == "010"
+    assert conocidas and conocidas[-1] == "011"
     assert r._advertencias_de_version({"migraciones": conocidas}) == []
     with pytest.raises(r.RespaldoNoValido, match="más nueva"):
         r._advertencias_de_version({"migraciones": conocidas + ["999"]})
