@@ -184,3 +184,14 @@ def test_toda_pregunta_de_confirmacion_abre_con_signo_de_interrogacion():
             if "?" in mensaje and "¿" not in mensaje:
                 fallos.append(f"{nombre(ruta)}: {mensaje[:60]}")
     assert fallos == []
+
+
+def test_la_ficha_del_cliente_cabe_en_360_px():
+    """A 360 px las tarjetas del resumen medían 232 px dentro de un contenedor de 178 y la paginación del
+    historial ensanchaba toda la sección: con `1fr` a secas la columna no baja del ancho de su contenido."""
+    css = leer(os.path.join(FRONTEND, "clientes", "clientes.css"))
+    bloque = css[css.index("@media (max-width: 900px)"):css.index("@media (max-width: 480px)")]
+    regla = bloque[bloque.index(".clientes-cards,"):]
+    assert "grid-template-columns: minmax(0, 1fr);" in regla[:regla.index("}")]
+    pagination = css[css.index(".pagination {"):css.index("}", css.index(".pagination {"))]
+    assert "flex-wrap: wrap" in pagination
