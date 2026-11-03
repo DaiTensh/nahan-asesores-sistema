@@ -599,7 +599,7 @@ def filtrar_clientes_combinado():
         if conexion:
             conexion.rollback()
         logger.exception("Error al filtrar clientes")
-        return jsonify({"error": "Ocurrió una anomalía al procesar el filtrado multi-criterio."}), 500
+        return jsonify({"error": "Ocurrió una anomalía al procesar el filtrado multicriterio."}), 500
 
     finally:
         if conexion:

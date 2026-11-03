@@ -204,3 +204,8 @@ def test_los_decimales_visibles_usan_coma(ruta):
     js = leer(os.path.join(FRONTEND, ruta))
     assert re.findall(r"\$\{[^}]*toFixed\(", js) == []
     assert 'toLocaleString("es-CL"' in js
+
+
+def test_las_etiquetas_de_accesibilidad_llevan_tilde():
+    """Un lector de pantalla pronuncia mal «Seleccion»; el corrector del sistema lo marcaba."""
+    assert 'aria-label="Selección de tarea"' in leer(os.path.join(FRONTEND, "control_horas", "control_horas.html"))

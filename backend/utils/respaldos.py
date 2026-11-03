@@ -309,7 +309,7 @@ def evaluar_almacenamiento(config, crear=False, tamano_referencia=0):
             else:
                 verificaciones.append(_verificacion(
                     "existe", "error",
-                    "La carpeta no existe y no se puede crear (falta el directorio superior o no es escribible). "
+                    "La carpeta no existe y no se puede crear (falta el directorio superior o no tiene permiso de escritura). "
                     "Si es un volumen externo, compruebe que esté montado."))
             return resultado
         try:
