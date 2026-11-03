@@ -23,3 +23,9 @@ def test_la_api_y_los_adjuntos_conservan_sus_limites():
     assert "client_max_body_size 15m;" in conf and "client_max_body_size 64m;" in conf
     assert "proxy_pass http://127.0.0.1:8000/api/;" in conf
     assert "return 302 /auth/login.html;" in conf
+
+
+def test_los_recursos_estaticos_se_revalidan_en_lugar_de_cachearse_dias():
+    """Con «expires 7d» un usuario conservaba JS y CSS viejos hasta una semana después de un despliegue."""
+    conf = _conf()
+    assert "expires 7d" not in conf and 'add_header Cache-Control "no-cache";' in conf
