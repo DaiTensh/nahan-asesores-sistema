@@ -263,7 +263,7 @@ def listar_usuarios():
 
         if es_administrador:
             sql = """
-                SELECT 
+                SELECT
                     u.id_usuario,
                     u.id_rol,
                     u.id_area,

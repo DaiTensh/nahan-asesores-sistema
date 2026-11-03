@@ -25,4 +25,3 @@ def test_contenidos_que_corresponden_a_su_extension(extension, cabecera):
 ])
 def test_contenidos_que_no_corresponden_a_su_extension(extension, cabecera):
     assert not coincide(extension, cabecera)
-
