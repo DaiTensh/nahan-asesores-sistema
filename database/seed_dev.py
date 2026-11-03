@@ -13,7 +13,8 @@ existe por su clave natural (email o RUT) y no lo duplica.
     python database/seed_dev.py            # siembra
     python database/seed_dev.py --reset    # borra lo sembrado y vuelve a sembrar
 
-NO usar en producción: las contraseñas son públicas y están en este archivo.
+NO usar en producción: las contraseñas son públicas y están en este archivo. Con FLASK_ENV=production
+se niega a ejecutarse salvo que se pase --permitir-produccion.
 """
 import argparse
 import os
@@ -293,7 +294,14 @@ def main():
     ap = argparse.ArgumentParser(description="Siembra los datos de desarrollo de Nahan Asesores.")
     ap.add_argument("--reset", action="store_true",
                     help="borra los datos de desarrollo anteriores antes de sembrar")
+    ap.add_argument("--permitir-produccion", action="store_true",
+                    help="permite sembrar con FLASK_ENV=production (crea cuentas con contraseña pública)")
     args = ap.parse_args()
+
+    if os.getenv("FLASK_ENV", "development").strip().lower() == "production" and not args.permitir_produccion:
+        print("Se niega a sembrar: FLASK_ENV=production. Este script crea siete cuentas con una contraseña")
+        print("pública y, con --reset, borra datos. Si de verdad es lo que se quiere, repetir con --permitir-produccion.")
+        return 2
 
     conexion = get_connection()
     if conexion is None:
