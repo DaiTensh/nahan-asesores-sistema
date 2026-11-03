@@ -9,8 +9,8 @@ RF60 respalda históricamente la información: un paquete `.zip` con el volcado 
 | CA1 programado y automático | Implementado; **instalación en el servidor pendiente** | `deploy/systemd/nahan-respaldo.service` y `.timer` (diario 02:00, `Persistent=true`) ejecutan `python -m backend.respaldos_programados`. Un proceso por vez; sin planificador dentro de Gunicorn. |
 | CA2 respaldo manual | Implementado | `POST /api/respaldos` (solo administrador, validado en el backend) y botón en la pantalla. |
 | CA3 fecha, hora y estado | Implementado | Tabla `respaldo` (migración 010) y panel «Historial». También los intentos fallidos. |
-| CA4 restaurar | Implementado, **deshabilitado por defecto** | `POST /api/respaldos/<id>/restaurar` y CLI. Se activa con `RESTAURACION_HABILITADA=true`. |
-| CA5 ubicación segura y separada | Implementado y verificable; **pendiente de validación ambiental** | `RESPALDO_DIR` fuera del proyecto, permisos 0700/0600, sin descarga por HTTP, comprobación de dispositivo. Falta un destino independiente real (ver §F). |
+| CA4 restaurar | Implementado, **deshabilitado por defecto**; probado en MySQL 26.7 y **8.0.46** locales, **ensayo en la instancia pendiente** | `POST /api/respaldos/<id>/restaurar` y CLI. Se activa con `RESTAURACION_HABILITADA=true`. La instancia usa otro sistema operativo y otro build de MySQL que las pruebas locales. |
+| CA5 ubicación segura y separada | Implementado y probado con un dispositivo distinto; **no cumplido en el entorno real** | `RESPALDO_DIR` fuera del proyecto, permisos 0700/0600, sin descarga por HTTP, comprobación de dispositivo (`tests/test_rf60_dispositivo_real.py`). Falta un destino independiente real (ver §F). Con el volumen sin montar y `RESPALDO_EXIGIR_DISPOSITIVO_SEPARADO` en su valor por defecto (falso), el respaldo se escribe en el disco de la aplicación y solo se avisa: el servidor debe activarla. |
 
 ## B. Qué contiene un respaldo
 
@@ -106,7 +106,7 @@ Autenticación y rol de administrador en cada ruta; restauración con confirmaci
 
 ## I. Pruebas
 
-`tests/test_rf60_respaldos.py` (servicio, sin MySQL), `tests/test_rf60_api.py` (API, interfaz y despliegue) y `tests/test_rf60_mysql_real.py` (servidor MySQL desechable local, puerto efímero y datos ficticios: respaldo con una cuenta sin `DROP`, restauración con igualdad de las 22 tablas, falla a medias con recuperación automática, paquetes manipulados, concurrencia, modo mantenimiento, migración 010, compatibilidad con RF47 y RF49). Las pruebas de MySQL real se omiten si no hay `mysqld`/`mysqldump` o con `NAHAN_TEST_SIN_MYSQL=1`. Ninguna toca una base real.
+`tests/test_rf60_respaldos.py` (servicio, sin MySQL), `tests/test_rf60_api.py` (API, interfaz y despliegue) y `tests/test_rf60_mysql_real.py` (servidor MySQL desechable local, puerto efímero y datos ficticios: respaldo con una cuenta sin `DROP`, restauración con igualdad de las 22 tablas, falla a medias con recuperación automática, paquetes manipulados, concurrencia, modo mantenimiento, migración 010, compatibilidad con RF47 y RF49). Las pruebas de MySQL real se omiten si no hay `mysqld`/`mysqldump` o con `NAHAN_TEST_SIN_MYSQL=1`. Ninguna toca una base real. `tests/test_rf60_dispositivo_real.py` comprueba CA5 con un dispositivo realmente distinto (`/dev/shm` en Linux o el punto de montaje de `NAHAN_TEST_OTRO_DISPOSITIVO`) y se omite si no hay uno. Para probar con otra versión de MySQL basta anteponer su carpeta `bin` al `PATH` del proceso de pruebas (el arnés usa el `mysqld` y el `mysqldump` que encuentre): se validó con 26.7 y con 8.0.46.
 
 ```bash
 DB_HOST=127.0.0.1 DB_PORT=1 DB_USER=aislado DB_PASSWORD=aislado DB_NAME=aislado SMTP_HOST= SMTP_USER= SMTP_PASSWORD= \

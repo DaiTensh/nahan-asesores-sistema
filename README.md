@@ -19,7 +19,9 @@ con acceso según el rol de cada persona.
   área contable; alta, edición, desactivación, cambio de rol y recuperación de
   contraseña.
 - **Control de horas y cobros**: temporizador por tarea, tarifa general y por
-  área definidas por el administrador (RF74) y cálculo de montos.
+  área definidas por el administrador (RF74), cálculo de montos y reporte de
+  cobro por cliente con período opcional, desglose por tarifa y exportación
+  (RF75).
 - **Dashboard y reportes**: indicadores de tareas pendientes, vencidas y
   finalizadas, carga por usuario, distribución por área, reportes por cliente,
   responsable y área, exportación a PDF y Excel.
