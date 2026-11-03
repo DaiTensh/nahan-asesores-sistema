@@ -10,6 +10,7 @@ from backend.config.db import get_connection
 from backend.utils.auditoria import acciones_de_registros, registrar_auditoria, consultar_auditoria
 from backend.utils.auth import ROL_ADMINISTRADOR, ROLES_OPERATIVOS, obtener_usuario_actual, roles_required
 from backend.utils.clientes_recientes import leer_limite_clientes_recientes
+from backend.utils.excel import escribir_filas
 from backend.utils.validaciones_cliente import error_de_contacto, rut_comparable, validar_rut
 
 clientes_blueprint = Blueprint('clientes_blueprint', __name__)
@@ -774,16 +775,12 @@ def _exportar_listado_clientes_excel(clientes):
     libro = Workbook()
     hoja = libro.active
     hoja.title = "Clientes"
-    hoja.append(["RUT", "Razón Social", "Áreas", "Estado", "Fecha de creación", "Responsables asignados"])
-
-    for cliente in clientes:
-        hoja.append([
-            cliente["rut"], cliente["razon_social"], cliente["areas_nombres"],
-            cliente["estado"], cliente["fecha_creacion"], cliente["responsables_nombres"] or "",
-        ])
-        for celda in hoja[hoja.max_row]:
-            if celda.data_type == "f":
-                celda.data_type = "s"
+    escribir_filas(hoja, [["RUT", "Razón Social", "Áreas", "Estado", "Fecha de creación", "Responsables asignados"]])
+    escribir_filas(hoja, (
+        [cliente["rut"], cliente["razon_social"], cliente["areas_nombres"],
+         cliente["estado"], cliente["fecha_creacion"], cliente["responsables_nombres"] or ""]
+        for cliente in clientes
+    ), fila_inicial=2)
 
     buffer = io.BytesIO()
     libro.save(buffer)

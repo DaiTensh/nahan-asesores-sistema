@@ -15,6 +15,7 @@ from openpyxl import Workbook
 from backend.config.db import get_connection
 from backend.utils.auditoria import consultar_auditoria, modulos_disponibles, tablas_de_modulo
 from backend.utils.auth import ROL_ADMINISTRADOR, obtener_usuario_actual, roles_required
+from backend.utils.excel import escribir_filas
 
 reportes_blueprint = Blueprint('reportes_blueprint', __name__)
 logger = logging.getLogger(__name__)
@@ -1232,30 +1233,22 @@ def exportar_reporte_excel(id_reporte, formato="excel"):
         libro = Workbook()
         hoja = libro.active
         hoja.title = "Reporte"
-        hoja.append(encabezados)
-        for fila in filas:
-            hoja.append(fila)
-            # Los textos del usuario son datos, nunca fórmulas ejecutables.
-            for celda in hoja[hoja.max_row]:
-                if celda.data_type == "f":
-                    celda.data_type = "s"
+        # Los textos del usuario son datos, nunca fórmulas ejecutables (lo asegura escribir_filas).
+        escribir_filas(hoja, [encabezados])
+        escribir_filas(hoja, filas, fila_inicial=2)
 
         # Segunda hoja con los parámetros del reporte: la primera conserva una
         # fila por elemento y los encabezados (criterio de RF35), y esta deja
         # el período y los filtros dentro del propio archivo (RF38).
         hoja_parametros = libro.create_sheet("Parámetros")
-        for fila in [
+        escribir_filas(hoja_parametros, [
             ("Reporte", titulo),
             ("Período", _texto_periodo(parametros)),
             *filtros,
             ("Fecha de generación", fecha_generacion),
             ("Fecha de exportación", fecha_exportacion),
             ("Identificador del reporte", reporte["id_reporte"]),
-        ]:
-            hoja_parametros.append(fila)
-            for celda in hoja_parametros[hoja_parametros.max_row]:
-                if celda.data_type == "f":
-                    celda.data_type = "s"
+        ])
 
         buffer = io.BytesIO()
         libro.save(buffer)
