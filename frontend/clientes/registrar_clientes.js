@@ -12,6 +12,13 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    const validacionRut = window.Rut.validar(document.getElementById("rut").value);
+    if (!validacionRut.valido) {
+      mostrarMensaje(validacionRut.mensaje, "error");
+      document.getElementById("rut").focus();
+      return;
+    }
+
     const areasSeleccionadas = obtenerAreasSeleccionadas();
 
     if (areasSeleccionadas.length === 0) {
@@ -24,7 +31,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!confirmar) return;
 
     const payload = {
-      rut: document.getElementById("rut").value.trim(),
+      rut: validacionRut.canonico,
       razon_social: document.getElementById("razon_social").value.trim(),
       direccion: document.getElementById("direccion").value.trim(),
       telefono: document.getElementById("telefono").value.trim(),

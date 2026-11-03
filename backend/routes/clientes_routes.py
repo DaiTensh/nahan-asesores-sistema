@@ -10,9 +10,7 @@ from backend.config.db import get_connection
 from backend.utils.auditoria import acciones_de_registros, registrar_auditoria, consultar_auditoria
 from backend.utils.auth import ROL_ADMINISTRADOR, ROLES_OPERATIVOS, obtener_usuario_actual, roles_required
 from backend.utils.clientes_recientes import leer_limite_clientes_recientes
-from backend.utils.validaciones_cliente import (
-    MENSAJE_RUT, error_de_contacto, normalizar_rut, rut_comparable,
-)
+from backend.utils.validaciones_cliente import error_de_contacto, rut_comparable, validar_rut
 
 clientes_blueprint = Blueprint('clientes_blueprint', __name__)
 logger = logging.getLogger(__name__)
@@ -51,9 +49,9 @@ def registrar_cliente():
         if not all([rut, razon_social]):
             return jsonify({"error": "RUT y Nombre de contacto 1 (Razón Social) son estrictamente obligatorios."}), 400
 
-        rut = normalizar_rut(rut)
-        if rut is None:
-            return jsonify({"error": MENSAJE_RUT}), 400
+        rut, error_rut = validar_rut(rut)
+        if error_rut:
+            return jsonify({"error": error_rut}), 400
 
         error_contacto = error_de_contacto(email, telefono)
         if error_contacto:
