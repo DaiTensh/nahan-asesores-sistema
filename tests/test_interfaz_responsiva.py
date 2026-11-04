@@ -220,3 +220,14 @@ def test_la_fecha_de_inicio_de_rf14_esta_en_el_alta_la_edicion_y_el_detalle():
         js = leer(os.path.join(FRONTEND, "tareas", script))
         assert "fecha_inicio: fechaInicio" in js and "fechaInicio > fechaVencimiento" in js, script
     assert "detalleFechaInicio" in leer(os.path.join(FRONTEND, "tareas", "detalle_tarea.js"))
+
+
+def test_el_panel_de_cambios_recientes_no_pide_nada_si_el_usuario_no_es_administrador():
+    """Antes ocultaba el panel pero igual llamaba a la API y recibía un 403 en cada carga del dashboard."""
+    with open(os.path.join(RAIZ, "frontend", "dashboard", "cambios_recientes.js"), encoding="utf-8") as archivo:
+        codigo = archivo.read()
+    arranque = codigo[codigo.index('addEventListener("DOMContentLoaded"'):]
+
+    comprobacion = arranque.index('usuario.nombre_rol !== "ADMINISTRADOR"')
+    assert comprobacion < arranque.index("cargarFiltros()"), "el rol se comprueba antes de la primera solicitud"
+    assert "await obtenerUsuarioActual()" in arranque

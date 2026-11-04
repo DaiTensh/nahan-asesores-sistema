@@ -157,6 +157,13 @@
     document.getElementById("filtroModuloCambios").addEventListener("change", cargarCambios);
     document.getElementById("filtroTipoCambio").addEventListener("change", cargarCambios);
     try {
+      // El panel es solo del administrador (RNF14): a los demás roles no se les pide nada, en vez de
+      // provocar un 403 en cada carga del dashboard. El servidor sigue siendo quien lo exige.
+      const usuario = await obtenerUsuarioActual();
+      if (!usuario || usuario.nombre_rol !== "ADMINISTRADOR") {
+        ocultarPorPermisos();
+        return;
+      }
       if (!(await cargarFiltros())) return;
       await cargarCambios();
       if (seccion.hidden) return;
