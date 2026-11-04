@@ -39,3 +39,26 @@ def test_nginx_espera_a_gunicorn_tanto_como_este_admite_para_los_respaldos():
     bloque_api = conf[conf.index("location /api/ {"):conf.index("location = / {")]
     espera = int(re.search(r"proxy_read_timeout (\d+)s;", bloque_api).group(1))
     assert espera >= gunicorn
+
+
+def test_el_inicio_de_sesion_tiene_un_limite_de_solicitudes_por_ip():
+    conf = _conf()
+    assert re.search(r"limit_req_zone \$binary_remote_addr zone=nahan_login:\d+m rate=\d+r/m;", conf)
+    bloque = conf[conf.index("location = /api/login"):]
+    bloque = bloque[:bloque.index("}")]
+    assert "limit_req zone=nahan_login" in bloque and "proxy_pass http://127.0.0.1:8000/api/login;" in bloque
+    assert conf.index("limit_req_zone") < conf.index("server {"), "la zona va fuera del bloque server (contexto http)"
+
+
+def _ubicaciones(texto):
+    return set(re.findall(r"location\s+((?:[=~*]+\s+)?\S+)\s*\{", texto))
+
+
+def test_la_plantilla_https_tiene_las_mismas_rutas_que_la_vigente():
+    """Si se cambia una «location» de nahan.conf hay que cambiarla en la plantilla HTTPS, y al revés."""
+    with open(os.path.join(RAIZ, "deploy", "nginx", "nahan-https.conf.example"), encoding="utf-8") as archivo:
+        https = archivo.read()
+    assert _ubicaciones(https) - {"/.well-known/acme-challenge/"} == _ubicaciones(_conf())
+    assert "return 301 https://$host$request_uri;" in https
+    assert "Strict-Transport-Security" in https and "ssl_protocols TLSv1.2 TLSv1.3;" in https
+    assert "DOMINIO" in https, "es una plantilla: el dominio se reemplaza al activarla"
