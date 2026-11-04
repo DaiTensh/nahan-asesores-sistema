@@ -7,7 +7,7 @@ from flask import Blueprint, request, jsonify
 from backend.config.db import get_connection
 from backend.utils.auditoria import registrar_auditoria
 from backend.utils.auth import ROL_ADMINISTRADOR, login_required, obtener_usuario_actual, roles_required
-from backend.utils.security import hash_password
+from backend.utils.security import LARGO_MINIMO_PASSWORD, hash_password
 
 usuarios_bp = Blueprint("usuarios", __name__)
 logger = logging.getLogger(__name__)
@@ -157,6 +157,9 @@ def create_usuario():
 
     if not id_rol or not id_area or not nombres or not email or not password:
         return jsonify({"error": "Todos los campos son obligatorios"}), 400
+
+    if len(password) < LARGO_MINIMO_PASSWORD:
+        return jsonify({"error": f"La contraseña debe tener al menos {LARGO_MINIMO_PASSWORD} caracteres"}), 400
 
     id_rol, id_area, error = resolver_area_para_rol(id_rol, id_area)
 
