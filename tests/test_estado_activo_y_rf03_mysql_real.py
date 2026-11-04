@@ -201,3 +201,34 @@ def test_un_cliente_reactivado_vuelve_a_aceptar_tareas(admin, mundo):  # noqa: F
 
 def test_un_cliente_inexistente_sigue_respondiendo_404(admin, mundo):  # noqa: F811
     assert _crear_tarea(admin, 9999).status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# RF47: abrir la «Ficha del Cliente» alimenta «Mis clientes recientes»
+# ---------------------------------------------------------------------------
+
+def _recientes(client):
+    return [c["id_cliente"] for c in client.get("/api/clientes/recientes").get_json()["clientes_recientes"]]
+
+
+def test_abrir_la_ficha_registra_al_cliente_como_reciente(admin, mundo):  # noqa: F811
+    assert admin.get("/api/clientes/2/ficha").status_code == 200
+    assert admin.get("/api/clientes/1/ficha").status_code == 200
+
+    assert _recientes(admin) == [1, 2], "el más reciente primero"
+
+
+def test_una_ficha_inactiva_no_se_registra_como_reciente(admin, mundo, ejecutar):  # noqa: F811
+    inactivo = _cliente(ejecutar, "99.999.999-9", estado="INACTIVO")
+
+    assert admin.get(f"/api/clientes/{inactivo}/ficha").status_code == 200
+
+    assert inactivo not in _recientes(admin)
+
+
+def test_el_historial_de_recientes_es_de_cada_persona(client, iniciar_sesion, mundo):  # noqa: F811
+    iniciar_sesion(usuario_id=ID_ADMIN, rol_id=1)
+    assert client.get("/api/clientes/2/ficha").status_code == 200
+    iniciar_sesion(usuario_id=ID_JURIDICA, rol_id=2, area_id=1)
+
+    assert _recientes(client) == []

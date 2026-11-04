@@ -1967,6 +1967,9 @@ def test_rf61_rf08_ficha_cuenta_activas_y_lista_referencias(client, iniciar_sesi
     iniciar_sesion(usuario_id=2, rol_id=2, area_id=1)
 
     def handler(sql, params, cursor):
+        if 'cliente_reciente' in sql:  # RF47: abrir la ficha registra la consulta (usuario, cliente)
+            assert params == (2, 5)
+            return []
         assert params == (5,)
         if 'FROM cliente WHERE' in sql:
             return [{'id_cliente': 5, 'razon_social': 'Cliente', 'estado': 'ACTIVO'}]

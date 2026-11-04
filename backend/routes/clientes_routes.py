@@ -126,6 +126,18 @@ def registrar_cliente():
             conexion.close()
 
 
+def _registrar_cliente_reciente(cursor, id_usuario, id_cliente):
+    """RF47: anota que la persona consultó a este cliente (una fila por persona y cliente)."""
+    cursor.execute(
+        """
+        INSERT INTO cliente_reciente (id_usuario, id_cliente, fecha_interaccion)
+        VALUES (%s, %s, CURRENT_TIMESTAMP(6))
+        ON DUPLICATE KEY UPDATE fecha_interaccion = CURRENT_TIMESTAMP(6)
+        """,
+        (id_usuario, id_cliente),
+    )
+
+
 @clientes_blueprint.route('/clientes/<int:id_cliente>', methods=['GET'])
 @roles_required(*ROLES_OPERATIVOS)
 def obtener_cliente(id_cliente):
@@ -155,15 +167,7 @@ def obtener_cliente(id_cliente):
             cliente['areas'] = [item['id_area'] for item in filas_areas]
 
             if cliente["estado"] == "ACTIVO":
-                id_usuario = obtener_usuario_actual()["id_usuario"]
-                cursor.execute(
-                    """
-                    INSERT INTO cliente_reciente (id_usuario, id_cliente, fecha_interaccion)
-                    VALUES (%s, %s, CURRENT_TIMESTAMP(6))
-                    ON DUPLICATE KEY UPDATE fecha_interaccion = CURRENT_TIMESTAMP(6)
-                    """,
-                    (id_usuario, id_cliente),
-                )
+                _registrar_cliente_reciente(cursor, obtener_usuario_actual()["id_usuario"], id_cliente)
                 conexion.commit()
 
         return jsonify(cliente), 200
@@ -525,6 +529,12 @@ def obtener_ficha_consolidada(id_cliente):
             
             if not cliente:
                 return jsonify({"error": "El expediente solicitado no existe en los registros activos."}), 404
+
+            # RF47: abrir la ficha es la consulta más habitual de un cliente; antes solo registraba
+            # la pantalla de edición y el panel «Mis clientes recientes» quedaba casi vacío.
+            if cliente["estado"] == "ACTIVO":
+                _registrar_cliente_reciente(cursor, obtener_usuario_actual()["id_usuario"], id_cliente)
+                conexion.commit()
 
             # 2. Consultar las áreas asociadas concatenando sus nombres de forma limpia
             query_areas = """
