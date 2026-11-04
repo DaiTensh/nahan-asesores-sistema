@@ -182,6 +182,7 @@ def _obtener_tarea_para_revision(cursor, id_tarea):
         SELECT id_tarea, id_responsable, titulo, estado, observaciones
         FROM tarea
         WHERE id_tarea = %s
+        FOR UPDATE
         """,
         (id_tarea,),
     )
@@ -891,6 +892,7 @@ def editar_tarea(id_tarea):
                    prioridad, fecha_vencimiento, fecha_inicio, fecha_creacion
             FROM tarea
             WHERE id_tarea = %s
+            FOR UPDATE
             """,
             (id_tarea,)
         )
@@ -1078,7 +1080,7 @@ def asignar_tarea(id_tarea):
         cursor = connection.cursor()
 
         cursor.execute(
-            "SELECT estado, titulo, id_responsable FROM tarea WHERE id_tarea = %s",
+            "SELECT estado, titulo, id_responsable FROM tarea WHERE id_tarea = %s FOR UPDATE",
             (id_tarea,)
         )
         tarea = cursor.fetchone()
@@ -1171,7 +1173,7 @@ def actualizar_estado_tarea(id_tarea):
         cursor = connection.cursor(dictionary=True)
 
         cursor.execute(
-            "SELECT estado, id_responsable, titulo FROM tarea WHERE id_tarea = %s",
+            "SELECT estado, id_responsable, titulo FROM tarea WHERE id_tarea = %s FOR UPDATE",
             (id_tarea,)
         )
         tarea = cursor.fetchone()
@@ -1451,7 +1453,7 @@ def actualizar_prioridad_tarea(id_tarea):
         connection = get_connection()
         cursor = connection.cursor()
 
-        cursor.execute("SELECT estado, id_responsable, prioridad FROM tarea WHERE id_tarea = %s", (id_tarea,))
+        cursor.execute("SELECT estado, id_responsable, prioridad FROM tarea WHERE id_tarea = %s FOR UPDATE", (id_tarea,))
         tarea = cursor.fetchone()
         if not tarea:
             return jsonify({"error": "Tarea no encontrada"}), 404

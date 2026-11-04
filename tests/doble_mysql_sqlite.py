@@ -101,7 +101,12 @@ class ConexionSQLite(sqlite3.Connection):
                 raise crear_excepcion()
 
 
+_FOR_UPDATE = re.compile(r"\s+FOR\s+UPDATE\b", re.IGNORECASE)
+
+
 def _adaptar(conexion, sql, params):
+    # SQLite no tiene bloqueo de filas: SELECT … FOR UPDATE se lee igual, sin la cláusula.
+    sql = _FOR_UPDATE.sub("", sql)
     if "GET_LOCK(" in sql:
         nombre = params[0]
         concedido = conexion.bloqueos.get(nombre) != "ajeno"
