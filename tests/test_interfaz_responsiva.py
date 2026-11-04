@@ -88,9 +88,9 @@ def test_la_fecha_de_la_barra_superior_solo_capitaliza_la_primera_letra():
     assert "charAt(0).toUpperCase()" in js
 
 
-def test_la_barra_superior_cabe_en_1024_px():
+def test_la_barra_superior_se_apila_hasta_1280_px_para_que_el_titulo_no_quede_aplastado():
     css = leer(os.path.join(FRONTEND, "assets", "css", "topbar.css"))
-    bloque = css[css.index("@media (max-width: 1100px)"):]
+    bloque = css[css.index("@media (max-width: 1280px)"):]
     assert "flex-direction: column" in bloque, "la barra se apila antes de que el título se encime con la fecha"
     assert re.search(r"\.topbar-search\s*\{\s*min-width: 0;\s*flex: 1 1 220px", bloque)
 
