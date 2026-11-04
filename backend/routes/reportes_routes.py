@@ -16,6 +16,7 @@ from openpyxl import Workbook
 from backend.config.db import get_connection
 from backend.utils.auditoria import consultar_auditoria, modulos_disponibles, tablas_de_modulo
 from backend.utils.auth import ROL_ADMINISTRADOR, obtener_usuario_actual, roles_required
+from backend.utils.estados_tarea import ESTADOS_TAREA_ACTIVA, SQL_ESTADOS_ACTIVOS
 from backend.utils.excel import escribir_filas
 
 reportes_blueprint = Blueprint('reportes_blueprint', __name__)
@@ -24,9 +25,6 @@ logger = logging.getLogger(__name__)
 MENSAJE_SIN_TAREAS = "No se registran tareas para los criterios seleccionados"
 MENSAJE_SIN_COMPLETADAS = "No se registran tareas completadas en el período seleccionado"
 MENSAJE_SIN_HORAS_COBRABLES = "No se registran horas trabajadas para este cliente en el período seleccionado"
-
-# RF45 — una tarea está activa mientras no llega a un estado final.
-ESTADOS_TAREA_ACTIVA = ("PENDIENTE", "EN_PROCESO", "PAUSADA", "EN_REVISION")
 
 # ==========================================================================
 # Contrato de respuesta del módulo de reportes (RF31 / RF32).
@@ -522,7 +520,7 @@ def _calcular_productividad(cursor, fecha_inicio, fecha_fin, id_area=None):
             f"""
             SELECT id_responsable, COUNT(*) AS total
             FROM tarea
-            WHERE estado IN ('PENDIENTE', 'EN_PROCESO')
+            WHERE estado IN {SQL_ESTADOS_ACTIVOS}
               AND id_responsable IN ({marcadores})
             GROUP BY id_responsable
             """,

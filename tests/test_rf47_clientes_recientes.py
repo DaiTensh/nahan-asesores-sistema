@@ -85,6 +85,8 @@ def rf47_client(client, iniciar_sesion, monkeypatch):
             estado TEXT NOT NULL
         );
         CREATE TABLE cliente_area (id_cliente INTEGER, id_area INTEGER);
+        CREATE TABLE tarea (id_tarea INTEGER PRIMARY KEY, id_cliente INTEGER, estado TEXT);
+        CREATE TABLE documento (id_documento INTEGER PRIMARY KEY, id_cliente INTEGER, estado TEXT);
         CREATE TABLE cliente_reciente (
             id_usuario INTEGER NOT NULL,
             id_cliente INTEGER NOT NULL,

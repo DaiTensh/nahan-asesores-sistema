@@ -10,6 +10,7 @@ from backend.config.db import get_connection
 from backend.utils.auditoria import acciones_de_registros, registrar_auditoria, consultar_auditoria
 from backend.utils.auth import ROL_ADMINISTRADOR, ROLES_OPERATIVOS, obtener_usuario_actual, roles_required
 from backend.utils.clientes_recientes import leer_limite_clientes_recientes
+from backend.utils.estados_tarea import SQL_ESTADOS_ACTIVOS, es_estado_activo
 from backend.utils.excel import escribir_filas
 from backend.utils.validaciones_cliente import error_de_contacto, rut_comparable, validar_rut
 
@@ -316,6 +317,36 @@ def modificar_cliente(id_cliente):
 
 
 
+def _valor_conteo(fila):
+    if not fila:
+        return 0
+    return int(fila["conteo"] if isinstance(fila, dict) else fila[0])
+
+
+def _contar_vinculos_activos(cursor, id_cliente):
+    """RF03: devuelve (tareas activas, documentos vigentes) de un cliente.
+
+    Es el único criterio de «vínculos activos»: lo usa la pantalla de
+    eliminación (verificar-vinculos) y también el servidor al eliminar, para
+    que una llamada directa a la API no pueda saltarse lo que la pantalla
+    impide. Sirve con cursores de tupla o de diccionario.
+    """
+    cursor.execute(
+        f"""
+        SELECT COUNT(*) as conteo FROM tarea
+        WHERE id_cliente = %s AND estado IN {SQL_ESTADOS_ACTIVOS}
+        """,
+        (id_cliente,),
+    )
+    tareas = _valor_conteo(cursor.fetchone())
+    cursor.execute(
+        "SELECT COUNT(*) as conteo FROM documento WHERE id_cliente = %s AND estado = 'ACTIVO'",
+        (id_cliente,),
+    )
+    documentos = _valor_conteo(cursor.fetchone())
+    return tareas, documentos
+
+
 # ==========================================================================
 # RF03: ENPOINT DE VERIFICACIÓN DE VÍNCULOS COMERCIALES
 # ==========================================================================
@@ -335,18 +366,8 @@ def verificar_vinculos_cliente(id_cliente):
             if not cliente:
                 return jsonify({"error": "Cliente no localizado."}), 404
 
-            # 2. Contar tareas en proceso o pendientes según tus ENUM de BD
-            query_tareas = """
-                SELECT COUNT(*) as conteo FROM tarea 
-                WHERE id_cliente = %s AND estado IN ('PENDIENTE', 'EN_PROCESO', 'PAUSADA', 'EN_REVISION')
-            """
-            cursor.execute(query_tareas, (id_cliente,))
-            total_tareas = cursor.fetchone()['conteo']
-
-            # 3. Contar documentos activos vigentes
-            query_docs = "SELECT COUNT(*) as conteo FROM documento WHERE id_cliente = %s AND estado = 'ACTIVO'"
-            cursor.execute(query_docs, (id_cliente,))
-            total_docs = cursor.fetchone()['conteo']
+            # 2 y 3. Tareas activas y documentos vigentes (criterio compartido con la eliminación definitiva)
+            total_tareas, total_docs = _contar_vinculos_activos(cursor, id_cliente)
 
             vinculos_activos = (total_tareas > 0 or total_docs > 0)
 
@@ -441,11 +462,29 @@ def eliminar_definitivo_cliente(id_cliente):
             
             log_anterior = f"rut: {info[0]}, razon_social: {info[1]}"
 
-            # 1. Limpiar amarras en la tabla intermedia cliente_area para evitar error de FK
-            cursor.execute("DELETE FROM cliente_area WHERE id_cliente = %s", (id_cliente,))
+            # RF03: con tareas activas o documentos vigentes solo se puede deshabilitar.
+            # La pantalla ya lo ofrece así; el servidor lo exige también ante llamadas directas.
+            tareas_activas, documentos_activos = _contar_vinculos_activos(cursor, id_cliente)
+            if tareas_activas or documentos_activos:
+                return jsonify({
+                    "error": "El cliente tiene tareas activas o documentos vigentes: solo puede deshabilitarse.",
+                    "tareas_activas": tareas_activas,
+                    "documentos_activos": documentos_activos,
+                }), 409
 
-            # 2. Remover físicamente de la tabla cliente
-            cursor.execute("DELETE FROM cliente WHERE id_cliente = %s", (id_cliente,))
+            try:
+                # 1. Limpiar amarras en la tabla intermedia cliente_area para evitar error de FK
+                cursor.execute("DELETE FROM cliente_area WHERE id_cliente = %s", (id_cliente,))
+
+                # 2. Remover físicamente de la tabla cliente
+                cursor.execute("DELETE FROM cliente WHERE id_cliente = %s", (id_cliente,))
+            except IntegrityError:
+                # Historial que no es «activo» (tareas finalizadas, horas, observaciones): se conserva.
+                conexion.rollback()
+                return jsonify({
+                    "error": "El cliente tiene historial asociado (tareas finalizadas, horas u observaciones): "
+                             "solo puede deshabilitarse.",
+                }), 409
 
             # 3. Grabar en historial de auditoría
             registrar_auditoria(
@@ -512,7 +551,7 @@ def obtener_ficha_consolidada(id_cliente):
             # RF61 — Panel resumen: cantidad de tareas activas, calculada sobre
             # el mismo listado ya traído (sin disparar una consulta adicional).
             cliente["tareas_activas"] = sum(
-                1 for tarea in cliente["tareas"] if tarea["estado"] in ("PENDIENTE", "EN_PROCESO")
+                1 for tarea in cliente["tareas"] if es_estado_activo(tarea["estado"])
             )
 
             # 4. Traer las referencias documentales del cliente (RF07/RF08).

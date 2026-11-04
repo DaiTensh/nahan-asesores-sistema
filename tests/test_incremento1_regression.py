@@ -1973,7 +1973,7 @@ def test_rf61_rf08_ficha_cuenta_activas_y_lista_referencias(client, iniciar_sesi
         if 'FROM cliente_area' in sql:
             return [{'nombre_area': 'JURIDICA'}]
         if 'FROM tarea t' in sql:
-            return [{'estado': estado} for estado in ('PENDIENTE', 'EN_PROCESO', 'EN_REVISION', 'COMPLETADA', 'CANCELADA')]
+            return [{'estado': estado} for estado in ('PENDIENTE', 'EN_PROCESO', 'PAUSADA', 'EN_REVISION', 'COMPLETADA', 'CANCELADA')]
         if 'FROM documento' in sql:
             assert "estado = 'ACTIVO' AND tipo_documento IS NOT NULL" in sql
             assert 'ORDER BY fecha_subida DESC' in sql
@@ -1985,7 +1985,9 @@ def test_rf61_rf08_ficha_cuenta_activas_y_lista_referencias(client, iniciar_sesi
     respuesta = client.get('/api/clientes/5/ficha')
     assert respuesta.status_code == 200
     datos = respuesta.get_json()
-    assert datos['tareas_activas'] == 2
+    # Activas: PENDIENTE, EN_PROCESO, PAUSADA y EN_REVISION. Esta prueba esperaba 2 y así fijaba que
+    # EN_REVISION no contaba (AUD-020); la definición única está en backend/utils/estados_tarea.py.
+    assert datos['tareas_activas'] == 4
     assert datos['areas_nombres'] == 'JURIDICA'
     assert datos['documentos'][0]['descripcion'] == 'Observación'
     assert conexion.closed

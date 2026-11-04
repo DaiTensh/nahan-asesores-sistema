@@ -11,6 +11,7 @@ from backend.routes.notificaciones_routes import (
 )
 from backend.utils.auditoria import registrar_auditoria
 from backend.utils.auth import ROL_ADMINISTRADOR, login_required, obtener_usuario_actual, roles_required
+from backend.utils.estados_tarea import SQL_ESTADOS_ACTIVOS
 
 tareas_bp = Blueprint("tareas", __name__)
 logger = logging.getLogger(__name__)
@@ -18,7 +19,6 @@ logger = logging.getLogger(__name__)
 ESTADOS_FINALES = {"COMPLETADA", "CANCELADA"}
 # RF17: pendiente, en proceso, pausada o finalizada (más la revisión de RF76 y la cancelación).
 ESTADOS_VALIDOS = ["PENDIENTE", "EN_PROCESO", "PAUSADA", "EN_REVISION", "COMPLETADA", "CANCELADA"]
-ESTADOS_PENDIENTE = ("PENDIENTE", "EN_PROCESO", "PAUSADA", "EN_REVISION")
 
 
 def _validar_rango_tareas(args):
@@ -65,7 +65,7 @@ def _rango_periodo_anterior(fecha_inicio, fecha_fin):
 
 def _contar_tareas_pendientes(cursor, fecha_inicio, fecha_fin, usuario):
     condiciones = [
-        "t.estado IN ('PENDIENTE', 'EN_PROCESO', 'PAUSADA', 'EN_REVISION')",
+        f"t.estado IN {SQL_ESTADOS_ACTIVOS}",
         "t.fecha_creacion >= %s",
         "t.fecha_creacion < DATE_ADD(%s, INTERVAL 1 DAY)",
     ]
@@ -296,8 +296,12 @@ def crear_tarea():
         if not responsable or responsable[1] != "ACTIVO":
             return jsonify({"error": "El responsable seleccionado no es válido"}), 422
 
-        cursor.execute("SELECT id_cliente FROM cliente WHERE id_cliente = %s", (id_cliente,))
+        cursor.execute("SELECT id_cliente FROM cliente WHERE id_cliente = %s AND estado = 'ACTIVO'", (id_cliente,))
         if not cursor.fetchone():
+            # RF10 (criterio 4): no se crean tareas para clientes inactivos.
+            cursor.execute("SELECT estado FROM cliente WHERE id_cliente = %s", (id_cliente,))
+            if cursor.fetchone():
+                return jsonify({"error": "El cliente está inactivo: no se pueden crear tareas para él"}), 409
             return jsonify({"error": "Cliente inexistente"}), 404
 
         sql = """
@@ -419,7 +423,7 @@ def listar_tareas_pendientes():
             condiciones = ["t.estado = %s"]
             parametros = [estado_filtro]
         else:
-            condiciones = ["t.estado IN ('PENDIENTE', 'EN_PROCESO', 'PAUSADA', 'EN_REVISION')"]
+            condiciones = [f"t.estado IN {SQL_ESTADOS_ACTIVOS}"]
             parametros = []
 
         # Un usuario no administrador solo debe ver sus propias tareas: el
@@ -494,7 +498,7 @@ def resumen_tareas_pendientes_dashboard():
         connection = get_connection()
         cursor = connection.cursor(dictionary=True)
 
-        condiciones = ["t.estado IN ('PENDIENTE', 'EN_PROCESO', 'PAUSADA', 'EN_REVISION')"]
+        condiciones = [f"t.estado IN {SQL_ESTADOS_ACTIVOS}"]
         parametros = []
 
         if usuario["nombre_rol"] != ROL_ADMINISTRADOR:
