@@ -13,3 +13,6 @@ def check_password(password, password_hash):
         return bcrypt.checkpw(password_bytes, hash_bytes)
     except ValueError:
         return False
+
+# Largo mínimo de una contraseña nueva (restablecimiento y alta de usuarios).
+LARGO_MINIMO_PASSWORD = 8

@@ -274,6 +274,23 @@ def test_crear_un_usuario_queda_registrado_sin_credenciales(cliente, base):
     assert "password" not in texto.lower()
 
 
+def test_el_alta_rechaza_una_contrasena_de_menos_de_8_caracteres(cliente, base):
+    _login(cliente)
+
+    respuesta = _alta(cliente, password="1234567")
+
+    assert respuesta.status_code == 400
+    assert "al menos 8 caracteres" in respuesta.get_json()["error"]
+    assert base.execute("SELECT COUNT(*) AS n FROM usuario WHERE email = 'nueva@nahan.local'").fetchone()["n"] == 0
+    assert _eventos(base, "USUARIO_CREADO") == []
+
+
+def test_el_alta_acepta_una_contrasena_de_exactamente_8_caracteres(cliente, base):
+    _login(cliente)
+
+    assert _alta(cliente, password="12345678").status_code == 201
+
+
 def test_modificar_un_usuario_guarda_el_antes_y_el_despues(cliente, base):
     _login(cliente)
 

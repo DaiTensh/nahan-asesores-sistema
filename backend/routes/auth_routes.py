@@ -39,7 +39,7 @@ from backend.utils.limitador_login import (
     respuesta_no_disponible,
     verificar_cupo,
 )
-from backend.utils.security import check_password, hash_password
+from backend.utils.security import LARGO_MINIMO_PASSWORD, check_password, hash_password
 
 auth_bp = Blueprint("auth", __name__)
 logger = logging.getLogger(__name__)
@@ -457,7 +457,6 @@ def actualizar_parametros_clientes_recientes():
 # - El token se marca como utilizado al consumirse y caduca por tiempo.
 
 MINUTOS_VIGENCIA_POR_DEFECTO = 60
-LARGO_MINIMO_PASSWORD = 8
 MENSAJE_SOLICITUD = (
     "Si el correo corresponde a una cuenta activa, enviamos un enlace para "
     "restablecer la contraseña. Revisa tu bandeja de entrada."
