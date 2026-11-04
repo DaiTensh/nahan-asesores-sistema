@@ -4,6 +4,8 @@ import smtplib
 import ssl
 from email.message import EmailMessage
 
+from backend.utils.entorno import es_produccion
+
 logger = logging.getLogger(__name__)
 
 
@@ -53,7 +55,8 @@ def enviar_correo(destinatario, asunto, cuerpo):
     revelar al usuario si el correo pudo entregarse.
     """
     if not smtp_configurado():
-        if os.getenv("FLASK_ENV", "development").lower() == "production":
+        if es_produccion():
+            # Nunca se registra el contenido: incluye el enlace de restablecimiento.
             logger.warning("SMTP no configurado; el correo no se envió.")
             return False
         logger.warning(

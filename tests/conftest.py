@@ -1,4 +1,9 @@
+import os
 from decimal import Decimal
+
+# Sin FLASK_ENV explícito la aplicación asume producción y exige SECRET_KEY (AUD-015):
+# las pruebas declaran su entorno antes de importar la aplicación.
+os.environ.setdefault("FLASK_ENV", "development")
 
 import pytest
 from flask import session as flask_session

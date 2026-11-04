@@ -20,6 +20,7 @@ from backend.routes.tarifas_routes import tarifas_bp
 from backend.routes.tareas_routes import tareas_bp
 from backend.routes.usuarios_routes import usuarios_bp
 from backend.routes.busqueda_routes import busqueda_bp
+from backend.utils.entorno import entorno_actual, es_entorno_de_desarrollo
 from backend.utils.respaldos import restauracion_en_curso
 
 
@@ -62,12 +63,19 @@ def _configurar_zona_horaria():
 
 
 def create_app():
-    entorno = os.getenv("FLASK_ENV", "development").strip().lower()
-    es_produccion = entorno == "production"
+    entorno = entorno_actual()
+    es_produccion = not es_entorno_de_desarrollo()
     secret_key = os.getenv("SECRET_KEY")
 
     if es_produccion and (not secret_key or secret_key == DEFAULT_DEV_SECRET_KEY):
-        raise RuntimeError("SECRET_KEY debe estar configurada en producción.")
+        raise RuntimeError(
+            "SECRET_KEY debe estar configurada. Sin FLASK_ENV=development explícito "
+            "se asume producción y no se permite la clave de desarrollo."
+        )
+    if es_produccion and len(secret_key) < 32:
+        logging.getLogger(__name__).warning(
+            "SECRET_KEY tiene menos de 32 caracteres; conviene una clave aleatoria más larga."
+        )
 
     app = Flask(__name__)
     app.config["ENV"] = entorno
