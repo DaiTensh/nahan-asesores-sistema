@@ -133,10 +133,11 @@ usa el siguiente libre. Usa siempre la dirección que imprime.
 | Usuario área jurídica | `elias.alarcon@nahan.local` |
 | Usuario área contable | `carlos.castro@nahan.local` |
 
-La contraseña de todos es `Nahan.2026`. Son **credenciales exclusivas del
-entorno local de demostración**, generadas por `database/seed_dev.py`: no
-existen en producción y no deben reutilizarse nunca fuera de un equipo de
-desarrollo.
+La contraseña de todos es la que define `database/seed_dev.py` (`PASSWORD_DEV`). Son
+**credenciales exclusivas del entorno local de desarrollo**, generadas por ese script:
+no deben existir en un servidor ni reutilizarse fuera de un equipo de desarrollo. Si
+alguna llegó a un servidor, `python database/rotar_cuentas_demo.py` informa cuáles
+siguen aceptándola y, con `--aplicar`, las rota o las desactiva.
 
 ### Si algo falla
 

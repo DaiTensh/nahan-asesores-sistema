@@ -242,7 +242,7 @@ Antes de arrancar, `dev` abre una conexión real con MySQL usando `.env`. Si no 
 
 Para confirmar que la aplicación está usando MySQL:
 
-1. Inicia sesión en el frontend con `renato.villalobos@nahan.local` y la contraseña de desarrollo `Nahan.2026`. Esa cuenta existe solo en la base local creada por `seed_dev.py`. El login lee la tabla `usuario`: si entra, la API está leyendo MySQL.
+1. Inicia sesión en el frontend con `renato.villalobos@nahan.local` y la contraseña de desarrollo que define `database/seed_dev.py`. Esa cuenta existe solo en la base local creada por `seed_dev.py`. El login lee la tabla `usuario`: si entra, la API está leyendo MySQL.
 2. Como administrador, abre «Historial de actividad». Si carga sin error, la migración 005 está aplicada.
 
 La ruta `http://127.0.0.1:5000/` («API Nahan Asesores funcionando correctamente») solo confirma que Flask arrancó; **no** consulta MySQL.

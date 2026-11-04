@@ -34,7 +34,13 @@ except ImportError as e:                                     # pragma: no cover
 
 # La misma para todos, a propósito: es una base local de desarrollo y tiene que
 # poder escribirse en la pizarra sin que nadie tenga que preguntarla.
-PASSWORD_DEV = "Nahan.2026"
+PASSWORD_PUBLICA_DE_DESARROLLO = "Nahan.2026"
+PASSWORD_DEV = PASSWORD_PUBLICA_DE_DESARROLLO
+
+# Fuera de un equipo de desarrollo esta contraseña no puede usarse: con --permitir-produccion
+# hay que dar otra en NAHAN_SEED_PASSWORD (al menos 12 caracteres).
+if os.getenv("NAHAN_SEED_PASSWORD"):
+    PASSWORD_DEV = os.environ["NAHAN_SEED_PASSWORD"]
 
 # (nombres, email, rol, area)
 USUARIOS = [
@@ -298,9 +304,17 @@ def main():
                     help="permite sembrar con FLASK_ENV=production (crea cuentas con contraseña pública)")
     args = ap.parse_args()
 
-    if os.getenv("FLASK_ENV", "development").strip().lower() == "production" and not args.permitir_produccion:
-        print("Se niega a sembrar: FLASK_ENV=production. Este script crea siete cuentas con una contraseña")
+    entorno = os.getenv("FLASK_ENV", "").strip().lower()
+    # Falla cerrado: sin FLASK_ENV=development explícito se asume producción.
+    if entorno not in ("development", "dev", "testing", "test") and not args.permitir_produccion:
+        print(f"Se niega a sembrar: FLASK_ENV={entorno or '(sin definir)'}. Este script crea siete cuentas con una contraseña")
         print("pública y, con --reset, borra datos. Si de verdad es lo que se quiere, repetir con --permitir-produccion.")
+        return 2
+
+    if entorno not in ("development", "dev", "testing", "test") and (
+            PASSWORD_DEV == PASSWORD_PUBLICA_DE_DESARROLLO or len(PASSWORD_DEV) < 12):
+        print("Aun con --permitir-produccion no se siembra con la contraseña pública de desarrollo.")
+        print("Defina NAHAN_SEED_PASSWORD (12 caracteres o más) y repita.")
         return 2
 
     conexion = get_connection()
@@ -327,7 +341,7 @@ def main():
     resumen("Creado", s.creado)
     resumen("Ya existía", s.omitido)
     print()
-    print(f"  Contraseña de todos los usuarios: {PASSWORD_DEV}")
+    print(f"  Contraseña de todos los usuarios: {PASSWORD_DEV}   (solo desarrollo local)")
     print("  Administrador: renato.villalobos@nahan.local")
     print("  Área jurídica: elias.alarcon@nahan.local")
     print("  Área contable: carlos.castro@nahan.local")

@@ -2,7 +2,7 @@
 
 **Incremento 2 · 6 RF · 30 HH · rama `feature/inc2-tareas-ciclo-vida`**
 
-Usuario para probar: `matias.rodriguez@nahan.local` — contraseña `Nahan.2026`
+Usuario para probar: `matias.rodriguez@nahan.local` — contraseña de desarrollo (ver `database/seed_dev.py`; solo en el entorno local)
 
 > Si algo aquí no calza con el código, avisa antes de programar: puede ser que
 > el informe y el repositorio se hayan separado.

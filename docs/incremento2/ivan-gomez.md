@@ -2,7 +2,7 @@
 
 **Incremento 2 · 3 RF · 20 HH · rama `feature/inc2-adjuntos-tarea`**
 
-Usuario para probar: `ivan.gomez@nahan.local` — contraseña `Nahan.2026`
+Usuario para probar: `ivan.gomez@nahan.local` — contraseña de desarrollo (ver `database/seed_dev.py`; solo en el entorno local)
 
 > Si algo aquí no calza con el código, avisa antes de programar: puede ser que
 > el informe y el repositorio se hayan separado.
