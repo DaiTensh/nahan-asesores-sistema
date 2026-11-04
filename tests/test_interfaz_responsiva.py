@@ -2,7 +2,7 @@
 
 Son comprobaciones estáticas sobre los HTML/JS/CSS del frontend (no hay un
 navegador en la suite). Cada una corresponde a un defecto confirmado al abrir
-la aplicación en un navegador real: ver docs/incremento4/CIERRE_PROGRAMACION_PARA_CHATGPT.md.
+la aplicación en un navegador real durante el cierre del Incremento 4.
 """
 import glob
 import os
