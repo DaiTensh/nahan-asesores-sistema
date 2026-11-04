@@ -130,7 +130,7 @@ def test_la_validacion_del_navegador_coincide_con_la_del_servidor():
 def test_el_formulario_de_registro_valida_el_rut_antes_de_confirmar_y_envia_el_normalizado():
     js = open(os.path.join(RAIZ, "frontend", "clientes", "registrar_clientes.js"), encoding="utf-8").read()
     html = open(os.path.join(RAIZ, "frontend", "clientes", "registrar_clientes.html"), encoding="utf-8").read()
-    assert js.index("window.Rut.validar(") < js.index('confirm("¿Desea crear este cliente?")')
+    assert js.index("window.Rut.validar(") < js.index('await confirmarAccion("¿Desea crear este cliente?"')
     assert "rut: validacionRut.canonico" in js
     assert html.index("assets/js/rut.js") < html.index("registrar_clientes.js")
     ejemplo = re.search(r'id="rut"[^>]*placeholder="([^"]+)"', html).group(1)

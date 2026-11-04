@@ -549,7 +549,7 @@ def test_las_solicitudes_post_de_la_interfaz_envian_un_cuerpo_json():
 
 def test_la_interfaz_pide_la_confirmacion_antes_de_cada_operacion_critica():
     js = leer("frontend", "respaldos", "respaldos.js")
-    assert 'confirm("¿Ejecutar un respaldo ahora?' in js
+    assert 'await confirmarAccion("¿Ejecutar un respaldo ahora?' in js, "RF67: confirmación propia, ya no el confirm() nativo"
     assert 'confirmacion !== "RESTAURAR"' in js
     assert 'document.getElementById("inputClave").value = ""' in js, "la contraseña se borra tras enviarla"
     assert "localStorage" not in js and "sessionStorage" not in js

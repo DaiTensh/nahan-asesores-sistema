@@ -1,0 +1,104 @@
+# Plantilla HTTPS de Nginx para Nahan Asesores (RNF04, AUD-011).
+#
+# NO es la configuración vigente: hoy se sirve solo por HTTP con deploy/nginx/nahan.conf.
+# Esta plantilla se activa únicamente cuando existen las tres condiciones de
+# docs/deploy_https.md: un dominio que apunte al servidor, el puerto 443 abierto en el grupo
+# de seguridad y un certificado emitido (Let's Encrypt con certbot). Reemplazar DOMINIO.
+#
+# Los bloques «location» son los mismos de nahan.conf (hay una prueba que lo comprueba):
+# si se cambia uno, cambiar el otro.
+
+limit_req_zone $binary_remote_addr zone=nahan_login:10m rate=10r/m;
+
+server {
+    listen 80;
+    server_name DOMINIO;
+
+    # Desafío de Let's Encrypt (renovación automática) y redirección de todo lo demás.
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    server_name DOMINIO;
+
+    ssl_certificate     /etc/letsencrypt/live/DOMINIO/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/DOMINIO/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+
+    root /var/www/nahan-asesores-sistema/frontend;
+    index auth/login.html;
+
+    server_tokens off;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "same-origin" always;
+    # HSTS: empezar con 5 minutos. Si todo funciona durante unos días, subir a 31536000 (un año).
+    # Un valor alto y un certificado vencido dejan el sitio inaccesible para los navegadores.
+    add_header Strict-Transport-Security "max-age=300" always;
+
+    rewrite ^/frontend/(.*)$ /$1 last;
+
+    client_max_body_size 15m;
+
+    # Con la misma regla de 10 solicitudes por minuto por IP se frena la fuerza bruta antes de
+    # llegar a la aplicación (que además tiene su propio límite, SEC-02).
+    location = /api/login {
+        limit_req zone=nahan_login burst=5 nodelay;
+        proxy_pass http://127.0.0.1:8000/api/login;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+
+        proxy_read_timeout 300s;
+
+        location ~ ^/api/tareas/[0-9]+/documentos$ {
+            client_max_body_size 64m;
+            proxy_pass http://127.0.0.1:8000;
+        }
+    }
+
+    location = / {
+        return 302 /auth/login.html;
+    }
+
+    location / {
+        try_files $uri @login;
+    }
+
+    location @login {
+        return 302 /auth/login.html;
+    }
+
+    location ~* \.(?:css|js|jpg|jpeg|gif|png|svg|ico|webp|woff|woff2)$ {
+        try_files $uri =404;
+        add_header Cache-Control "no-cache";
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Referrer-Policy "same-origin" always;
+        add_header Strict-Transport-Security "max-age=300" always;
+    }
+}
