@@ -134,7 +134,7 @@ async function guardarCambios(idTarea) {
     }
   }
 
-  const confirmar = confirm("¿Desea guardar los cambios de esta tarea?");
+  const confirmar = await confirmarAccion("¿Desea guardar los cambios de esta tarea?", "normal");
 
   if (!confirmar) return;
 

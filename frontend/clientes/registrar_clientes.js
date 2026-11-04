@@ -27,7 +27,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    const confirmar = confirm("¿Desea crear este cliente?");
+    const confirmar = await confirmarAccion("¿Desea crear este cliente?", "normal");
 
     if (!confirmar) return;
 

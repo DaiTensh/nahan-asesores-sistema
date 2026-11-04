@@ -231,3 +231,54 @@ def test_el_panel_de_cambios_recientes_no_pide_nada_si_el_usuario_no_es_administ
     comprobacion = arranque.index('usuario.nombre_rol !== "ADMINISTRADOR"')
     assert comprobacion < arranque.index("cargarFiltros()"), "el rol se comprueba antes de la primera solicitud"
     assert "await obtenerUsuarioActual()" in arranque
+
+
+# ---------------------------------------------------------------------------
+# RF67: confirmaciones diferenciadas según la criticidad (frontend/assets/js/confirmar.js)
+# ---------------------------------------------------------------------------
+
+def _archivos(extension):
+    for carpeta, _subcarpetas, nombres in os.walk(FRONTEND):
+        for nombre in nombres:
+            if nombre.endswith(extension):
+                yield os.path.join(carpeta, nombre)
+
+
+def test_ninguna_pantalla_usa_el_confirm_nativo():
+    """El cuadro nativo es idéntico para borrar y para guardar: RF67 pide un estilo según la criticidad."""
+    for ruta in _archivos(".js"):
+        if ruta.endswith(os.path.join("assets", "js", "confirmar.js")):
+            continue
+        assert not re.search(r"(?<![\w.])confirm\(", leer(ruta)), os.path.relpath(ruta, FRONTEND)
+
+
+def test_toda_pagina_interna_carga_el_modulo_de_confirmaciones():
+    for ruta in _archivos(".html"):
+        if os.path.relpath(ruta, FRONTEND).startswith("auth" + os.sep):
+            continue
+        assert "assets/js/confirmar.js" in leer(ruta), os.path.relpath(ruta, FRONTEND)
+
+
+def test_cada_confirmacion_declara_su_nivel_y_las_irreversibles_son_criticas():
+    niveles = {"critica", "advertencia", "normal"}
+    usos = []
+    for ruta in _archivos(".js"):
+        if ruta.endswith(os.path.join("assets", "js", "confirmar.js")):
+            continue
+        codigo = leer(ruta)
+        for m in re.finditer(r"await confirmarAccion\(", codigo):
+            resto = codigo[m.end():m.end() + 400]
+            usos.append((os.path.relpath(ruta, FRONTEND), set(re.findall(r'"(critica|advertencia|normal)"', resto.split(");")[0]))))
+    assert len(usos) >= 19
+    assert all(nivel and nivel <= niveles for _, nivel in usos), "cada llamada indica su nivel"
+    criticas = {ruta for ruta, nivel in usos if "critica" in nivel}
+    assert {os.path.join("usuarios", "desactivar_usuario.js"), os.path.join("clientes", "eliminar_cliente.js"),
+            os.path.join("tareas", "tareas.js")} <= criticas, "eliminar, deshabilitar y finalizar son acciones críticas"
+
+
+def test_el_cuadro_de_confirmacion_es_accesible_y_en_lo_irreversible_el_foco_inicia_en_cancelar():
+    js = leer(os.path.join(FRONTEND, "assets", "js", "confirmar.js"))
+    for requerido in ('"alertdialog"', 'aria-modal', 'aria-labelledby', 'aria-describedby', '"Escape"'):
+        assert requerido in js, requerido
+    assert re.search(r'nivelUsado === "critica" \? cancelar : aceptar\)\.focus\(\)', js)
+    assert os.path.exists(os.path.join(FRONTEND, "assets", "css", "confirmacion.css"))

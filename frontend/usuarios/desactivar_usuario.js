@@ -74,7 +74,7 @@ async function desactivarUsuario() {
     return;
   }
 
-  const confirmar = confirm("¿Está seguro de deshabilitar este usuario?");
+  const confirmar = await confirmarAccion("¿Está seguro de deshabilitar este usuario?", "critica");
 
   if (!confirmar) return;
 
@@ -104,8 +104,8 @@ async function desactivarUsuario() {
   }
 }
 
-function eliminarUsuario() {
-  const confirmar = confirm("¿Está seguro de intentar eliminar este usuario?");
+async function eliminarUsuario() {
+  const confirmar = await confirmarAccion("¿Está seguro de intentar eliminar este usuario?", "critica");
 
   if (!confirmar) {
     return;

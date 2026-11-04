@@ -50,7 +50,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function cambiarEstado() {
     const nuevoEstado = estadoActual === "ACTIVO" ? "INACTIVO" : "ACTIVO";
-    const confirmar = confirm(`¿Desea cambiar el estado del cliente a ${nuevoEstado}?`);
+    const confirmar = await confirmarAccion(`¿Desea cambiar el estado del cliente a ${nuevoEstado}?`, "advertencia");
 
     if (!confirmar) return;
 

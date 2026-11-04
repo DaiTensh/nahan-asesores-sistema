@@ -31,7 +31,7 @@
       mostrarMensaje("El aviso debe mostrarse antes de que termine el tiempo de inactividad.", "error");
       return;
     }
-    if (!confirm(`¿Guardar el cierre automático a los ${minutos} minutos de inactividad?`)) return;
+    if (!await confirmarAccion(`¿Guardar el cierre automático a los ${minutos} minutos de inactividad?`, "advertencia")) return;
 
     try {
       const response = await fetch(`${API_URL}/parametros/sesion`, {

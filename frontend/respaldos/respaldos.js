@@ -176,7 +176,7 @@
   }
 
   async function ejecutarRespaldo() {
-    if (!confirm("¿Ejecutar un respaldo ahora? Puede tardar unos segundos.")) return;
+    if (!await confirmarAccion("¿Ejecutar un respaldo ahora? Puede tardar unos segundos.", "normal")) return;
     const boton = document.getElementById("btnRespaldar");
     boton.disabled = true;
     mostrarMensaje("mensajeRespaldo", "Ejecutando respaldo...", "info");

@@ -92,7 +92,7 @@
   async function guardarGeneral(event) {
     event.preventDefault();
     const valor = Number(document.getElementById("inputTarifaGeneral").value);
-    if (!confirm(`¿Cambiar la tarifa general a ${formatearMonto(valor)} por hora?`)) return;
+    if (!await confirmarAccion(`¿Cambiar la tarifa general a ${formatearMonto(valor)} por hora?`, "advertencia")) return;
     const { ok, data } = await pedir("/tarifas/general", enviarJson("PUT", { valor_hora: valor }));
     mostrarMensaje("mensajeGeneral", ok ? "Tarifa general actualizada." : (data.error || "No se pudo guardar la tarifa."), ok ? "success" : "error");
     if (ok) await cargar();
@@ -104,14 +104,14 @@
       mostrarMensaje("mensajeAreas", "Ingrese un valor por hora mayor que cero.", "error");
       return;
     }
-    if (!confirm(`¿Definir ${formatearMonto(valor)} por hora para el área ${area.nombre_area}?`)) return;
+    if (!await confirmarAccion(`¿Definir ${formatearMonto(valor)} por hora para el área ${area.nombre_area}?`, "advertencia")) return;
     const { ok, data } = await pedir(`/tarifas/areas/${area.id_area}`, enviarJson("PUT", { valor_hora: valor }));
     mostrarMensaje("mensajeAreas", ok ? `Tarifa del área ${area.nombre_area} actualizada.` : (data.error || "No se pudo guardar la tarifa."), ok ? "success" : "error");
     if (ok) await cargar();
   }
 
   async function quitarArea(area) {
-    if (!confirm(`¿Quitar la tarifa propia del área ${area.nombre_area}? Volverá a usar la tarifa general.`)) return;
+    if (!await confirmarAccion(`¿Quitar la tarifa propia del área ${area.nombre_area}? Volverá a usar la tarifa general.`, "advertencia")) return;
     // Sin cuerpo no se declara Content-Type: el backend valida todo cuerpo JSON.
     const { ok, data } = await pedir(`/tarifas/areas/${area.id_area}`, { method: "DELETE" });
     mostrarMensaje("mensajeAreas", ok ? `El área ${area.nombre_area} usa la tarifa general.` : (data.error || "No se pudo quitar la tarifa."), ok ? "success" : "error");
