@@ -18,8 +18,10 @@ con acceso según el rol de cada persona.
 - **Usuarios y roles**: administrador, usuario del área jurídica y usuario del
   área contable; alta, edición, desactivación, cambio de rol y recuperación de
   contraseña.
-- **Control de horas y cobros**: temporizador por tarea, tarifas por área y
-  cálculo de montos.
+- **Control de horas y cobros**: temporizador por tarea, tarifa general y por
+  área definidas por el administrador (RF74), cálculo de montos y reporte de
+  cobro por cliente con período opcional, desglose por tarifa y exportación
+  (RF75).
 - **Dashboard y reportes**: indicadores de tareas pendientes, vencidas y
   finalizadas, carga por usuario, distribución por área, reportes por cliente,
   responsable y área, exportación a PDF y Excel.
@@ -29,6 +31,9 @@ con acceso según el rol de cada persona.
   global filtrable (solo administradores) e historial por cliente.
 - **Búsqueda global** de clientes, tareas y usuarios, y **cierre automático de
   sesión por inactividad** configurable.
+- **Respaldos (RF60)**: respaldo diario programado y manual de la base de datos
+  y los adjuntos, historial de cada ejecución y restauración controlada, solo
+  para administradores (detalles en `docs/RF60_INFORME_IMPLEMENTACION.md`).
 
 ## Tecnologías
 
@@ -72,7 +77,7 @@ El instalador:
 2. te pregunta los datos de tu MySQL local y genera el archivo `.env` con
    claves propias de tu equipo (la plantilla es `.env.example`);
 3. crea la base de datos `nahan_asesores` a partir de
-   `database/nahan_asesores.sql` (21 tablas) y aplica las migraciones de
+   `database/nahan_asesores.sql` (24 tablas) y aplica las migraciones de
    `database/migraciones/` que falten;
 4. carga datos de demostración (`database/seed_dev.py`);
 5. comprueba que la aplicación arranca.
@@ -105,7 +110,8 @@ se encarga de la base de datos.
 variable que usa el sistema: conexión a MySQL, `SECRET_KEY`, cookies de
 sesión, correo SMTP opcional (si se deja vacío, el enlace de restablecimiento
 de contraseña se registra en el log), carpeta de adjuntos y tamaño máximo de
-solicitudes. Nunca subas un `.env` real al repositorio.
+solicitudes y, desde el Incremento 4, la carpeta de respaldos (`RESPALDO_DIR`) y
+la habilitación de la restauración. Nunca subas un `.env` real al repositorio.
 
 ### 4. Ejecutar la aplicación
 
@@ -127,10 +133,11 @@ usa el siguiente libre. Usa siempre la dirección que imprime.
 | Usuario área jurídica | `elias.alarcon@nahan.local` |
 | Usuario área contable | `carlos.castro@nahan.local` |
 
-La contraseña de todos es `Nahan.2026`. Son **credenciales exclusivas del
-entorno local de demostración**, generadas por `database/seed_dev.py`: no
-existen en producción y no deben reutilizarse nunca fuera de un equipo de
-desarrollo.
+La contraseña de todos es la que define `database/seed_dev.py` (`PASSWORD_DEV`). Son
+**credenciales exclusivas del entorno local de desarrollo**, generadas por ese script:
+no deben existir en un servidor ni reutilizarse fuera de un equipo de desarrollo. Si
+alguna llegó a un servidor, `python database/rotar_cuentas_demo.py` informa cuáles
+siguen aceptándola y, con `--aplicar`, las rota o las desactiva.
 
 ### Si algo falla
 
@@ -161,12 +168,19 @@ bash scripts/test.sh tests/test_rf26_restablecimiento.py -v
 bash scripts/test.sh -k historial
 ```
 
-La suite (`tests/`, 564 pruebas) no usa tu base de datos real: trabaja con
-conexiones simuladas o con una base SQLite temporal. Cubre autenticación,
-autorización por rol, auditoría, flujo de revisión de tareas, notificaciones,
-reportes y exportaciones, entre otros requisitos funcionales. `pytest` está en
-`requirements-dev.txt`: es una dependencia de desarrollo y el servidor no la
-instala.
+La suite (`tests/`, 1.667 pruebas) no usa tu base de datos real: trabaja con conexiones
+simuladas, con una base SQLite temporal o, en las pruebas marcadas «MySQL real», con un
+`mysqld` propio y desechable en un puerto efímero que se borra al terminar (necesita
+`mysqld` y `mysqldump` instalados; sin ellos esas pruebas se omiten). Cubre autenticación,
+autorización por rol, auditoría, flujo de revisión de tareas, notificaciones, reportes y
+exportaciones, respaldos y las reglas de cada requisito funcional. `pytest` está en
+`requirements-dev.txt`: es una dependencia de desarrollo y el servidor no la instala.
+
+Por defecto quedan 14 pruebas omitidas, que se activan a propósito: 5 de RF60 con
+`NAHAN_TEST_OTRO_DISPOSITIVO=<carpeta de un volumen distinto del disco de la aplicación>` y 9 del
+límite de inicios de sesión con `NAHAN_TEST_MYSQL_PORT=<puerto de un MySQL local desechable>`.
+Referencia del 3-nov-2026: 1.667 correctas y ninguna omitida con ambas variables y Python 3.12;
+1.653 correctas y 14 omitidas con Python 3.9 y la configuración por defecto.
 
 ## Estructura del proyecto
 

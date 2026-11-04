@@ -21,7 +21,7 @@ CREATE TABLE area (id_area INTEGER PRIMARY KEY AUTOINCREMENT, nombre_area TEXT);
 CREATE TABLE usuario (
     id_usuario INTEGER PRIMARY KEY AUTOINCREMENT, id_rol INTEGER, id_area INTEGER,
     nombres TEXT, email TEXT UNIQUE, password_hash TEXT, estado TEXT DEFAULT 'ACTIVO');
-CREATE TABLE cliente (id_cliente INTEGER PRIMARY KEY AUTOINCREMENT, razon_social TEXT);
+CREATE TABLE cliente (id_cliente INTEGER PRIMARY KEY AUTOINCREMENT, razon_social TEXT, estado TEXT NOT NULL DEFAULT 'ACTIVO');
 CREATE TABLE tarea (
     id_tarea INTEGER PRIMARY KEY AUTOINCREMENT, id_cliente INTEGER, id_area INTEGER,
     id_responsable INTEGER, id_creador INTEGER, titulo TEXT, estado TEXT DEFAULT 'PENDIENTE');
@@ -132,7 +132,7 @@ def _login(cliente, email):
     return cliente.post("/api/login", json={"email": email, "password": "x"})
 
 
-def _subir(cliente, id_tarea, nombre, contenido=b"contenido de prueba"):
+def _subir(cliente, id_tarea, nombre, contenido=b"%PDF-1.4 contenido de prueba"):
     return cliente.post(
         f"/api/tareas/{id_tarea}/documentos",
         data={"archivo": (io.BytesIO(contenido), nombre)},
@@ -146,7 +146,7 @@ def _subir(cliente, id_tarea, nombre, contenido=b"contenido de prueba"):
 def test_el_responsable_puede_adjuntar_un_archivo(cliente, base, tmp_path, tamano_bytes):
     _login(cliente, "ivan@nahan.local")
 
-    contenido = b"x" * tamano_bytes
+    contenido = b"%PDF-" + b"x" * (tamano_bytes - 5)
     respuesta = _subir(cliente, 1, "factura.pdf", contenido)
 
     assert respuesta.status_code == 201
@@ -188,7 +188,7 @@ def test_se_rechaza_un_archivo_que_supera_el_tamano_configurado(
 ):
     _login(cliente, "ivan@nahan.local")
 
-    contenido = b"x" * tamano_bytes  # el límite de prueba es 1 MB
+    contenido = b"%PDF-" + b"x" * (tamano_bytes - 5)  # el límite de prueba es 1 MB
     respuesta = _subir(cliente, 1, "grande.pdf", contenido)
 
     assert respuesta.status_code == 400
@@ -202,7 +202,7 @@ def test_se_rechaza_un_archivo_que_supera_el_tamano_configurado(
 
 def test_el_limite_se_actualiza_desde_la_base_en_cada_carga(cliente, base, tmp_path):
     _login(cliente, "ivan@nahan.local")
-    contenido = b"x" * (1024 * 1024 + 1)
+    contenido = b"%PDF-" + b"x" * (1024 * 1024 + 1 - 5)
 
     assert _subir(cliente, 1, "factura.pdf", contenido).status_code == 400
     assert list(tmp_path.iterdir()) == []
@@ -298,7 +298,7 @@ def test_una_solicitud_sobre_el_techo_de_infraestructura_responde_413_json(
     _login(cliente, "ivan@nahan.local")
     monkeypatch.setitem(flask_app.config, "MAX_CONTENT_LENGTH", 2 * 1024 * 1024)
 
-    respuesta = _subir(cliente, 1, "enorme.pdf", b"x" * (3 * 1024 * 1024))
+    respuesta = _subir(cliente, 1, "enorme.pdf", b"%PDF-" + b"x" * (3 * 1024 * 1024 - 5))
 
     assert respuesta.status_code == 413
     assert "tamaño máximo admitido por el servidor (2 MB)" in respuesta.get_json()["error"]
@@ -324,3 +324,27 @@ def test_un_nombre_con_ruta_no_escapa_del_directorio_de_adjuntos(cliente, base, 
     fila = base.execute("SELECT nombre_documento, url_archivo FROM documento").fetchone()
     assert "/" not in fila["nombre_documento"] and ".." not in fila["nombre_documento"]
     assert "/" not in fila["url_archivo"] and ".." not in fila["url_archivo"]
+
+
+def test_un_adjunto_cuyo_contenido_no_corresponde_a_su_extension_se_rechaza(cliente, base, tmp_path):
+    """Un ejecutable renombrado a .pdf no debe entrar al sistema."""
+    _login(cliente, "ivan@nahan.local")
+
+    respuesta = _subir(cliente, 1, "factura.pdf", b"MZ\x90\x00 no soy un pdf")
+
+    assert respuesta.status_code == 400
+    assert "no corresponde a su extensión" in respuesta.get_json()["error"]
+    assert base.execute("SELECT COUNT(*) FROM documento").fetchone()[0] == 0
+    assert list(tmp_path.iterdir()) == [], "no queda nada en disco"
+
+
+@pytest.mark.parametrize("largo,estado", [(200, 201), (201, 400), (300, 400)])
+def test_un_nombre_de_archivo_demasiado_largo_se_rechaza_con_400_y_no_con_500(cliente, base, tmp_path, largo, estado):
+    _login(cliente, "ivan@nahan.local")
+
+    respuesta = _subir(cliente, 1, "a" * (largo - 4) + ".pdf")
+
+    assert respuesta.status_code == estado
+    if estado == 400:
+        assert "supera los 200 caracteres" in respuesta.get_json()["error"]
+        assert base.execute("SELECT COUNT(*) FROM documento").fetchone()[0] == 0

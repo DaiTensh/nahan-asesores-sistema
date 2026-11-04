@@ -1,6 +1,7 @@
 import logging
 
 from mysql.connector import IntegrityError
+from mysql.connector.errors import DatabaseError
 
 from flask import Blueprint, request, jsonify
 from backend.config.db import get_connection
@@ -76,6 +77,71 @@ def _leer_usuario(cursor, id_usuario):
     return tuple(fila) if fila else None
 
 
+# SEC-03 — el sistema debe conservar siempre al menos un administrador activo.
+MENSAJE_ULTIMO_ADMINISTRADOR = (
+    "No se puede realizar esta operación porque el sistema debe conservar "
+    "al menos un administrador activo."
+)
+MENSAJE_CONFLICTO_CONCURRENCIA = (
+    "La operación entró en conflicto con otra operación simultánea. "
+    "Intente nuevamente."
+)
+# Errores de MySQL que indican competencia por bloqueos, no un fallo de datos.
+ERRNO_LOCK_WAIT_TIMEOUT = 1205
+ERRNO_DEADLOCK = 1213
+
+
+def _conserva_un_administrador_activo(cursor, id_usuario, seguira_siendo_administrador_activo):
+    """Comprueba que la operación no deje al sistema sin administradores activos.
+
+    Debe llamarse como PRIMERA sentencia de la transacción, antes de leer o
+    modificar el usuario objetivo, y la transacción debe confirmarse o
+    revertirse después.
+
+    Estrategia (InnoDB):
+    - `SELECT ... FOR UPDATE` bloquea a todos los administradores activos, en
+      orden ascendente de id. Todas las operaciones que pueden reducir ese
+      conjunto bloquean en el mismo orden, así que dos solicitudes simultáneas
+      se serializan y no se produce un interbloqueo entre ellas.
+    - Una lectura con bloqueo siempre lee la versión confirmada más reciente
+      (no la instantánea de REPEATABLE READ): la segunda solicitud, al
+      obtener el bloqueo, ve el efecto ya confirmado de la primera.
+    - Al hacerlo antes de cualquier lectura sin bloqueo, la instantánea de la
+      transacción se crea después de tomar los bloqueos.
+
+    `seguira_siendo_administrador_activo` indica si, una vez aplicada la
+    operación, el usuario objetivo seguirá siendo ADMINISTRADOR y ACTIVO.
+
+    Devuelve True si la operación puede continuar.
+    """
+    cursor.execute(
+        "SELECT id_usuario FROM usuario "
+        "WHERE id_rol = %s AND estado = 'ACTIVO' "
+        "ORDER BY id_usuario FOR UPDATE",
+        (ROL_ID_ADMINISTRADOR,),
+    )
+    activos = {fila["id_usuario"] if isinstance(fila, dict) else fila[0] for fila in cursor.fetchall()}
+
+    if id_usuario not in activos:
+        # El objetivo no es hoy un administrador activo: la operación no puede
+        # reducir el conjunto de administradores activos.
+        return True
+
+    return seguira_siendo_administrador_activo or len(activos) > 1
+
+
+def _es_error_de_concurrencia(error):
+    return isinstance(error, DatabaseError) and getattr(error, "errno", None) in (
+        ERRNO_LOCK_WAIT_TIMEOUT,
+        ERRNO_DEADLOCK,
+    )
+
+
+def _respuesta_conflicto_concurrencia(error):
+    logger.warning("Conflicto de concurrencia al administrar usuarios (errno %s)", error.errno)
+    return jsonify({"error": MENSAJE_CONFLICTO_CONCURRENCIA}), 409
+
+
 @usuarios_bp.route("/usuarios", methods=['POST'])
 @roles_required(ROL_ADMINISTRADOR)
 def create_usuario():
@@ -144,12 +210,19 @@ def create_usuario():
 
 
 
-#Lista de usuarios
+# Lista de usuarios (RF25).
+#
+# El administrador recibe la lista completa. Los usuarios operativos la necesitan
+# para elegir responsables al crear o editar tareas, pero no para ver correos,
+# roles ni fechas de alta: reciben solo las personas activas, con su nombre y
+# área. Con esa respuesta limitada tampoco pueden usar el filtro por rol ni el
+# orden por fecha de registro para deducir datos que no se les muestran.
 @usuarios_bp.route("/usuarios", methods=["GET"])
 @login_required
 def listar_usuarios():
     connection = None
     cursor = None
+    es_administrador = obtener_usuario_actual()["nombre_rol"] == ROL_ADMINISTRADOR
 
     try:
         id_rol = request.args.get("id_rol", type=int)
@@ -169,6 +242,13 @@ def listar_usuarios():
         if estado and estado not in ("ACTIVO", "INACTIVO"):
             return jsonify({"error": "El estado seleccionado no es válido"}), 400
 
+        if not es_administrador:
+            if request.args.get("id_rol"):
+                return jsonify({"error": "No tiene permisos para filtrar usuarios por rol"}), 403
+            if estado == "INACTIVO":
+                return jsonify([]), 200
+            ordenar_por = direccion = ""
+
         columnas_orden = {
             "nombre": "u.nombres",
             "fecha_registro": "u.fecha_creacion",
@@ -181,21 +261,29 @@ def listar_usuarios():
         connection = get_connection()
         cursor = connection.cursor(dictionary=True)
 
-        sql = """
-            SELECT 
-                u.id_usuario,
-                u.id_rol,
-                u.id_area,
-                u.nombres,
-                u.email,
-                u.estado,
-                u.fecha_creacion,
-                r.nombre_rol,
-                a.nombre_area
-            FROM usuario u
-            INNER JOIN rol r ON u.id_rol = r.id_rol
-            LEFT JOIN area a ON u.id_area = a.id_area
-        """
+        if es_administrador:
+            sql = """
+                SELECT
+                    u.id_usuario,
+                    u.id_rol,
+                    u.id_area,
+                    u.nombres,
+                    u.email,
+                    u.estado,
+                    u.fecha_creacion,
+                    r.nombre_rol,
+                    a.nombre_area
+                FROM usuario u
+                INNER JOIN rol r ON u.id_rol = r.id_rol
+                LEFT JOIN area a ON u.id_area = a.id_area
+            """
+        else:
+            sql = """
+                SELECT u.id_usuario, u.nombres, u.id_area, a.nombre_area, u.estado
+                FROM usuario u
+                LEFT JOIN area a ON u.id_area = a.id_area
+            """
+            estado = "ACTIVO"
         filtros = []
         parametros = []
         if id_rol is not None:
@@ -214,8 +302,10 @@ def listar_usuarios():
             columna = columnas_orden[ordenar_por]
             direccion_sql = direccion or ("ASC" if ordenar_por == "nombre" else "DESC")
             sql += f" ORDER BY {columna} {direccion_sql}, u.id_usuario DESC"
-        else:
+        elif es_administrador:
             sql += " ORDER BY u.id_usuario DESC"
+        else:
+            sql += " ORDER BY u.nombres ASC, u.id_usuario ASC"
 
         cursor.execute(sql, tuple(parametros))
         usuarios = cursor.fetchall()
@@ -313,6 +403,13 @@ def actualizar_usuario(id_usuario):
         connection = get_connection()
         cursor = connection.cursor()
 
+        # SEC-03: primera sentencia de la transacción (ver la función).
+        if not _conserva_un_administrador_activo(
+            cursor, id_usuario, id_rol == ROL_ID_ADMINISTRADOR and estado == "ACTIVO"
+        ):
+            connection.rollback()
+            return jsonify({"error": MENSAJE_ULTIMO_ADMINISTRADOR}), 409
+
         anterior = _leer_usuario(cursor, id_usuario)
 
         sql = """
@@ -366,9 +463,11 @@ def actualizar_usuario(id_usuario):
         logger.exception("Error de integridad al guardar datos")
         return jsonify({"error": "Error interno al guardar datos"}), 500
 
-    except Exception:
+    except Exception as error:
         if connection:
             connection.rollback()
+        if _es_error_de_concurrencia(error):
+            return _respuesta_conflicto_concurrencia(error)
         logger.exception("Error al actualizar usuario")
         return jsonify({
             "error": "Error interno al actualizar usuario"
@@ -393,6 +492,11 @@ def desactivar_usuario(id_usuario):
     try:
         connection = get_connection()
         cursor = connection.cursor()
+
+        # SEC-03: primera sentencia de la transacción (ver la función).
+        if not _conserva_un_administrador_activo(cursor, id_usuario, False):
+            connection.rollback()
+            return jsonify({"error": MENSAJE_ULTIMO_ADMINISTRADOR}), 409
 
         anterior = _leer_usuario(cursor, id_usuario)
 
@@ -422,9 +526,11 @@ def desactivar_usuario(id_usuario):
             "message": "Usuario deshabilitado correctamente"
         }), 200
 
-    except Exception:
+    except Exception as error:
         if connection:
             connection.rollback()
+        if _es_error_de_concurrencia(error):
+            return _respuesta_conflicto_concurrencia(error)
         logger.exception("Error al desactivar usuario")
         return jsonify({"error": "Error interno al desactivar usuario"}), 500
 
@@ -461,6 +567,14 @@ def asignar_rol_usuario(id_usuario):
         connection = get_connection()
         cursor = connection.cursor()
 
+        # SEC-03: primera sentencia de la transacción (ver la función). Un
+        # administrador activo conserva su estado ACTIVO al cambiar de rol.
+        if not _conserva_un_administrador_activo(
+            cursor, id_usuario, id_rol == ROL_ID_ADMINISTRADOR
+        ):
+            connection.rollback()
+            return jsonify({"error": MENSAJE_ULTIMO_ADMINISTRADOR}), 409
+
         anterior = _leer_usuario(cursor, id_usuario)
 
         sql = """
@@ -490,9 +604,11 @@ def asignar_rol_usuario(id_usuario):
             "message": "Rol asignado correctamente"
         }), 200
 
-    except Exception:
+    except Exception as error:
         if connection:
             connection.rollback()
+        if _es_error_de_concurrencia(error):
+            return _respuesta_conflicto_concurrencia(error)
         logger.exception("Error al asignar rol")
         return jsonify({"error": "Error interno al asignar rol"}), 500
 

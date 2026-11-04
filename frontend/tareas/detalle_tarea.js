@@ -3,6 +3,7 @@ const API_URL = window.API_CONFIG.API_URL;
 const ESTADOS_TEXTO = {
   PENDIENTE: "Pendiente",
   EN_PROCESO: "En proceso",
+  PAUSADA: "Pausada",
   EN_REVISION: "En revisión",
   COMPLETADA: "Completada",
   CANCELADA: "Cancelada"
@@ -54,6 +55,7 @@ async function cargarDetalle(idTarea) {
     document.getElementById("detalleEstado").textContent = ESTADOS_TEXTO[tarea.estado] || tarea.estado;
     document.getElementById("detallePrioridad").textContent = PRIORIDADES_TEXTO[tarea.prioridad] || tarea.prioridad;
     document.getElementById("detalleFechaCreacion").textContent = formatearFechaHora(tarea.fecha_creacion);
+    document.getElementById("detalleFechaInicio").textContent = formatearFecha(tarea.fecha_inicio);
     document.getElementById("detalleFechaVencimiento").textContent = formatearFecha(tarea.fecha_vencimiento);
     document.getElementById("detalleFechaFinalizacion").textContent = formatearFechaHora(tarea.fecha_finalizacion);
     document.getElementById("detalleDescripcion").textContent = tarea.descripcion || "Sin descripción";

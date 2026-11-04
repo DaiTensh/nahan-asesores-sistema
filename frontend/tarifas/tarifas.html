@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tarifas</title>
+
+  <link rel="stylesheet" href="../assets/css/variables.css">
+  <link rel="stylesheet" href="../assets/css/global.css">
+  <link rel="stylesheet" href="../assets/css/buttons.css">
+  <link rel="stylesheet" href="../assets/css/forms.css">
+  <link rel="stylesheet" href="../assets/css/cards.css">
+  <link rel="stylesheet" href="../assets/css/tables.css">
+  <link rel="stylesheet" href="../assets/css/navigation.css">
+  <link rel="stylesheet" href="../assets/css/topbar.css">
+  <link rel="stylesheet" href="../reportes/reportes.css">
+  <link rel="stylesheet" href="./tarifas.css">
+</head>
+<body>
+
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <div class="content-wrapper">
+    <header class="topbar" id="topbar"></header>
+
+    <main class="main-content">
+      <section class="reportes-header">
+        <div>
+          <h1>Tarifas</h1>
+          <p>Tarifa por hora con la que se calcula el monto a cobrar. Solo administradores.</p>
+        </div>
+      </section>
+
+      <section class="reportes-section">
+        <h2>Tarifa general</h2>
+        <p>Se aplica a toda área que no tenga una tarifa propia.</p>
+
+        <form id="formTarifaGeneral" class="reportes-form">
+          <div class="form-group">
+            <label class="form-label" for="inputTarifaGeneral">Valor por hora (<span id="textoMoneda">CLP</span>)</label>
+            <input type="number" id="inputTarifaGeneral" class="form-input" min="1" max="10000000" step="0.01" required>
+          </div>
+
+          <div class="form-group reportes-form-actions">
+            <button type="submit" class="btn btn-primary">Guardar</button>
+          </div>
+        </form>
+        <p id="mensajeGeneral" class="mensaje" aria-live="polite"></p>
+      </section>
+
+      <section class="reportes-section">
+        <h2>Tarifas por área</h2>
+        <p>Una tarifa propia reemplaza a la general solo para esa área. Los registros de tiempo ya cerrados conservan la tarifa con la que se calcularon.</p>
+
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Área</th>
+                <th>Tarifa propia</th>
+                <th>Tarifa aplicada</th>
+                <th>Nuevo valor por hora</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tablaTarifasAreas"></tbody>
+          </table>
+        </div>
+        <p id="mensajeAreas" class="mensaje" aria-live="polite"></p>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script src="../assets/js/api_config.js"></script>
+<script src="../assets/js/confirmar.js"></script>
+<script src="../auth/logout.js"></script>
+<script src="../assets/js/navigation.js"></script>
+<script src="../assets/js/topbar.js"></script>
+<script src="../assets/js/permissions.js"></script>
+<script src="./tarifas.js"></script>
+
+<script>
+  protegerPagina(["ADMINISTRADOR"]);
+  cargarNavegacion("tarifas");
+  cargarTopbar();
+</script>
+
+</body>
+</html>

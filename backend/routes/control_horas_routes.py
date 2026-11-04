@@ -4,6 +4,7 @@ from flask import Blueprint, jsonify, request
 from backend.config.db import get_connection
 from backend.utils.auditoria import registrar_auditoria
 from backend.utils.auth import login_required, obtener_usuario_actual
+from backend.utils.estados_tarea import SQL_ESTADOS_ACTIVOS
 
 
 control_horas_bp = Blueprint("control_horas", __name__)
@@ -14,7 +15,6 @@ ROLES_PERMITIDOS = {
     "USUARIO_AREA_JURIDICA",
     "USUARIO_AREA_CONTABLE",
 }
-ESTADOS_TAREA_OPERATIVOS = ("PENDIENTE", "EN_PROCESO", "EN_REVISION")
 TARIFA_GLOBAL_DEFAULT = Decimal("30000.00")
 
 
@@ -249,7 +249,7 @@ def obtener_contexto():
             return jsonify({"error": error_usuario}), 403
 
         condiciones = [
-            "t.estado IN ('PENDIENTE', 'EN_PROCESO', 'EN_REVISION')",
+            f"t.estado IN {SQL_ESTADOS_ACTIVOS}",
             "c.estado = 'ACTIVO'",
         ]
         parametros = []
@@ -338,7 +338,7 @@ def iniciar_temporizador():
 
         condiciones = [
             "t.id_tarea = %s",
-            "t.estado IN ('PENDIENTE', 'EN_PROCESO', 'EN_REVISION')",
+            f"t.estado IN {SQL_ESTADOS_ACTIVOS}",
             "c.estado = 'ACTIVO'",
         ]
         parametros = [id_tarea]

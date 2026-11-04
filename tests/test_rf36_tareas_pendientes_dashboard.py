@@ -88,7 +88,7 @@ def test_excluye_tareas_finalizadas(client, monkeypatch, iniciar_sesion, fake_co
     client.get(URL)
 
     sql_total = conexion.executed[0][0]
-    assert "estado IN ('PENDIENTE', 'EN_PROCESO', 'EN_REVISION')" in normalize_sql(sql_total)
+    assert "estado IN ('PENDIENTE', 'EN_PROCESO', 'PAUSADA', 'EN_REVISION')" in normalize_sql(sql_total)
     assert "COMPLETADA" not in normalize_sql(sql_total)
     assert "CANCELADA" not in normalize_sql(sql_total)
 

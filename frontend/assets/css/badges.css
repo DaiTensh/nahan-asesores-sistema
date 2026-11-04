@@ -55,6 +55,8 @@
 }
 
 .badge-pending,
+.badge.estado-pausada,
+.badge.pausada,
 .badge.prioridad-baja,
 .badge.baja,
 .badge.area-ambas{

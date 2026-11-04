@@ -21,6 +21,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const inputFechaFin = document.getElementById("inputFechaFin");
   const resultadoDetalle = document.getElementById("resultadoDetalle");
   const resultadoAreas = document.getElementById("resultadoAreas");
+  const resultadoCobro = document.getElementById("resultadoCobro");
   const tablaAreas = document.getElementById("tablaAreas");
   const tablaComparacionAreas = document.getElementById("tablaComparacionAreas");
   const distribucionTareas = document.getElementById("distribucionTareas");
@@ -56,12 +57,17 @@ document.addEventListener("DOMContentLoaded", () => {
   cargarResponsables();
 
   function actualizarCriterios() {
-    const esPorCliente = selectTipoReporte.value === "cliente";
+    const esCobro = selectTipoReporte.value === "cobro";
+    const esPorCliente = selectTipoReporte.value === "cliente" || esCobro;
     const esPorResponsable = selectTipoReporte.value === "responsable";
     grupoCliente.hidden = !esPorCliente;
     grupoResponsable.hidden = !esPorResponsable;
     selectCliente.required = esPorCliente;
     selectResponsable.required = esPorResponsable;
+    // RF75: el cobro puede calcularse para la totalidad de los registros, sin fechas.
+    inputFechaInicio.required = !esCobro;
+    inputFechaFin.required = !esCobro;
+    document.getElementById("ayudaPeriodoCobro").hidden = !esCobro;
   }
   selectTipoReporte.addEventListener("change", actualizarCriterios);
   actualizarCriterios();
@@ -139,11 +145,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const esPorArea = selectTipoReporte.value === "area";
     const esPorResponsable = selectTipoReporte.value === "responsable";
+    const esCobro = selectTipoReporte.value === "cobro";
     const fechaInicio = inputFechaInicio.value;
     const fechaFin = inputFechaFin.value;
     const idEntidad = esPorResponsable ? selectResponsable.value : selectCliente.value;
 
-    if ((!esPorArea && !idEntidad) || !fechaInicio || !fechaFin) {
+    if (esCobro) {
+      if (!idEntidad) {
+        mostrarMensaje("Seleccione un cliente.", "error");
+        return;
+      }
+      if (Boolean(fechaInicio) !== Boolean(fechaFin)) {
+        mostrarMensaje("Indique ambas fechas o deje las dos vacías para incluir todos los registros.", "error");
+        return;
+      }
+    } else if ((!esPorArea && !idEntidad) || !fechaInicio || !fechaFin) {
       mostrarMensaje(
         esPorArea
           ? "Seleccione un período completo."
@@ -153,21 +169,27 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    if (fechaInicio > fechaFin) {
+    if (fechaInicio && fechaFin && fechaInicio > fechaFin) {
       mostrarMensaje("La fecha de inicio no puede ser posterior a la fecha de término.", "error");
       return;
     }
 
     try {
-      const endpoint = esPorArea
-        ? "actividad-por-area"
-        : esPorResponsable ? "tareas-por-responsable" : "tareas-por-cliente";
-      const params = new URLSearchParams({ fecha_inicio: fechaInicio, fecha_fin: fechaFin });
+      const endpoint = esCobro
+        ? "cobro-por-cliente"
+        : esPorArea
+          ? "actividad-por-area"
+          : esPorResponsable ? "tareas-por-responsable" : "tareas-por-cliente";
+      const params = new URLSearchParams();
+      if (fechaInicio && fechaFin) {
+        params.set("fecha_inicio", fechaInicio);
+        params.set("fecha_fin", fechaFin);
+      }
       if (!esPorArea) {
         params.set(esPorResponsable ? "id_responsable" : "id_cliente", idEntidad);
       }
       const atajo = document.getElementById("atajoPeriodo").value;
-      if (atajo) params.set("periodo_etiqueta", atajo);
+      if (atajo && fechaInicio) params.set("periodo_etiqueta", atajo);
 
       const response = await fetch(`${API_URL}/reportes/${endpoint}?${params.toString()}`, {
         credentials: window.API_CONFIG.credentials
@@ -184,7 +206,8 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      if (esPorArea) renderizarResultadoAreas(data);
+      if (esCobro) renderizarResultadoCobro(data);
+      else if (esPorArea) renderizarResultadoAreas(data);
       else renderizarResultado(data, esPorResponsable);
     } catch (error) {
       console.error(error);
@@ -195,6 +218,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderizarResultado(data, esPorResponsable) {
     resultadoDetalle.hidden = false;
     resultadoAreas.hidden = true;
+    resultadoCobro.hidden = true;
     resultadoEntidad.parentElement.hidden = false;
     const entidad = esPorResponsable ? data.responsable : data.cliente;
     const detalleEntidad = esPorResponsable ? entidad.email : entidad.rut;
@@ -215,9 +239,79 @@ document.addEventListener("DOMContentLoaded", () => {
     resultado.hidden = false;
   }
 
+  // RF75 — monto a cobrar a un cliente: totales, desglose por tarifa y detalle de los registros.
+  function renderizarResultadoCobro(data) {
+    resultadoDetalle.hidden = true;
+    resultadoAreas.hidden = true;
+    resultadoCobro.hidden = false;
+    resultadoEntidad.parentElement.hidden = false;
+    resultadoEntidadLabel.textContent = "Cliente";
+    resultadoEntidad.textContent = `${data.cliente.razon_social} (${data.cliente.rut})`;
+    resultadoPeriodo.textContent = data.periodo.todos_los_registros
+      ? "Todos los registros"
+      : `${formatearFecha(data.periodo.fecha_inicio)} — ${formatearFecha(data.periodo.fecha_fin)}`
+        + (data.periodo.etiqueta ? ` (${data.periodo.etiqueta})` : "");
+    resultadoFechaGeneracion.textContent = data.fecha_generacion || "-";
+
+    const moneda = data.moneda || "CLP";
+    const resumen = document.getElementById("resumenCobro");
+    resumen.textContent = "";
+    [
+      ["Horas trabajadas", `${formatearNumero(data.totales.horas, 2)} h`],
+      ["Monto total a cobrar", formatearMonto(data.totales.monto, moneda)],
+      ["Registros incluidos", String(data.totales.registros)]
+    ].forEach(([etiqueta, valor]) => {
+      const dato = document.createElement("div");
+      dato.className = "cobro-dato";
+      const rotulo = document.createElement("span");
+      rotulo.textContent = etiqueta;
+      const cifra = document.createElement("strong");
+      cifra.textContent = valor;
+      dato.append(rotulo, cifra);
+      resumen.appendChild(dato);
+    });
+
+    llenarTabla(document.getElementById("tablaDesgloseCobro"), (data.desglose_por_tarifa || []).map(item => [
+      formatearMonto(item.tarifa_hora, moneda), `${formatearNumero(item.horas, 2)} h`, formatearMonto(item.monto, moneda)
+    ]), [0, 1, 2]);
+    llenarTabla(document.getElementById("tablaRegistrosCobro"), (data.registros || []).map(registro => [
+      formatearFecha(registro.fecha), registro.tarea, registro.usuario, formatearNumero(registro.horas, 2),
+      formatearMonto(registro.tarifa_hora, moneda), formatearMonto(registro.monto, moneda)
+    ]), [3, 4, 5]);
+
+    idReporteActual = data.id_reporte || null;
+    btnExportarExcel.hidden = !idReporteActual;
+    document.getElementById("btnExportarPdf").hidden = !idReporteActual;
+    resultado.hidden = false;
+  }
+
+  function llenarTabla(cuerpo, filas, columnasNumericas = []) {
+    cuerpo.textContent = "";
+    filas.forEach(valores => {
+      const fila = document.createElement("tr");
+      valores.forEach((valor, indice) => {
+        const celda = document.createElement("td");
+        celda.textContent = valor;
+        if (columnasNumericas.includes(indice)) celda.className = "numero";
+        fila.appendChild(celda);
+      });
+      cuerpo.appendChild(fila);
+    });
+  }
+
+  // Cifras con coma decimal y punto de miles, como se escriben en español de Chile.
+  function formatearNumero(valor, decimales) {
+    return Number(valor).toLocaleString("es-CL", { minimumFractionDigits: decimales, maximumFractionDigits: decimales });
+  }
+
+  function formatearMonto(valor, moneda) {
+    return `${Number(valor).toLocaleString("es-CL", { maximumFractionDigits: 2 })} ${moneda}`;
+  }
+
   function renderizarResultadoAreas(data) {
     resultadoDetalle.hidden = true;
     resultadoAreas.hidden = false;
+    resultadoCobro.hidden = true;
     resultadoEntidad.parentElement.hidden = true;
     resultadoPeriodo.textContent = `${formatearFecha(data.periodo.fecha_inicio)} — ${formatearFecha(data.periodo.fecha_fin)}`
       + (data.periodo.etiqueta ? ` (${data.periodo.etiqueta})` : "");

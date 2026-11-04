@@ -64,6 +64,7 @@ async function cargarTarea(idTarea) {
     document.getElementById("titulo").value = tarea.titulo || "";
     document.getElementById("descripcion").value = tarea.descripcion || "";
     document.getElementById("prioridad").value = tarea.prioridad;
+    document.getElementById("fecha_inicio").value = aFechaInput(tarea.fecha_inicio);
     document.getElementById("fecha_vencimiento").value = aFechaInput(tarea.fecha_vencimiento);
 
     await prellenarResponsable(tarea.id_responsable, tarea.responsable);
@@ -117,7 +118,13 @@ async function guardarCambios(idTarea) {
   }
 
   const prioridad = document.getElementById("prioridad").value;
+  const fechaInicio = document.getElementById("fecha_inicio").value || null;
   const fechaVencimiento = document.getElementById("fecha_vencimiento").value || null;
+
+  if (fechaInicio && fechaVencimiento && fechaInicio > fechaVencimiento) {
+    mostrarMensajeGuardar("La fecha de inicio no puede ser posterior a la fecha de vencimiento", "error");
+    return;
+  }
 
   if (fechaVencimiento && tareaActual && tareaActual.fecha_creacion) {
     const fechaCreacion = aFechaInput(tareaActual.fecha_creacion);
@@ -127,7 +134,7 @@ async function guardarCambios(idTarea) {
     }
   }
 
-  const confirmar = confirm("Desea guardar los cambios de esta tarea?");
+  const confirmar = await confirmarAccion("¿Desea guardar los cambios de esta tarea?", "normal");
 
   if (!confirmar) return;
 
@@ -143,6 +150,7 @@ async function guardarCambios(idTarea) {
         descripcion: document.getElementById("descripcion").value.trim(),
         id_responsable: Number(responsable.id_usuario),
         prioridad,
+        fecha_inicio: fechaInicio,
         fecha_vencimiento: fechaVencimiento
       })
     });

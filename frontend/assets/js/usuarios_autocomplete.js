@@ -11,8 +11,32 @@ const UsuariosAutocomplete = (() => {
       .replace(/[\u0300-\u036f]/g, "");
   }
 
+  // El administrador recibe el correo de cada persona; los usuarios operativos
+  // solo reciben nombre y área (GET /api/usuarios). Dos personas con el mismo
+  // texto se distinguen con su número.
+  const NOMBRES_AREA = { JURIDICA: "Jurídica", CONTABLE: "Contable", ADMINISTRACION: "Administración" };
+
+  function nombreArea(usuario) {
+    return NOMBRES_AREA[usuario.nombre_area] || usuario.nombre_area;
+  }
+
   function textoUsuario(usuario) {
-    return `${usuario.nombres} - ${usuario.email}`;
+    if (usuario.textoLista) return usuario.textoLista;
+    const detalle = usuario.email || nombreArea(usuario);
+    return detalle ? `${usuario.nombres} - ${detalle}` : usuario.nombres;
+  }
+
+  function asignarTextosUnicos(usuarios) {
+    const repeticiones = new Map();
+    usuarios.forEach(usuario => {
+      delete usuario.textoLista;
+      const base = textoUsuario(usuario);
+      repeticiones.set(base, (repeticiones.get(base) || 0) + 1);
+    });
+    usuarios.forEach(usuario => {
+      const base = textoUsuario(usuario);
+      usuario.textoLista = repeticiones.get(base) > 1 ? `${base} (n.º ${usuario.id_usuario})` : base;
+    });
   }
 
   async function cargarUsuarios(opciones = {}) {
@@ -27,6 +51,7 @@ const UsuariosAutocomplete = (() => {
       }
 
       usuariosCache = data;
+      asignarTextosUnicos(usuariosCache);
     }
 
     if (opciones.soloActivos) {
@@ -42,7 +67,7 @@ const UsuariosAutocomplete = (() => {
     usuarios.forEach(usuario => {
       const option = document.createElement("option");
       option.value = textoUsuario(usuario);
-      option.label = `${usuario.nombre_rol} - ${usuario.nombre_area} - ${usuario.estado}`;
+      option.label = [usuario.nombre_rol, nombreArea(usuario), usuario.estado].filter(Boolean).join(" - ");
       datalist.appendChild(option);
     });
   }

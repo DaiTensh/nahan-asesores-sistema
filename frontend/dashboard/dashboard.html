@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dashboard Principal</title>
 
   <link rel="stylesheet" href="../assets/css/variables.css">
@@ -40,22 +41,22 @@
       </section>
 
       <section class="dashboard-cards">
-        <div class="dashboard-card">
+        <div class="dashboard-card" data-solo-admin>
           <p>Total usuarios</p>
           <h2 id="totalUsuarios">0</h2>
         </div>
 
-        <div class="dashboard-card">
+        <div class="dashboard-card" data-solo-admin>
           <p>Usuarios activos</p>
           <h2 id="usuariosActivos">0</h2>
         </div>
 
-        <div class="dashboard-card">
+        <div class="dashboard-card" data-solo-admin>
           <p>Usuarios inactivos</p>
           <h2 id="usuariosInactivos">0</h2>
         </div>
 
-        <div class="dashboard-card">
+        <div class="dashboard-card" data-solo-admin>
           <p>Administradores</p>
           <h2 id="totalAdmins">0</h2>
         </div>
@@ -89,7 +90,7 @@
       <section class="dashboard-section">
         <h2>Tareas pendientes</h2>
 
-        <div class="dashboard-cards">
+        <div class="dashboard-cards dashboard-cards-fill">
           <div class="dashboard-card">
             <p>Total pendientes</p>
             <h2 id="totalTareasPendientes">0</h2>
@@ -101,18 +102,18 @@
           </div>
         </div>
 
-        <div class="dashboard-cards" style="margin-top: 1rem;">
-          <div class="dashboard-card" style="flex: 1; min-width: 180px;">
+        <div class="dashboard-cards dashboard-cards-fill" style="margin-top: 1rem;">
+          <div class="dashboard-card">
             <p>Por área</p>
             <ul id="tareasPendientesPorArea" class="dashboard-list"></ul>
           </div>
 
-          <div class="dashboard-card" style="flex: 1; min-width: 180px;">
+          <div class="dashboard-card">
             <p>Por cliente</p>
             <ul id="tareasPendientesPorCliente" class="dashboard-list"></ul>
           </div>
 
-          <div class="dashboard-card" style="flex: 1; min-width: 180px;">
+          <div class="dashboard-card">
             <p>Por responsable</p>
             <ul id="tareasPendientesPorResponsable" class="dashboard-list"></ul>
           </div>
@@ -144,25 +145,25 @@
           </div>
         </div>
 
-        <div class="dashboard-cards" style="margin-top: 1rem;">
-          <div class="dashboard-card" style="flex: 1; min-width: 180px;">
+        <div class="dashboard-cards dashboard-cards-fill" style="margin-top: 1rem;">
+          <div class="dashboard-card">
             <p>Por área</p>
             <ul id="tareasFinalizadasPorArea" class="dashboard-list"></ul>
           </div>
 
-          <div class="dashboard-card" style="flex: 1; min-width: 180px;">
+          <div class="dashboard-card">
             <p>Por cliente</p>
             <ul id="tareasFinalizadasPorCliente" class="dashboard-list"></ul>
           </div>
 
-          <div class="dashboard-card" style="flex: 1; min-width: 180px;">
+          <div class="dashboard-card">
             <p>Por responsable</p>
             <ul id="tareasFinalizadasPorUsuario" class="dashboard-list"></ul>
           </div>
         </div>
       </section>
 
-      <section class="dashboard-section">
+      <section class="dashboard-section" data-solo-admin>
         <h2>Distribución por área</h2>
         <div class="dashboard-area-totals">
           <p>Clientes únicos asociados: <strong id="totalClientesDistribucionArea">0</strong></p>
@@ -181,11 +182,11 @@
         </div>
       </section>
 
-      <section class="dashboard-section">
+      <section class="dashboard-section" data-solo-admin>
         <h2>Carga de trabajo por usuario</h2>
 
-        <div class="dashboard-cards" style="margin-bottom: 1rem;">
-          <div class="dashboard-card" style="flex: 1; min-width: 220px;">
+        <div class="dashboard-cards dashboard-cards-fill" style="margin-bottom: 1rem;">
+          <div class="dashboard-card">
             <p>Área</p>
             <select id="selectAreaCargaTrabajo" class="form-input" aria-label="Seleccionar área para carga de trabajo">
               <option value="">Todas las áreas</option>
@@ -201,6 +202,7 @@
                 <th>Área</th>
                 <th>Pendiente</th>
                 <th>En proceso</th>
+                <th>Pausadas</th>
                 <th>En revisión</th>
                 <th>Completadas</th>
                 <th>Canceladas</th>
@@ -212,48 +214,52 @@
         </div>
       </section>
 
-      <section class="dashboard-section">
+      <section class="dashboard-section" data-solo-admin>
         <h2>Usuarios registrados</h2>
 
-        <table class="dashboard-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Nombre</th>
-              <th>Correo</th>
-              <th>Rol</th>
-              <th>Área</th>
-              <th>Estado</th>
-            </tr>
-          </thead>
+        <div class="table-responsive">
+          <table class="dashboard-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Nombre</th>
+                <th>Correo</th>
+                <th>Rol</th>
+                <th>Área</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
 
-          <tbody id="tablaUsuarios"></tbody>
-        </table>
+            <tbody id="tablaUsuarios"></tbody>
+          </table>
+        </div>
       </section>
 
       <section class="dashboard-section">
         <h2>Tareas vencidas</h2>
 
-        <table class="dashboard-table">
-          <thead>
-            <tr>
-              <th>Título</th>
-              <th>Cliente</th>
-              <th>Responsable</th>
-              <th>Prioridad</th>
-              <th>Vencimiento</th>
-              <th>Días de retraso</th>
-            </tr>
-          </thead>
+        <div class="table-responsive">
+          <table class="dashboard-table">
+            <thead>
+              <tr>
+                <th>Título</th>
+                <th>Cliente</th>
+                <th>Responsable</th>
+                <th>Prioridad</th>
+                <th>Vencimiento</th>
+                <th>Días de retraso</th>
+              </tr>
+            </thead>
 
-          <tbody id="tablaTareasVencidas"></tbody>
-        </table>
+            <tbody id="tablaTareasVencidas"></tbody>
+          </table>
+        </div>
       </section>
 
       <section class="dashboard-section">
         <h2>Tareas por estado</h2>
 
-        <div class="dashboard-cards" id="resumenEstadoTareas">
+        <div class="dashboard-cards dashboard-cards-fill" id="resumenEstadoTareas">
           <div class="dashboard-card">
             <p>Pendientes</p>
             <h2 id="resumenPendiente">0</h2>
@@ -265,10 +271,17 @@
           </div>
 
           <div class="dashboard-card">
+            <p>Pausadas</p>
+            <h2 id="resumenPausada">0</h2>
+          </div>
+
+          <div class="dashboard-card">
             <p>En revisión</p>
             <h2 id="resumenEnRevision">0</h2>
           </div>
+        </div>
 
+        <div class="dashboard-cards dashboard-cards-fill" style="margin-top: 1rem;">
           <div class="dashboard-card">
             <p>Completadas</p>
             <h2 id="resumenCompletada">0</h2>
@@ -284,19 +297,21 @@
       <section class="dashboard-section">
         <h2>Mis tareas prioritarias</h2>
 
-        <table class="dashboard-table">
-          <thead>
-            <tr>
-              <th>Título</th>
-              <th>Cliente</th>
-              <th>Prioridad</th>
-              <th>Estado</th>
-              <th>Vencimiento</th>
-            </tr>
-          </thead>
+        <div class="table-responsive">
+          <table class="dashboard-table">
+            <thead>
+              <tr>
+                <th>Título</th>
+                <th>Cliente</th>
+                <th>Prioridad</th>
+                <th>Estado</th>
+                <th>Vencimiento</th>
+              </tr>
+            </thead>
 
-          <tbody id="tablaTareasPrioritarias"></tbody>
-        </table>
+            <tbody id="tablaTareasPrioritarias"></tbody>
+          </table>
+        </div>
       </section>
 
       <section class="dashboard-section">
@@ -313,44 +328,49 @@
           </div>
         </div>
 
-        <table class="dashboard-table">
-          <thead>
-            <tr>
-              <th>Título</th>
-              <th>Cliente</th>
-              <th>Responsable</th>
-              <th>Prioridad</th>
-              <th>Vencimiento</th>
-              <th>Días restantes</th>
-            </tr>
-          </thead>
+        <div class="table-responsive">
+          <table class="dashboard-table">
+            <thead>
+              <tr>
+                <th>Título</th>
+                <th>Cliente</th>
+                <th>Responsable</th>
+                <th>Prioridad</th>
+                <th>Vencimiento</th>
+                <th>Días restantes</th>
+              </tr>
+            </thead>
 
-          <tbody id="tablaTareasPorVencer"></tbody>
-        </table>
+            <tbody id="tablaTareasPorVencer"></tbody>
+          </table>
+        </div>
       </section>
 
       <section class="dashboard-section">
         <h2>Últimos clientes registrados</h2>
 
-        <table class="dashboard-table">
-          <thead>
-            <tr>
-              <th>RUT</th>
-              <th>Nombre / Razón Social</th>
-              <th>Email</th>
-              <th>Teléfono</th>
-              <th>Estado</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
+        <div class="table-responsive">
+          <table class="dashboard-table">
+            <thead>
+              <tr>
+                <th>RUT</th>
+                <th>Nombre / Razón Social</th>
+                <th>Email</th>
+                <th>Teléfono</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
 
-          <tbody id="tablaClientes"></tbody>
-        </table>
+            <tbody id="tablaClientes"></tbody>
+          </table>
+        </div>
       </section>
 
       <section class="dashboard-section">
         <h2>Mis clientes recientes</h2>
         <p id="estadoClientesRecientes" aria-live="polite">Cargando clientes recientes...</p>
+        <div class="table-responsive">
         <table class="dashboard-table">
           <thead>
             <tr>
@@ -362,6 +382,7 @@
           </thead>
           <tbody id="tablaClientesRecientes"></tbody>
         </table>
+        </div>
       </section>
 
       <section class="dashboard-section" id="seccionCambiosRecientes">
@@ -384,6 +405,7 @@
         </div>
         <p id="estadoCambiosRecientes" class="rf49-estado" aria-live="polite">Cargando cambios recientes...</p>
         <div class="rf49-tabla-contenedor">
+          <div class="table-responsive">
           <table class="dashboard-table">
             <thead>
               <tr>
@@ -397,6 +419,7 @@
             </thead>
             <tbody id="tablaCambiosRecientes"></tbody>
           </table>
+          </div>
         </div>
       </section>
 
@@ -407,11 +430,13 @@
 </div>
 
 <script src="../assets/js/api_config.js"></script>
+<script src="../assets/js/confirmar.js"></script>
 <script src="../auth/logout.js"></script>
 <script src="../assets/js/navigation.js"></script>
 <script src="../assets/js/topbar.js"></script>
 <script src="../assets/js/permissions.js"></script>
 <script src="./dashboard.js"></script>
+<script src="../assets/js/etiquetas_auditoria.js"></script>
 <script src="./cambios_recientes.js"></script>
 
 <script>

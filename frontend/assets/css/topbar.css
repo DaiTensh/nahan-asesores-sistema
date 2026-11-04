@@ -17,10 +17,12 @@
   min-width: 0;
 }
 
-.topbar-context h1 {
+.topbar-context .topbar-titulo {
   margin: 0;
+  color: var(--color-text-primary);
   font-size: 20px;
   line-height: 1.2;
+  font-weight: 700;
 }
 
 .topbar-context p {
@@ -39,7 +41,6 @@
 .topbar-date {
   color: var(--color-text-secondary);
   font-size: 13px;
-  text-transform: capitalize;
 }
 
 .topbar-search {
@@ -202,7 +203,11 @@
   font-size: 13px;
 }
 
-@media (max-width: 900px) {
+/* Con el menú lateral abierto el contenido mide ~750 px a 1024 px de pantalla, y las acciones
+   (fecha, búsqueda de 260 px, usuario) ocupan ~650 px: hasta ~1280 px de ventana al título le
+   quedan menos de 350 px y su subtítulo se parte en cuatro o cinco líneas. La barra se apila
+   antes para que el título tenga todo el ancho. A 1366 px (mínimo de RNF10) no cambia nada. */
+@media (max-width: 1280px) {
   .topbar {
     align-items: flex-start;
     flex-direction: column;
@@ -216,11 +221,17 @@
 
   .topbar-search {
     min-width: 0;
-    flex: 1 1 100%;
-    order: 3;
+    flex: 1 1 220px;
   }
 
   .topbar-search input {
     min-width: 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .topbar-search {
+    flex: 1 1 100%;
+    order: 3;
   }
 }

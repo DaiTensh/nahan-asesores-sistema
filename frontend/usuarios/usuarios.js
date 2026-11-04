@@ -155,7 +155,7 @@ formUsuario.addEventListener("submit", async (event) => {
     password: document.getElementById("password").value
   };
 
-  const confirmar = confirm("¿Desea registrar este nuevo usuario?");
+  const confirmar = await confirmarAccion("¿Desea registrar este nuevo usuario?", "normal");
 
   if (!confirmar) {
     return;

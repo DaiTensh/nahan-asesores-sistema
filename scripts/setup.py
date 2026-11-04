@@ -23,7 +23,6 @@ import getpass
 import os
 import re
 import secrets
-import shutil
 import subprocess
 import sys
 
@@ -449,11 +448,12 @@ def sembrar():
 def verificar(cfg):
     paso("Comprobando que el sistema arranca")
     r = correr([py_venv(), "-c",
-                "import os; os.chdir(%r);\nfrom backend.app import app\n"
+                "import os, sys; os.chdir(%r);\nfrom backend.app import app\n"
                 "c = app.test_client()\n"
                 "r = c.get('/')\n"
                 "print('HOME', r.status_code)\n"
-                "r = c.post('/api/login', json={'email':'renato.villalobos@nahan.local','password':'Nahan.2026'})\n"
+                "sys.path.insert(0, 'database'); import seed_dev\n"
+                "r = c.post('/api/login', json={'email':'renato.villalobos@nahan.local','password':seed_dev.PASSWORD_DEV})\n"
                 "print('LOGIN', r.status_code)\n" % RAIZ])
     salida = r.stdout.strip()
     if r.returncode or "HOME 200" not in salida:
@@ -476,7 +476,7 @@ def final():
 
   Levantar el sistema:      {envoltorio("dev")}
   El navegador se abre solo; el script imprime la dirección exacta.
-  Usuario de prueba:        renato.villalobos@nahan.local  /  Nahan.2026
+  Usuario de prueba:        renato.villalobos@nahan.local  (contraseña de desarrollo en database/seed_dev.py)
   Revisar el entorno:       {envoltorio("doctor")}
   Ejecutar las pruebas:     {envoltorio("test")}
   Recargar datos de prueba: {envoltorio("seed")} --reset

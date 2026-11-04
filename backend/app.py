@@ -15,9 +15,13 @@ from backend.routes.documentos_routes import documentos_bp
 from backend.routes.historial_routes import historial_bp
 from backend.routes.notificaciones_routes import notificaciones_bp
 from backend.routes.reportes_routes import reportes_blueprint
+from backend.routes.respaldos_routes import respaldos_bp
+from backend.routes.tarifas_routes import tarifas_bp
 from backend.routes.tareas_routes import tareas_bp
 from backend.routes.usuarios_routes import usuarios_bp
 from backend.routes.busqueda_routes import busqueda_bp
+from backend.utils.entorno import entorno_actual, es_entorno_de_desarrollo
+from backend.utils.respaldos import restauracion_en_curso
 
 
 DEFAULT_DEV_SECRET_KEY = "dev-secret-key-change-me"
@@ -59,12 +63,19 @@ def _configurar_zona_horaria():
 
 
 def create_app():
-    entorno = os.getenv("FLASK_ENV", "development").strip().lower()
-    es_produccion = entorno == "production"
+    entorno = entorno_actual()
+    es_produccion = not es_entorno_de_desarrollo()
     secret_key = os.getenv("SECRET_KEY")
 
     if es_produccion and (not secret_key or secret_key == DEFAULT_DEV_SECRET_KEY):
-        raise RuntimeError("SECRET_KEY debe estar configurada en producción.")
+        raise RuntimeError(
+            "SECRET_KEY debe estar configurada. Sin FLASK_ENV=development explícito "
+            "se asume producción y no se permite la clave de desarrollo."
+        )
+    if es_produccion and len(secret_key) < 32:
+        logging.getLogger(__name__).warning(
+            "SECRET_KEY tiene menos de 32 caracteres; conviene una clave aleatoria más larga."
+        )
 
     app = Flask(__name__)
     app.config["ENV"] = entorno
@@ -97,8 +108,25 @@ def create_app():
     app.config["APP_TIMEZONE"] = _configurar_zona_horaria()
 
     @app.before_request
+    def bloquear_durante_restauracion():
+        # RF60: mientras una restauración reemplaza los datos, el resto de la
+        # API no debe leer ni escribir sobre tablas a medio cargar.
+        if request.path.startswith("/api/") and restauracion_en_curso():
+            respuesta = jsonify({
+                "error": "El sistema está en mantenimiento por una restauración de respaldo. "
+                         "Intente nuevamente en unos minutos.",
+                "codigo": "MANTENIMIENTO",
+            })
+            respuesta.status_code = 503
+            respuesta.headers["Retry-After"] = "60"
+            return respuesta
+
+    @app.before_request
     def validar_cuerpo_json():
         if not request.path.startswith("/api/") or not request.is_json:
+            return None
+        if not request.get_data(cache=True):
+            # Content-Type JSON sin cuerpo (por ejemplo, un POST de acción sin datos): no hay nada que validar.
             return None
         datos = request.get_json(silent=True)
         if not isinstance(datos, dict):
@@ -107,7 +135,7 @@ def create_app():
         campos_texto = {
             "email", "password", "token", "nombres", "rut", "razon_social",
             "telefono", "direccion", "titulo", "descripcion", "prioridad", "estado",
-            "nuevo_estado", "fecha_vencimiento", "nombre_documento", "tipo_documento",
+            "nuevo_estado", "fecha_inicio", "fecha_vencimiento", "nombre_documento", "tipo_documento",
             "ubicacion_referencia", "observaciones", "texto",
         }
         largos_maximos = {
@@ -186,6 +214,8 @@ def create_app():
     app.register_blueprint(historial_bp, url_prefix="/api")
     app.register_blueprint(notificaciones_bp, url_prefix="/api")
     app.register_blueprint(busqueda_bp, url_prefix="/api")
+    app.register_blueprint(respaldos_bp, url_prefix="/api")
+    app.register_blueprint(tarifas_bp, url_prefix="/api")
 
     @app.route("/")
     def home():

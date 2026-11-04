@@ -6,6 +6,7 @@ const tablaTareas = document.getElementById("tablaTareas");
 const ESTADOS_OPERATIVOS = [
   ["PENDIENTE", "Pendiente"],
   ["EN_PROCESO", "En proceso"],
+  ["PAUSADA", "Pausada"],
   ["EN_REVISION", "En revisión"]
 ];
 const ESTADOS_FINALES = [
@@ -25,6 +26,9 @@ const tareasSeleccionadas = new Set();
 // un cambio de filtro) podían dejar en pantalla la respuesta más lenta,
 // que no correspondía al filtro visible.
 let ultimaCargaTareas = 0;
+
+// RF18 — criterio de agrupación del listado ("", "cliente", "prioridad" o "responsable").
+let agrupacionActual = "";
 
 document.addEventListener("DOMContentLoaded", () => {
   ClientesAutocomplete.configurarSelectorCliente({
@@ -51,6 +55,11 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("seleccionarTodas").addEventListener("change", alternarSeleccionarTodas);
   document.getElementById("btnVerCarga").addEventListener("click", mostrarCargaTrabajo);
   document.getElementById("btnRedistribuir").addEventListener("click", redistribuirSeleccionadas);
+
+  document.getElementById("agruparPor").addEventListener("change", event => {
+    agrupacionActual = event.target.value;
+    obtenerUsuarioActual().then(usuario => usuario && renderizarTabla(tareasCache, usuario));
+  });
 
   document.getElementById("filtroEstado").addEventListener("change", event => {
     filtroEstadoActual = event.target.value;
@@ -100,7 +109,15 @@ formTarea.addEventListener("submit", async (event) => {
     return;
   }
 
-  const confirmar = confirm("Desea crear esta nueva tarea?");
+  const fechaInicio = document.getElementById("fecha_inicio").value || null;
+  const fechaVencimiento = document.getElementById("fecha_vencimiento").value || null;
+
+  if (fechaInicio && fechaVencimiento && fechaInicio > fechaVencimiento) {
+    mostrarMensaje("La fecha de inicio no puede ser posterior a la fecha de vencimiento", "error");
+    return;
+  }
+
+  const confirmar = await confirmarAccion("¿Desea crear esta nueva tarea?", "normal");
 
   if (!confirmar) return;
 
@@ -111,7 +128,8 @@ formTarea.addEventListener("submit", async (event) => {
     titulo: document.getElementById("titulo").value.trim(),
     descripcion: document.getElementById("descripcion").value.trim(),
     prioridad: document.getElementById("prioridad").value,
-    fecha_vencimiento: document.getElementById("fecha_vencimiento").value || null
+    fecha_inicio: fechaInicio,
+    fecha_vencimiento: fechaVencimiento
   };
 
   try {
@@ -238,11 +256,13 @@ function actualizarBarraRedistribucion(usuario) {
 function actualizarResumen(tareas) {
   const pendientes = tareas.filter(t => t.estado === "PENDIENTE").length;
   const proceso = tareas.filter(t => t.estado === "EN_PROCESO").length;
+  const pausadas = tareas.filter(t => t.estado === "PAUSADA").length;
   const revision = tareas.filter(t => t.estado === "EN_REVISION").length;
   const urgentes = tareas.filter(t => t.prioridad === "URGENTE").length;
 
   document.getElementById("totalPendientes").textContent = pendientes;
   document.getElementById("totalProceso").textContent = proceso;
+  document.getElementById("totalPausadas").textContent = pausadas;
   document.getElementById("totalRevision").textContent = revision;
   document.getElementById("totalUrgentes").textContent = urgentes;
 }
@@ -264,7 +284,7 @@ function renderizarTabla(tareas, usuario) {
 
   const puedeAdministrar = usuario.nombre_rol === "ADMINISTRADOR";
 
-  tareas.forEach(tarea => {
+  const dibujarTarea = tarea => {
     const idTarea = Number(tarea.id_tarea);
     const fila = document.createElement("tr");
 
@@ -272,6 +292,7 @@ function renderizarTabla(tareas, usuario) {
     if (puedeAdministrar) {
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
+      checkbox.setAttribute("aria-label", `Seleccionar la tarea ${idTarea}`);
       checkbox.checked = tareasSeleccionadas.has(idTarea);
       checkbox.addEventListener("change", () => alternarSeleccionTarea(idTarea, checkbox.checked, usuario));
       celdaSeleccion.appendChild(checkbox);
@@ -293,7 +314,35 @@ function renderizarTabla(tareas, usuario) {
 
     tablaTareas.appendChild(fila);
     tablaTareas.appendChild(crearFilaAdjuntos(idTarea));
+  };
+
+  if (!agrupacionActual) {
+    tareas.forEach(dibujarTarea);
+    return;
+  }
+
+  AgruparTareas.agrupar(tareas, agrupacionActual).forEach(grupo => {
+    tablaTareas.appendChild(crearFilaGrupo(grupo));
+    grupo.tareas.forEach(dibujarTarea);
   });
+}
+
+// RF18 — encabezado de cada grupo: criterio, valor y cantidad de tareas.
+function crearFilaGrupo(grupo) {
+  const fila = document.createElement("tr");
+  fila.className = "fila-grupo";
+  const celda = document.createElement("th");
+  celda.colSpan = 10;
+  celda.scope = "colgroup";
+  const cantidad = grupo.tareas.length;
+  // La etiqueta queda fija a la izquierda: la tabla es más ancha que su contenedor
+  // y, al desplazarla hacia las acciones, el nombre del grupo no debe salirse de la vista.
+  const etiqueta = document.createElement("span");
+  etiqueta.className = "etiqueta-grupo";
+  etiqueta.textContent = `${AgruparTareas.nombreCriterio(agrupacionActual)}: ${grupo.etiqueta} · ${cantidad} ${cantidad === 1 ? "tarea" : "tareas"}`;
+  celda.appendChild(etiqueta);
+  fila.appendChild(celda);
+  return fila;
 }
 
 function alternarSeleccionarTodas(event) {
@@ -364,6 +413,7 @@ function accionesTarea(tarea, usuario) {
     responsable.id = `responsable-${tarea.id_tarea}`;
     responsable.setAttribute("list", "usuarios_responsables");
     responsable.placeholder = "Responsable";
+    responsable.setAttribute("aria-label", `Nuevo responsable de la tarea ${tarea.id_tarea}`);
     contenedor.appendChild(responsable);
 
     const botonAsignar = document.createElement("button");
@@ -375,6 +425,7 @@ function accionesTarea(tarea, usuario) {
 
   const selectorEstado = document.createElement("select");
   selectorEstado.id = `estado-${tarea.id_tarea}`;
+  selectorEstado.setAttribute("aria-label", `Estado de la tarea ${tarea.id_tarea}`);
   agregarOpciones(selectorEstado, ESTADOS_OPERATIVOS);
 
   if (puedeAdministrar) {
@@ -405,6 +456,7 @@ function accionesTarea(tarea, usuario) {
 
   const selectorPrioridad = document.createElement("select");
   selectorPrioridad.id = `prioridad-${tarea.id_tarea}`;
+  selectorPrioridad.setAttribute("aria-label", `Prioridad de la tarea ${tarea.id_tarea}`);
   agregarOpciones(selectorPrioridad, [
     ["BAJA", "Baja"],
     ["MEDIA", "Media"],
@@ -453,7 +505,7 @@ async function asignarTarea(idTarea) {
     return;
   }
 
-  const confirmar = confirm("Desea asignar esta tarea a otro usuario?");
+  const confirmar = await confirmarAccion("¿Desea asignar esta tarea a otro usuario?", "advertencia");
 
   if (!confirmar) return;
 
@@ -502,7 +554,7 @@ async function actualizarEstado(idTarea) {
     return;
   }
 
-  const confirmar = confirm("Desea actualizar el estado de esta tarea?");
+  const confirmar = await confirmarAccion("¿Desea actualizar el estado de esta tarea?", ESTADOS_FINALES.some(([valor]) => valor === estado) ? "critica" : "advertencia");
 
   if (!confirmar) return;
 
@@ -535,7 +587,7 @@ async function actualizarEstado(idTarea) {
 async function actualizarPrioridad(idTarea) {
   const prioridad = document.getElementById(`prioridad-${idTarea}`).value;
 
-  const confirmar = confirm("Desea actualizar la prioridad de esta tarea?");
+  const confirmar = await confirmarAccion("¿Desea actualizar la prioridad de esta tarea?", "normal");
 
   if (!confirmar) return;
 
@@ -569,6 +621,7 @@ function formatearEstado(estado) {
   const estados = {
     PENDIENTE: "Pendiente",
     EN_PROCESO: "En proceso",
+    PAUSADA: "Pausada",
     EN_REVISION: "En revisión",
     COMPLETADA: "Completada",
     CANCELADA: "Cancelada"
@@ -625,6 +678,7 @@ function crearFilaAdjuntos(idTarea) {
   const input = document.createElement("input");
   input.type = "file";
   input.id = `adjuntos-input-${idTarea}`;
+  input.setAttribute("aria-label", `Archivo adjunto de la tarea ${idTarea}`);
   form.appendChild(input);
 
   const botonSubir = document.createElement("button");
@@ -878,9 +932,8 @@ async function redistribuirSeleccionadas() {
 
   await mostrarCargaTrabajo();
 
-  const confirmar = confirm(
-    `Desea reasignar ${tareasSeleccionadas.size} tarea(s) seleccionada(s) al responsable indicado?`
-  );
+  const confirmar = await confirmarAccion(
+    `¿Desea reasignar ${tareasSeleccionadas.size} tarea(s) seleccionada(s) al responsable indicado?`, "advertencia");
 
   if (!confirmar) return;
 

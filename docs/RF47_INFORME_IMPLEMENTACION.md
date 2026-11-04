@@ -1,5 +1,12 @@
 # Informe de implementación RF47
 
+> **Corrección del 3-nov-2026 (verificación en navegador).** La instrumentación original registraba la consulta solo en
+> `GET /api/clientes/<id>` (la pantalla de edición). La pantalla **Ficha del Cliente** consulta
+> `GET /api/clientes/<id>/ficha`, que no registraba nada, de modo que abrir una ficha no actualizaba «Mis clientes
+> recientes». Ahora ambas consultas registran la interacción de un cliente **activo** con el mismo helper
+> (`_registrar_cliente_reciente`); sigue sin registrarse nada para clientes inactivos, inexistentes o sin permiso.
+> Pruebas: `tests/test_estado_activo_y_rf03_mysql_real.py` (sección RF47).
+
 ## Resumen
 
 RF47 registra por usuario las consultas exitosas de fichas de clientes activos y muestra en el dashboard hasta N clientes recientes, ordenados por última interacción. N es global, se configura por un administrador y tiene default 5 y rango 1–20. La auditoría existente no se reutiliza para lecturas.

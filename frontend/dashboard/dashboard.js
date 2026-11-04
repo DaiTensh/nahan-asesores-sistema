@@ -20,22 +20,42 @@ function formatearFecha(fecha) {
   return Number.isNaN(valor.getTime()) ? String(fecha) : valor.toLocaleDateString("es-CL", { timeZone: "UTC" });
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+// Porcentaje con coma decimal («33,3»), como se escribe en español de Chile.
+function formatearPorcentaje(porcentaje) {
+  return porcentaje.toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+
+// Lo que muestran estos bloques (usuarios registrados, carga por usuario y
+// distribución por área) solo lo entrega el backend al administrador: al resto de
+// los roles se les oculta en lugar de dejarlos vacíos y no se les pide.
+async function ocultarBloquesDeAdministrador() {
+  const usuario = await obtenerUsuarioActual();
+  const esAdministrador = Boolean(usuario) && usuario.nombre_rol === "ADMINISTRADOR";
+  if (!esAdministrador) {
+    document.querySelectorAll("[data-solo-admin]").forEach(bloque => { bloque.hidden = true; });
+  }
+  return esAdministrador;
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
   cargarDatosUsuario();
-  cargarResumenUsuarios();
   cargarResumenClientes();
   cargarClientesRecientes();
   cargarTareasVencidas();
   cargarTareasPrioritarias();
   cargarResumenTareas();
-  cargarCargaTrabajoPorUsuario();
+  const esAdministrador = await ocultarBloquesDeAdministrador();
+  if (esAdministrador) {
+    cargarResumenUsuarios();
+    cargarCargaTrabajoPorUsuario();
+  }
 
   const inputDias = document.getElementById("inputDiasPorVencer");
   cargarTareasPorVencer(inputDias.value);
   inputDias.addEventListener("change", () => cargarTareasPorVencer(inputDias.value));
   cargarResumenTareasPendientes();
   cargarResumenTareasFinalizadas();
-  cargarDistribucionPorArea();
+  if (esAdministrador) cargarDistribucionPorArea();
 
   const selectAreaCargaTrabajo = document.getElementById("selectAreaCargaTrabajo");
   if (selectAreaCargaTrabajo) {
@@ -149,7 +169,7 @@ async function cargarCargaTrabajoPorUsuario() {
     tabla.innerHTML = "";
 
     if (!data.usuarios || data.usuarios.length === 0) {
-      tabla.innerHTML = '<tr><td colspan="8">No hay usuarios activos para los criterios seleccionados.</td></tr>';
+      tabla.innerHTML = '<tr><td colspan="9">No hay usuarios activos para los criterios seleccionados.</td></tr>';
       return;
     }
 
@@ -160,6 +180,7 @@ async function cargarCargaTrabajoPorUsuario() {
         <td>${escapeHtml(usuario.nombre_area || "-")}</td>
         <td>${escapeHtml(usuario.por_estado.PENDIENTE ?? 0)}</td>
         <td>${escapeHtml(usuario.por_estado.EN_PROCESO ?? 0)}</td>
+        <td>${escapeHtml(usuario.por_estado.PAUSADA ?? 0)}</td>
         <td>${escapeHtml(usuario.por_estado.EN_REVISION ?? 0)}</td>
         <td>${escapeHtml(usuario.por_estado.COMPLETADA ?? 0)}</td>
         <td>${escapeHtml(usuario.por_estado.CANCELADA ?? 0)}</td>
@@ -520,6 +541,7 @@ async function cargarResumenTareas() {
 
     document.getElementById("resumenPendiente").textContent = resumen.PENDIENTE ?? 0;
     document.getElementById("resumenEnProceso").textContent = resumen.EN_PROCESO ?? 0;
+    document.getElementById("resumenPausada").textContent = resumen.PAUSADA ?? 0;
     document.getElementById("resumenEnRevision").textContent = resumen.EN_REVISION ?? 0;
     document.getElementById("resumenCompletada").textContent = resumen.COMPLETADA ?? 0;
     document.getElementById("resumenCancelada").textContent = resumen.CANCELADA ?? 0;
@@ -543,7 +565,7 @@ async function cargarResumenTareasFinalizadas() {
     document.getElementById("totalTareasFinalizadas").textContent = data.total_finalizadas ?? 0;
     document.getElementById("totalTareasAsignadas").textContent = data.total_asignadas ?? 0;
     const porcentaje = Number(data.porcentaje_cumplimiento ?? 0);
-    document.getElementById("cumplimientoTareasFinalizadas").textContent = `${porcentaje.toFixed(1)}%`;
+    document.getElementById("cumplimientoTareasFinalizadas").textContent = `${formatearPorcentaje(porcentaje)}%`;
 
     const diferenciaElemento = document.getElementById("diferenciaFinalizadas");
     if (data.comparacion && data.comparacion.disponible) {
@@ -616,7 +638,7 @@ function renderizarDistribucionArea(idContenedor, areas, claveCantidad, clavePor
     const nombre = document.createElement("span");
     nombre.textContent = area.nombre_area;
     const valor = document.createElement("strong");
-    valor.textContent = `${cantidad} (${porcentaje.toFixed(1)}%)`;
+    valor.textContent = `${cantidad} (${formatearPorcentaje(porcentaje)}%)`;
     encabezado.append(nombre, valor);
 
     const pista = document.createElement("div");

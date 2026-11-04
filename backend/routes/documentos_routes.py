@@ -4,6 +4,8 @@ import uuid
 
 from flask import Blueprint, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
+
+from backend.utils.firmas_archivo import BYTES_A_LEER, contenido_corresponde_a_extension
 from werkzeug.security import safe_join
 
 from backend.config.db import get_connection
@@ -20,6 +22,7 @@ documentos_bp = Blueprint("documentos", __name__)
 logger = logging.getLogger(__name__)
 
 TAMANO_MAXIMO_MB_DEFAULT = 10
+NOMBRE_MAXIMO = 200  # documento.nombre_documento es VARCHAR(200)
 EXTENSIONES_PERMITIDAS_DEFAULT = "pdf,doc,docx,xls,xlsx,ppt,pptx,jpg,jpeg,png"
 
 
@@ -93,6 +96,9 @@ def subir_documento_tarea(id_tarea):
     if not nombre_original:
         return jsonify({"error": "El nombre del archivo no es válido"}), 400
 
+    if len(nombre_original) > NOMBRE_MAXIMO:
+        return jsonify({"error": f"El nombre del archivo supera los {NOMBRE_MAXIMO} caracteres"}), 400
+
     extension = _extension(nombre_original)
 
     try:
@@ -133,6 +139,13 @@ def subir_documento_tarea(id_tarea):
         if tamano_bytes > tamano_maximo_mb * 1024 * 1024:
             return jsonify({
                 "error": f"El archivo supera el tamaño máximo permitido ({tamano_maximo_mb} MB)"
+            }), 400
+
+        cabecera = archivo.stream.read(BYTES_A_LEER)
+        archivo.stream.seek(0)
+        if not contenido_corresponde_a_extension(extension, cabecera):
+            return jsonify({
+                "error": f"El contenido del archivo no corresponde a su extensión (.{extension})"
             }), 400
 
         # El nombre en disco no depende del nombre original: evita choques y,
@@ -264,7 +277,7 @@ def registrar_referencia_documento(id_cliente):
     cursor = None
     usuario = obtener_usuario_actual()
 
-    datos = request.json or {}
+    datos = request.get_json(silent=True) or {}
     nombre_documento = (datos.get("nombre_documento") or "").strip()
     tipo_documento = (datos.get("tipo_documento") or "").strip()
     ubicacion_referencia = (datos.get("ubicacion_referencia") or "").strip()

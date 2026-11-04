@@ -94,7 +94,7 @@ async function asignarRol() {
     return;
   }
 
-  const confirmar = confirm("¿Está seguro de asignar este rol al usuario?");
+  const confirmar = await confirmarAccion("¿Está seguro de asignar este rol al usuario?", "advertencia");
 
   if (!confirmar) return;
 

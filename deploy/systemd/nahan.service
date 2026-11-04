@@ -7,7 +7,10 @@ User=ubuntu
 Group=www-data
 WorkingDirectory=/var/www/nahan-asesores-sistema
 EnvironmentFile=/var/www/nahan-asesores-sistema/.env
-ExecStart=/var/www/nahan-asesores-sistema/venv/bin/gunicorn --workers 2 --bind 127.0.0.1:8000 backend.app:app
+# gthread: una solicitud lenta (respaldo, exportación, MySQL lento) ocupa un hilo y no un worker
+# entero, así que dos solicitudes colgadas ya no dejan la aplicación sin servicio (AUD-016). El
+# --timeout de 300 s sigue siendo el techo de una operación larga de respaldo (RF60).
+ExecStart=/var/www/nahan-asesores-sistema/venv/bin/gunicorn --worker-class gthread --workers 2 --threads 4 --timeout 300 --graceful-timeout 30 --bind 127.0.0.1:8000 backend.app:app
 Restart=always
 RestartSec=5
 

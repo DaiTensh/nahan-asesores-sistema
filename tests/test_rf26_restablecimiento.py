@@ -53,6 +53,8 @@ def _traducir(sql):
     sql = sql.replace("%s", "?")
     sql = sql.replace("DATE_ADD(NOW(), INTERVAL ? MINUTE)",
                       "datetime('now', '+' || ? || ' minutes')")
+    sql = sql.replace("DATE_SUB(NOW(), INTERVAL ? MINUTE)",
+                      "datetime('now', '-' || ? || ' minutes')")
     sql = re.sub(r"\bNOW\(\)", "datetime('now')", sql)
     return sql.replace("TRUE", "1").replace("FALSE", "0")
 
@@ -63,6 +65,10 @@ class _Cursor:
         self.lastrowid = None
 
     def execute(self, sql, params=()):
+        if "GET_LOCK(" in sql or "RELEASE_LOCK(" in sql:
+            # SEC-04: los bloqueos con nombre son de MySQL; aquí siempre se obtienen.
+            self._cursor.execute("SELECT 1 AS bloqueo, 1 AS liberado")
+            return
         self._cursor.execute(_traducir(sql), tuple(params))
         self.lastrowid = self._cursor.lastrowid
         self.rowcount = self._cursor.rowcount

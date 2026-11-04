@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Reportes</title>
 
   <link rel="stylesheet" href="../assets/css/variables.css">
@@ -27,7 +28,7 @@
       <section class="reportes-header">
         <div>
           <h1>Reportes</h1>
-          <p>Consulta actividad por cliente, responsable o área de trabajo dentro de un período.</p>
+          <p>Consulta actividad por cliente, responsable o área de trabajo dentro de un período, y el monto a cobrar a un cliente por sus horas registradas.</p>
         </div>
       </section>
 
@@ -41,6 +42,7 @@
               <option value="cliente">Cliente</option>
               <option value="responsable">Usuario responsable</option>
               <option value="area">Área de trabajo</option>
+              <option value="cobro">Cobro por cliente (horas y monto)</option>
             </select>
           </div>
 
@@ -81,6 +83,8 @@
             <button type="submit" class="btn btn-primary">Generar reporte</button>
           </div>
         </form>
+
+        <p id="ayudaPeriodoCobro" class="form-help" hidden>Para el cobro puede dejar las fechas vacías: se incluirán todas las horas registradas del cliente.</p>
 
         <p id="mensajeReporte" class="mensaje" aria-live="polite"></p>
       </section>
@@ -128,6 +132,41 @@
           </div>
         </div>
 
+        <div id="resultadoCobro" hidden>
+          <div class="cobro-resumen" id="resumenCobro"></div>
+
+          <h3>Desglose por tarifa</h3>
+          <div class="table-responsive">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th class="numero">Tarifa por hora</th>
+                  <th class="numero">Horas trabajadas</th>
+                  <th class="numero">Monto</th>
+                </tr>
+              </thead>
+              <tbody id="tablaDesgloseCobro"></tbody>
+            </table>
+          </div>
+
+          <h3>Detalle de los registros</h3>
+          <div class="table-responsive">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Tarea</th>
+                  <th>Usuario</th>
+                  <th class="numero">Horas</th>
+                  <th class="numero">Tarifa por hora</th>
+                  <th class="numero">Monto</th>
+                </tr>
+              </thead>
+              <tbody id="tablaRegistrosCobro"></tbody>
+            </table>
+          </div>
+        </div>
+
         <div id="resultadoAreas" hidden>
           <p class="area-reporte-nota">Clientes y tareas se cuentan por fecha de asignación o creación; los usuarios corresponden a cuentas activas creadas en el período.</p>
           <div id="comparacionAreas" class="area-comparacion">
@@ -170,6 +209,7 @@
 </div>
 
 <script src="../assets/js/api_config.js"></script>
+<script src="../assets/js/confirmar.js"></script>
 <script src="../auth/logout.js"></script>
 <script src="../assets/js/navigation.js"></script>
 <script src="../assets/js/topbar.js"></script>

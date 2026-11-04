@@ -21,7 +21,7 @@ CREATE TABLE area (id_area INTEGER PRIMARY KEY AUTOINCREMENT, nombre_area TEXT);
 CREATE TABLE usuario (
     id_usuario INTEGER PRIMARY KEY AUTOINCREMENT, id_rol INTEGER, id_area INTEGER,
     nombres TEXT, email TEXT UNIQUE, password_hash TEXT, estado TEXT DEFAULT 'ACTIVO');
-CREATE TABLE cliente (id_cliente INTEGER PRIMARY KEY AUTOINCREMENT, razon_social TEXT);
+CREATE TABLE cliente (id_cliente INTEGER PRIMARY KEY AUTOINCREMENT, razon_social TEXT, estado TEXT NOT NULL DEFAULT 'ACTIVO');
 CREATE TABLE tarea (
     id_tarea INTEGER PRIMARY KEY AUTOINCREMENT, id_cliente INTEGER, id_area INTEGER,
     id_responsable INTEGER, id_creador INTEGER, titulo TEXT, estado TEXT DEFAULT 'PENDIENTE');
@@ -132,7 +132,7 @@ def _login(cliente, email):
     return cliente.post("/api/login", json={"email": email, "password": "x"})
 
 
-def _subir(cliente, id_tarea, nombre, contenido=b"contenido de prueba"):
+def _subir(cliente, id_tarea, nombre, contenido=b"%PDF-1.4 contenido de prueba"):
     return cliente.post(
         f"/api/tareas/{id_tarea}/documentos",
         data={"archivo": (io.BytesIO(contenido), nombre)},
@@ -167,12 +167,12 @@ def test_un_ajeno_a_la_tarea_no_puede_listar_sus_documentos(cliente):
 
 def test_el_responsable_puede_descargar_su_adjunto(cliente):
     _login(cliente, "ivan@nahan.local")
-    id_documento = _subir(cliente, 1, "factura.pdf", b"contenido real").get_json()["id_documento"]
+    id_documento = _subir(cliente, 1, "factura.pdf", b"%PDF-1.4 contenido real").get_json()["id_documento"]
 
     respuesta = cliente.get(f"/api/documentos/{id_documento}/descargar")
 
     assert respuesta.status_code == 200
-    assert respuesta.data == b"contenido real"
+    assert respuesta.data == b"%PDF-1.4 contenido real"
     assert "factura.pdf" in respuesta.headers["Content-Disposition"]
 
 

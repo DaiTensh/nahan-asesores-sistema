@@ -24,6 +24,8 @@ MODULO_POR_TABLA = {
     "token_recuperacion": "Seguridad",
     "reporte": "Reportes",
     "parametros_sistema": "Configuración",
+    "respaldo": "Respaldos",
+    "tarifa_hora": "Configuración",
 }
 
 MODULO_DESCONOCIDO = "Otros"

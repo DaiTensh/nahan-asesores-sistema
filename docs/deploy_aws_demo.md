@@ -127,7 +127,7 @@ venv/bin/python -c "from backend.app import app; print(app.name)"
 Comando final:
 
 ```bash
-venv/bin/gunicorn --workers 2 --bind 127.0.0.1:8000 backend.app:app
+venv/bin/gunicorn --worker-class gthread --workers 2 --threads 4 --bind 127.0.0.1:8000 backend.app:app
 ```
 
 Gunicorn debe escuchar solo en `127.0.0.1`; Nginx sera el punto publico.

@@ -2,6 +2,7 @@ import io
 import json
 import logging
 from datetime import datetime
+from decimal import ROUND_HALF_UP, Decimal
 from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
@@ -15,15 +16,15 @@ from openpyxl import Workbook
 from backend.config.db import get_connection
 from backend.utils.auditoria import consultar_auditoria, modulos_disponibles, tablas_de_modulo
 from backend.utils.auth import ROL_ADMINISTRADOR, obtener_usuario_actual, roles_required
+from backend.utils.estados_tarea import ESTADOS_TAREA_ACTIVA, SQL_ESTADOS_ACTIVOS
+from backend.utils.excel import escribir_filas
 
 reportes_blueprint = Blueprint('reportes_blueprint', __name__)
 logger = logging.getLogger(__name__)
 
 MENSAJE_SIN_TAREAS = "No se registran tareas para los criterios seleccionados"
 MENSAJE_SIN_COMPLETADAS = "No se registran tareas completadas en el período seleccionado"
-
-# RF45 — una tarea está activa mientras no llega a un estado final.
-ESTADOS_TAREA_ACTIVA = ("PENDIENTE", "EN_PROCESO", "EN_REVISION")
+MENSAJE_SIN_HORAS_COBRABLES = "No se registran horas trabajadas para este cliente en el período seleccionado"
 
 # ==========================================================================
 # Contrato de respuesta del módulo de reportes (RF31 / RF32).
@@ -93,6 +94,8 @@ def _etiqueta_periodo(args):
 
 
 def _texto_periodo(parametros):
+    if not parametros.get("fecha_inicio") and not parametros.get("fecha_fin"):
+        return "Todos los registros"
     texto = f"{parametros.get('fecha_inicio')} a {parametros.get('fecha_fin')}"
     etiqueta = ETIQUETAS_PERIODO.get(parametros.get("periodo_etiqueta"))
     return f"{texto} ({etiqueta})" if etiqueta else texto
@@ -150,6 +153,169 @@ def _consultar_tareas_periodo(cursor, fecha_inicio, fecha_fin, id_cliente=None, 
         resumen_por_estado[tarea["estado"]] = resumen_por_estado.get(tarea["estado"], 0) + 1
 
     return tareas, resumen_por_estado
+
+
+def _periodo_opcional(args):
+    """RF75: el cobro se calcula para un período o para la totalidad de los registros.
+    Devuelve (fecha_inicio, fecha_fin, error); sin fechas ambas son None."""
+    if not args.get("fecha_inicio", "").strip() and not args.get("fecha_fin", "").strip():
+        return None, None, None
+    return _validar_periodo(args)
+
+
+def _formato_cl(valor, decimales=0):
+    """Número con punto de miles y coma decimal, como se escribe en español de Chile."""
+    return f"{Decimal(valor):,.{decimales}f}".translate(str.maketrans({",": ".", ".": ","}))
+
+
+def _consultar_cobro_cliente(cursor, id_cliente, fecha_inicio=None, fecha_fin=None):
+    """RF75 — Horas registradas de un cliente con la tarifa aplicada a cada registro.
+
+    Solo cuentan los registros cerrados. El monto de cada uno lo calcula la base
+    (duración × tarifa congelada al iniciar el temporizador); aquí solo se suma, de
+    modo que el total coincide con el de la pantalla de control de horas. Devuelve
+    (registros, desglose_por_tarifa, totales) con Decimal.
+    """
+    condiciones = ["rt.id_cliente = %s", "rt.hora_fin IS NOT NULL"]
+    parametros = [id_cliente]
+    if fecha_inicio and fecha_fin:
+        condiciones.append("rt.fecha BETWEEN %s AND %s")
+        parametros.extend([fecha_inicio, fecha_fin])
+
+    cursor.execute(
+        f"""
+        SELECT rt.fecha, t.titulo AS tarea, u.nombres AS usuario,
+               rt.duracion_minutos, rt.tarifa_hora, rt.monto
+        FROM registro_tiempo rt
+        INNER JOIN tarea t ON rt.id_tarea = t.id_tarea
+        INNER JOIN usuario u ON rt.id_usuario = u.id_usuario
+        WHERE {" AND ".join(condiciones)}
+        ORDER BY rt.fecha ASC, rt.hora_inicio ASC, rt.id_registro ASC
+        """,
+        tuple(parametros),
+    )
+    filas = cursor.fetchall()
+
+    centesimas = Decimal("0.01")
+    registros, por_tarifa = [], {}
+    minutos_totales, monto_total = Decimal(0), Decimal(0)
+    for fila in filas:
+        minutos = Decimal(str(fila["duracion_minutos"] or 0))
+        monto = Decimal(str(fila["monto"] or 0))
+        tarifa = Decimal(str(fila["tarifa_hora"]))
+        registros.append({
+            "fecha": fila["fecha"].isoformat() if hasattr(fila["fecha"], "isoformat") else str(fila["fecha"]),
+            "tarea": fila["tarea"],
+            "usuario": fila["usuario"],
+            "horas": (minutos / 60).quantize(centesimas, rounding=ROUND_HALF_UP),
+            "tarifa_hora": tarifa,
+            "monto": monto,
+        })
+        acumulado = por_tarifa.setdefault(tarifa, [Decimal(0), Decimal(0)])
+        acumulado[0] += minutos
+        acumulado[1] += monto
+        minutos_totales += minutos
+        monto_total += monto
+
+    desglose = [
+        {"tarifa_hora": tarifa, "horas": (minutos / 60).quantize(centesimas, rounding=ROUND_HALF_UP), "monto": monto}
+        for tarifa, (minutos, monto) in sorted(por_tarifa.items())
+    ]
+    totales = {
+        "horas": (minutos_totales / 60).quantize(centesimas, rounding=ROUND_HALF_UP),
+        "monto": monto_total,
+        "registros": len(registros),
+    }
+    return registros, desglose, totales
+
+
+def _moneda_de_cobro(cursor):
+    cursor.execute("SELECT valor_parametro FROM parametros_sistema WHERE nombre_parametro = 'MONEDA_DEFAULT'")
+    fila = cursor.fetchone()
+    return (fila["valor_parametro"] if fila else None) or "CLP"
+
+
+@reportes_blueprint.route('/reportes/cobro-por-cliente', methods=['GET'])
+@roles_required(ROL_ADMINISTRADOR)
+def reporte_cobro_por_cliente():
+    """RF75 — Monto a cobrar a un cliente por las horas registradas en sus tareas."""
+    conexion = None
+    try:
+        id_cliente = request.args.get('id_cliente', '').strip()
+        if not id_cliente:
+            return jsonify({"error": "Debe indicar id_cliente."}), 400
+        if not id_cliente.isdecimal() or int(id_cliente) < 1:
+            return jsonify({"error": "id_cliente debe ser un ID entero positivo"}), 400
+        id_cliente = int(id_cliente)
+
+        fecha_inicio, fecha_fin, error = _periodo_opcional(request.args)
+        if error:
+            return jsonify({"error": error}), 400
+        periodo_etiqueta, error = _etiqueta_periodo(request.args)
+        if error:
+            return jsonify({"error": error}), 400
+        if periodo_etiqueta and not fecha_inicio:
+            return jsonify({"error": "periodo_etiqueta requiere fecha_inicio y fecha_fin."}), 400
+
+        conexion = get_connection()
+        if conexion is None:
+            return jsonify({"error": "Fallo de conexión con MySQL."}), 500
+
+        with conexion.cursor(dictionary=True) as cursor:
+            cursor.execute(
+                "SELECT id_cliente, rut, razon_social FROM cliente WHERE id_cliente = %s",
+                (id_cliente,),
+            )
+            cliente = cursor.fetchone()
+            if not cliente:
+                return jsonify({"error": "Cliente inexistente."}), 404
+
+            registros, desglose, totales = _consultar_cobro_cliente(cursor, id_cliente, fecha_inicio, fecha_fin)
+            periodo = _periodo_respuesta(fecha_inicio, fecha_fin, periodo_etiqueta)
+            periodo["todos_los_registros"] = fecha_inicio is None
+            respuesta = {
+                "cliente": cliente,
+                "periodo": periodo,
+                "moneda": _moneda_de_cobro(cursor),
+                "fecha_generacion": None,
+                "registros": [{**r, "horas": float(r["horas"]), "tarifa_hora": float(r["tarifa_hora"]),
+                               "monto": float(r["monto"])} for r in registros],
+                "desglose_por_tarifa": [{"tarifa_hora": float(d["tarifa_hora"]), "horas": float(d["horas"]),
+                                         "monto": float(d["monto"])} for d in desglose],
+                "totales": {"horas": float(totales["horas"]), "monto": float(totales["monto"]),
+                            "registros": totales["registros"]},
+            }
+
+            if not registros:
+                respuesta["mensaje"] = MENSAJE_SIN_HORAS_COBRABLES if fecha_inicio else \
+                    "No se registran horas trabajadas para este cliente"
+                return jsonify(respuesta), 200
+
+            usuario_actual = obtener_usuario_actual()
+            generacion = _registrar_generacion(
+                cursor,
+                usuario_actual["id_usuario"],
+                "COBRO_POR_CLIENTE",
+                _parametros_con_etiqueta(
+                    {"id_cliente": id_cliente, "fecha_inicio": fecha_inicio, "fecha_fin": fecha_fin},
+                    periodo_etiqueta,
+                ),
+            )
+            respuesta["id_reporte"] = generacion["id_reporte"]
+            respuesta["fecha_generacion"] = generacion["fecha_generacion"]
+            conexion.commit()
+
+        return jsonify(respuesta), 200
+
+    except Exception:
+        if conexion:
+            conexion.rollback()
+        logger.exception("Error al generar reporte de cobro por cliente")
+        return jsonify({"error": "Ocurrió un error al generar el reporte."}), 500
+
+    finally:
+        if conexion:
+            conexion.close()
 
 
 def _registrar_generacion(cursor, id_usuario, tipo_reporte, parametros):
@@ -354,7 +520,7 @@ def _calcular_productividad(cursor, fecha_inicio, fecha_fin, id_area=None):
             f"""
             SELECT id_responsable, COUNT(*) AS total
             FROM tarea
-            WHERE estado IN ('PENDIENTE', 'EN_PROCESO')
+            WHERE estado IN {SQL_ESTADOS_ACTIVOS}
               AND id_responsable IN ({marcadores})
             GROUP BY id_responsable
             """,
@@ -712,6 +878,7 @@ def carga_por_usuario():
                 SELECT u.id_usuario,
                        SUM(CASE WHEN t.estado = 'PENDIENTE' THEN 1 ELSE 0 END) AS PENDIENTE,
                        SUM(CASE WHEN t.estado = 'EN_PROCESO' THEN 1 ELSE 0 END) AS EN_PROCESO,
+                       SUM(CASE WHEN t.estado = 'PAUSADA' THEN 1 ELSE 0 END) AS PAUSADA,
                        SUM(CASE WHEN t.estado = 'EN_REVISION' THEN 1 ELSE 0 END) AS EN_REVISION,
                        SUM(CASE WHEN t.estado = 'COMPLETADA' THEN 1 ELSE 0 END) AS COMPLETADA,
                        SUM(CASE WHEN t.estado = 'CANCELADA' THEN 1 ELSE 0 END) AS CANCELADA
@@ -727,6 +894,7 @@ def carga_por_usuario():
                 conteos[fila["id_usuario"]] = {
                     "PENDIENTE": int(fila.get("PENDIENTE") or 0),
                     "EN_PROCESO": int(fila.get("EN_PROCESO") or 0),
+                    "PAUSADA": int(fila.get("PAUSADA") or 0),
                     "EN_REVISION": int(fila.get("EN_REVISION") or 0),
                     "COMPLETADA": int(fila.get("COMPLETADA") or 0),
                     "CANCELADA": int(fila.get("CANCELADA") or 0),
@@ -739,6 +907,7 @@ def carga_por_usuario():
                     {
                         "PENDIENTE": 0,
                         "EN_PROCESO": 0,
+                        "PAUSADA": 0,
                         "EN_REVISION": 0,
                         "COMPLETADA": 0,
                         "CANCELADA": 0,
@@ -1040,6 +1209,22 @@ def _datos_para_exportar(cursor, tipo_reporte, parametros):
         nombre = f"{_nombre_archivo_seguro(base)}_{fecha_inicio}_a_{fecha_fin}.xlsx"
         return nombre, encabezados, filas
 
+    if tipo_reporte == "COBRO_POR_CLIENTE":
+        id_cliente = parametros.get("id_cliente")
+        registros, _, _ = _consultar_cobro_cliente(cursor, id_cliente, fecha_inicio, fecha_fin)
+        moneda = _moneda_de_cobro(cursor)
+        encabezados = ["Fecha", "Tarea", "Usuario", "Horas", f"Tarifa por hora ({moneda})", f"Monto ({moneda})"]
+        filas = [
+            [r["fecha"], r["tarea"], r["usuario"], float(r["horas"]), float(r["tarifa_hora"]), float(r["monto"])]
+            for r in registros
+        ]
+        cursor.execute("SELECT razon_social FROM cliente WHERE id_cliente = %s", (id_cliente,))
+        entidad = cursor.fetchone()
+        etiqueta = entidad["razon_social"] if entidad else str(id_cliente)
+        sufijo = f"{fecha_inicio}_a_{fecha_fin}" if fecha_inicio else "todos_los_registros"
+        nombre = f"{_nombre_archivo_seguro('reporte_cobro_por_cliente_' + etiqueta)}_{sufijo}.xlsx"
+        return nombre, encabezados, filas
+
     if tipo_reporte == "PRODUCTIVIDAD_POR_USUARIO":
         id_area = parametros.get("id_area")
         resultado = _calcular_productividad(cursor, fecha_inicio, fecha_fin, id_area)
@@ -1103,6 +1288,20 @@ def _filtros_para_exportar(cursor, tipo_reporte, parametros):
         cursor.execute("SELECT razon_social FROM cliente WHERE id_cliente = %s", (parametros.get("id_cliente"),))
         entidad = cursor.fetchone()
         filtros.append(("Cliente", entidad["razon_social"] if entidad else str(parametros.get("id_cliente"))))
+    elif tipo_reporte == "COBRO_POR_CLIENTE":
+        cursor.execute("SELECT razon_social, rut FROM cliente WHERE id_cliente = %s", (parametros.get("id_cliente"),))
+        entidad = cursor.fetchone()
+        filtros.append(("Cliente", f"{entidad['razon_social']} ({entidad['rut']})" if entidad else str(parametros.get("id_cliente"))))
+        _, desglose, totales = _consultar_cobro_cliente(
+            cursor, parametros.get("id_cliente"), parametros.get("fecha_inicio"), parametros.get("fecha_fin"))
+        moneda = _moneda_de_cobro(cursor)
+        for item in desglose:
+            filtros.append((
+                f"Tarifa de {_formato_cl(item['tarifa_hora'])} {moneda} por hora",
+                f"{_formato_cl(item['horas'], 2)} h = {_formato_cl(item['monto'])} {moneda}",
+            ))
+        filtros.append(("Total de horas", f"{_formato_cl(totales['horas'], 2)} h"))
+        filtros.append(("Monto total a cobrar", f"{_formato_cl(totales['monto'])} {moneda}"))
     elif tipo_reporte == "TAREAS_POR_RESPONSABLE":
         cursor.execute("SELECT nombres FROM usuario WHERE id_usuario = %s", (parametros.get("id_responsable"),))
         entidad = cursor.fetchone()
@@ -1176,6 +1375,7 @@ def exportar_reporte_excel(id_reporte, formato="excel"):
             "PRODUCTIVIDAD_POR_USUARIO": "Productividad por usuario",
             "ACTIVIDAD_POR_AREA": "Actividad por área de trabajo",
             "HISTORIAL_CONSOLIDADO": "Historial consolidado de actividades",
+            "COBRO_POR_CLIENTE": "Cobro por cliente (horas y monto)",
         }.get(reporte["tipo_reporte"], "Reporte")
         fecha_exportacion = f"{datetime.now():%d-%m-%Y %H:%M}"
         fecha_generacion = _texto_fecha_generacion(reporte.get("fecha_generacion")) or fecha_exportacion
@@ -1232,30 +1432,22 @@ def exportar_reporte_excel(id_reporte, formato="excel"):
         libro = Workbook()
         hoja = libro.active
         hoja.title = "Reporte"
-        hoja.append(encabezados)
-        for fila in filas:
-            hoja.append(fila)
-            # Los textos del usuario son datos, nunca fórmulas ejecutables.
-            for celda in hoja[hoja.max_row]:
-                if celda.data_type == "f":
-                    celda.data_type = "s"
+        # Los textos del usuario son datos, nunca fórmulas ejecutables (lo asegura escribir_filas).
+        escribir_filas(hoja, [encabezados])
+        escribir_filas(hoja, filas, fila_inicial=2)
 
         # Segunda hoja con los parámetros del reporte: la primera conserva una
         # fila por elemento y los encabezados (criterio de RF35), y esta deja
         # el período y los filtros dentro del propio archivo (RF38).
         hoja_parametros = libro.create_sheet("Parámetros")
-        for fila in [
+        escribir_filas(hoja_parametros, [
             ("Reporte", titulo),
             ("Período", _texto_periodo(parametros)),
             *filtros,
             ("Fecha de generación", fecha_generacion),
             ("Fecha de exportación", fecha_exportacion),
             ("Identificador del reporte", reporte["id_reporte"]),
-        ]:
-            hoja_parametros.append(fila)
-            for celda in hoja_parametros[hoja_parametros.max_row]:
-                if celda.data_type == "f":
-                    celda.data_type = "s"
+        ])
 
         buffer = io.BytesIO()
         libro.save(buffer)

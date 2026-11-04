@@ -1,5 +1,5 @@
 async function cerrarSesion() {
-  const confirmar = confirm("¿Desea cerrar sesión?");
+  const confirmar = await confirmarAccion("¿Desea cerrar sesión?", "normal");
 
   if (!confirmar) {
     return;

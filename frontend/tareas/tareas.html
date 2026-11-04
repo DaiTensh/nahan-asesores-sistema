@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Gestión de Tareas</title>
 
   <link rel="stylesheet" href="../assets/css/variables.css">
@@ -43,6 +44,11 @@
         <div class="tarea-card">
           <p>En proceso</p>
           <h2 id="totalProceso">0</h2>
+        </div>
+
+        <div class="tarea-card">
+          <p>Pausadas</p>
+          <h2 id="totalPausadas">0</h2>
         </div>
 
         <div class="tarea-card">
@@ -98,7 +104,12 @@
             </div>
 
             <div class="form-group">
-              <label class="form-label" for="fecha_vencimiento">Fecha vencimiento</label>
+              <label class="form-label" for="fecha_inicio">Fecha de inicio</label>
+              <input type="date" id="fecha_inicio" class="form-input">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="fecha_vencimiento">Fecha de vencimiento</label>
               <input type="date" id="fecha_vencimiento" class="form-input">
             </div>
 
@@ -126,12 +137,23 @@
         <h2>Tareas pendientes</h2>
 
         <div class="tareas-filtros">
+          <div class="form-group tareas-filtro-agrupacion">
+            <label class="form-label" for="agruparPor">Agrupar por</label>
+            <select id="agruparPor" class="form-input">
+              <option value="">Sin agrupar</option>
+              <option value="cliente">Cliente</option>
+              <option value="prioridad">Prioridad</option>
+              <option value="responsable">Responsable</option>
+            </select>
+          </div>
+
           <div class="form-group tareas-filtro-estado">
             <label class="form-label" for="filtroEstado">Filtrar por estado</label>
             <select id="filtroEstado" class="form-input">
-              <option value="">Pendientes, en proceso y en revisión</option>
+              <option value="">Pendientes, en proceso, pausadas y en revisión</option>
               <option value="PENDIENTE">Pendiente</option>
               <option value="EN_PROCESO">En proceso</option>
+              <option value="PAUSADA">Pausada</option>
               <option value="EN_REVISION">En revisión</option>
               <option value="COMPLETADA">Completada</option>
               <option value="CANCELADA">Cancelada</option>
@@ -152,7 +174,7 @@
         <div class="redistribuir-bar" id="redistribuirBar" hidden>
           <span id="redistribuirContador">0 tareas seleccionadas</span>
 
-          <input type="text" id="redistribuir_destino_busqueda" class="form-input" list="usuarios_redistribuir_destino" placeholder="Reasignar a...">
+          <input type="text" id="redistribuir_destino_busqueda" class="form-input" list="usuarios_redistribuir_destino" placeholder="Reasignar a..." aria-label="Reasignar las tareas seleccionadas a">
           <input type="hidden" id="redistribuir_destino_id">
           <datalist id="usuarios_redistribuir_destino"></datalist>
 
@@ -162,10 +184,11 @@
           <span id="redistribuirCarga" class="redistribuir-carga"></span>
         </div>
 
+        <div class="table-responsive">
         <table class="tareas-table">
           <thead>
             <tr>
-              <th><input type="checkbox" id="seleccionarTodas"></th>
+              <th><input type="checkbox" id="seleccionarTodas" aria-label="Seleccionar todas las tareas"></th>
               <th>ID</th>
               <th>Título</th>
               <th>Cliente</th>
@@ -180,6 +203,7 @@
 
           <tbody id="tablaTareas"></tbody>
         </table>
+        </div>
       </section>
 
     </main>
@@ -189,12 +213,14 @@
 </div>
 
 <script src="../assets/js/api_config.js"></script>
+<script src="../assets/js/confirmar.js"></script>
 <script src="../auth/logout.js"></script>
 <script src="../assets/js/navigation.js"></script>
 <script src="../assets/js/topbar.js"></script>
 <script src="../assets/js/permissions.js"></script>
 <script src="../assets/js/clientes_autocomplete.js"></script>
 <script src="../assets/js/usuarios_autocomplete.js"></script>
+<script src="../assets/js/agrupar_tareas.js"></script>
 <script src="./tareas.js"></script>
 
 <script>

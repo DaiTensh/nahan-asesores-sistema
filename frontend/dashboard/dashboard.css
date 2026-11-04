@@ -30,6 +30,23 @@
   margin-bottom: 28px;
 }
 
+/* Filas con pocas tarjetas: reparten todo el ancho (el HTML ya declara flex:1) */
+.dashboard-cards-fill {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.dashboard-cards-fill > .dashboard-card {
+  flex: 1 1 180px;
+  min-width: 180px;
+}
+
+@media (max-width: 900px) {
+  .dashboard-cards-fill > .dashboard-card {
+    flex-basis: 100%;
+  }
+}
+
 .dashboard-card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);

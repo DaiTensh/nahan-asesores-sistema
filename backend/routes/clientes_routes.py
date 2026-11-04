@@ -10,6 +10,9 @@ from backend.config.db import get_connection
 from backend.utils.auditoria import acciones_de_registros, registrar_auditoria, consultar_auditoria
 from backend.utils.auth import ROL_ADMINISTRADOR, ROLES_OPERATIVOS, obtener_usuario_actual, roles_required
 from backend.utils.clientes_recientes import leer_limite_clientes_recientes
+from backend.utils.estados_tarea import SQL_ESTADOS_ACTIVOS, es_estado_activo
+from backend.utils.excel import escribir_filas
+from backend.utils.validaciones_cliente import error_de_contacto, rut_comparable, validar_rut
 
 clientes_blueprint = Blueprint('clientes_blueprint', __name__)
 logger = logging.getLogger(__name__)
@@ -34,7 +37,7 @@ def _describir_cliente(razon_social, email, telefono, direccion, areas, rut=None
 def registrar_cliente():
     conexion = None
     try:
-        datos = request.json
+        datos = request.get_json(silent=True) or {}
         id_usuario = obtener_usuario_actual()["id_usuario"]
         
         rut = (datos.get('rut') or '').strip()
@@ -48,6 +51,14 @@ def registrar_cliente():
         if not all([rut, razon_social]):
             return jsonify({"error": "RUT y Nombre de contacto 1 (Razón Social) son estrictamente obligatorios."}), 400
 
+        rut, error_rut = validar_rut(rut)
+        if error_rut:
+            return jsonify({"error": error_rut}), 400
+
+        error_contacto = error_de_contacto(email, telefono)
+        if error_contacto:
+            return jsonify({"error": error_contacto}), 400
+
         if not areas:
             return jsonify({"error": "Debe asignar el cliente a por lo menos un área activa."}), 400
 
@@ -56,8 +67,12 @@ def registrar_cliente():
             return jsonify({"error": "Fallo interno de comunicación con la base de datos."}), 500
 
         with conexion.cursor() as cursor:
-            # Control preventivo de RUT duplicado
-            cursor.execute("SELECT id_cliente FROM cliente WHERE rut = %s", (rut,))
+            # Control preventivo de RUT duplicado, sin importar el formato con que se guardó
+            cursor.execute(
+                "SELECT id_cliente FROM cliente "
+                "WHERE REPLACE(REPLACE(UPPER(rut), '.', ''), '-', '') = %s",
+                (rut_comparable(rut),),
+            )
             if cursor.fetchone():
                 return jsonify({"error": "El RUT ingresado ya pertenece a un cliente registrado."}), 400
 
@@ -111,6 +126,18 @@ def registrar_cliente():
             conexion.close()
 
 
+def _registrar_cliente_reciente(cursor, id_usuario, id_cliente):
+    """RF47: anota que la persona consultó a este cliente (una fila por persona y cliente)."""
+    cursor.execute(
+        """
+        INSERT INTO cliente_reciente (id_usuario, id_cliente, fecha_interaccion)
+        VALUES (%s, %s, CURRENT_TIMESTAMP(6))
+        ON DUPLICATE KEY UPDATE fecha_interaccion = CURRENT_TIMESTAMP(6)
+        """,
+        (id_usuario, id_cliente),
+    )
+
+
 @clientes_blueprint.route('/clientes/<int:id_cliente>', methods=['GET'])
 @roles_required(*ROLES_OPERATIVOS)
 def obtener_cliente(id_cliente):
@@ -140,15 +167,7 @@ def obtener_cliente(id_cliente):
             cliente['areas'] = [item['id_area'] for item in filas_areas]
 
             if cliente["estado"] == "ACTIVO":
-                id_usuario = obtener_usuario_actual()["id_usuario"]
-                cursor.execute(
-                    """
-                    INSERT INTO cliente_reciente (id_usuario, id_cliente, fecha_interaccion)
-                    VALUES (%s, %s, CURRENT_TIMESTAMP(6))
-                    ON DUPLICATE KEY UPDATE fecha_interaccion = CURRENT_TIMESTAMP(6)
-                    """,
-                    (id_usuario, id_cliente),
-                )
+                _registrar_cliente_reciente(cursor, obtener_usuario_actual()["id_usuario"], id_cliente)
                 conexion.commit()
 
         return jsonify(cliente), 200
@@ -208,7 +227,7 @@ def obtener_clientes_recientes():
 def modificar_cliente(id_cliente):
     conexion = None
     try:
-        datos = request.json
+        datos = request.get_json(silent=True) or {}
         id_usuario = obtener_usuario_actual()["id_usuario"]
         razon_social = (datos.get('razon_social') or '').strip()
         email = (datos.get('email') or '').strip()
@@ -218,6 +237,10 @@ def modificar_cliente(id_cliente):
 
         if not razon_social:
             return jsonify({"error": "El campo Nombre contacto 1 es mandatorio."}), 400
+
+        error_contacto = error_de_contacto(email, telefono)
+        if error_contacto:
+            return jsonify({"error": error_contacto}), 400
 
         if not areas:
             return jsonify({"error": "Debe mantener al menos una asignación de área."}), 400
@@ -298,6 +321,36 @@ def modificar_cliente(id_cliente):
 
 
 
+def _valor_conteo(fila):
+    if not fila:
+        return 0
+    return int(fila["conteo"] if isinstance(fila, dict) else fila[0])
+
+
+def _contar_vinculos_activos(cursor, id_cliente):
+    """RF03: devuelve (tareas activas, documentos vigentes) de un cliente.
+
+    Es el único criterio de «vínculos activos»: lo usa la pantalla de
+    eliminación (verificar-vinculos) y también el servidor al eliminar, para
+    que una llamada directa a la API no pueda saltarse lo que la pantalla
+    impide. Sirve con cursores de tupla o de diccionario.
+    """
+    cursor.execute(
+        f"""
+        SELECT COUNT(*) as conteo FROM tarea
+        WHERE id_cliente = %s AND estado IN {SQL_ESTADOS_ACTIVOS}
+        """,
+        (id_cliente,),
+    )
+    tareas = _valor_conteo(cursor.fetchone())
+    cursor.execute(
+        "SELECT COUNT(*) as conteo FROM documento WHERE id_cliente = %s AND estado = 'ACTIVO'",
+        (id_cliente,),
+    )
+    documentos = _valor_conteo(cursor.fetchone())
+    return tareas, documentos
+
+
 # ==========================================================================
 # RF03: ENPOINT DE VERIFICACIÓN DE VÍNCULOS COMERCIALES
 # ==========================================================================
@@ -317,18 +370,8 @@ def verificar_vinculos_cliente(id_cliente):
             if not cliente:
                 return jsonify({"error": "Cliente no localizado."}), 404
 
-            # 2. Contar tareas en proceso o pendientes según tus ENUM de BD
-            query_tareas = """
-                SELECT COUNT(*) as conteo FROM tarea 
-                WHERE id_cliente = %s AND estado IN ('PENDIENTE', 'EN_PROCESO', 'EN_REVISION')
-            """
-            cursor.execute(query_tareas, (id_cliente,))
-            total_tareas = cursor.fetchone()['conteo']
-
-            # 3. Contar documentos activos vigentes
-            query_docs = "SELECT COUNT(*) as conteo FROM documento WHERE id_cliente = %s AND estado = 'ACTIVO'"
-            cursor.execute(query_docs, (id_cliente,))
-            total_docs = cursor.fetchone()['conteo']
+            # 2 y 3. Tareas activas y documentos vigentes (criterio compartido con la eliminación definitiva)
+            total_tareas, total_docs = _contar_vinculos_activos(cursor, id_cliente)
 
             vinculos_activos = (total_tareas > 0 or total_docs > 0)
 
@@ -370,7 +413,12 @@ def deshabilitar_cliente_rf3(id_cliente):
             cursor.execute("UPDATE cliente SET estado = 'INACTIVO' WHERE id_cliente = %s", (id_cliente,))
 
             if cursor.rowcount == 0:
+                # MySQL informa 0 filas también cuando el valor ya era INACTIVO.
+                cursor.execute("SELECT estado FROM cliente WHERE id_cliente = %s", (id_cliente,))
+                existente = cursor.fetchone()
                 conexion.rollback()
+                if existente:
+                    return jsonify({"error": "El cliente ya se encuentra deshabilitado."}), 409
                 return jsonify({"error": "Cliente inexistente."}), 404
 
             # Grabar en historial (Tabla Auditoria de tu base de datos)
@@ -418,11 +466,29 @@ def eliminar_definitivo_cliente(id_cliente):
             
             log_anterior = f"rut: {info[0]}, razon_social: {info[1]}"
 
-            # 1. Limpiar amarras en la tabla intermedia cliente_area para evitar error de FK
-            cursor.execute("DELETE FROM cliente_area WHERE id_cliente = %s", (id_cliente,))
+            # RF03: con tareas activas o documentos vigentes solo se puede deshabilitar.
+            # La pantalla ya lo ofrece así; el servidor lo exige también ante llamadas directas.
+            tareas_activas, documentos_activos = _contar_vinculos_activos(cursor, id_cliente)
+            if tareas_activas or documentos_activos:
+                return jsonify({
+                    "error": "El cliente tiene tareas activas o documentos vigentes: solo puede deshabilitarse.",
+                    "tareas_activas": tareas_activas,
+                    "documentos_activos": documentos_activos,
+                }), 409
 
-            # 2. Remover físicamente de la tabla cliente
-            cursor.execute("DELETE FROM cliente WHERE id_cliente = %s", (id_cliente,))
+            try:
+                # 1. Limpiar amarras en la tabla intermedia cliente_area para evitar error de FK
+                cursor.execute("DELETE FROM cliente_area WHERE id_cliente = %s", (id_cliente,))
+
+                # 2. Remover físicamente de la tabla cliente
+                cursor.execute("DELETE FROM cliente WHERE id_cliente = %s", (id_cliente,))
+            except IntegrityError:
+                # Historial que no es «activo» (tareas finalizadas, horas, observaciones): se conserva.
+                conexion.rollback()
+                return jsonify({
+                    "error": "El cliente tiene historial asociado (tareas finalizadas, horas u observaciones): "
+                             "solo puede deshabilitarse.",
+                }), 409
 
             # 3. Grabar en historial de auditoría
             registrar_auditoria(
@@ -464,6 +530,12 @@ def obtener_ficha_consolidada(id_cliente):
             if not cliente:
                 return jsonify({"error": "El expediente solicitado no existe en los registros activos."}), 404
 
+            # RF47: abrir la ficha es la consulta más habitual de un cliente; antes solo registraba
+            # la pantalla de edición y el panel «Mis clientes recientes» quedaba casi vacío.
+            if cliente["estado"] == "ACTIVO":
+                _registrar_cliente_reciente(cursor, obtener_usuario_actual()["id_usuario"], id_cliente)
+                conexion.commit()
+
             # 2. Consultar las áreas asociadas concatenando sus nombres de forma limpia
             query_areas = """
                 SELECT a.nombre_area FROM cliente_area ca
@@ -489,7 +561,7 @@ def obtener_ficha_consolidada(id_cliente):
             # RF61 — Panel resumen: cantidad de tareas activas, calculada sobre
             # el mismo listado ya traído (sin disparar una consulta adicional).
             cliente["tareas_activas"] = sum(
-                1 for tarea in cliente["tareas"] if tarea["estado"] in ("PENDIENTE", "EN_PROCESO")
+                1 for tarea in cliente["tareas"] if es_estado_activo(tarea["estado"])
             )
 
             # 4. Traer las referencias documentales del cliente (RF07/RF08).
@@ -576,7 +648,7 @@ def filtrar_clientes_combinado():
         if conexion:
             conexion.rollback()
         logger.exception("Error al filtrar clientes")
-        return jsonify({"error": "Ocurrió una anomalía al procesar el filtrado multi-criterio."}), 500
+        return jsonify({"error": "Ocurrió una anomalía al procesar el filtrado multicriterio."}), 500
 
     finally:
         if conexion:
@@ -591,7 +663,7 @@ def filtrar_clientes_combinado():
 def cambiar_estado_cliente_rf10(id_cliente):
     conexion = None
     try:
-        datos = request.json
+        datos = request.get_json(silent=True) or {}
         nuevo_estado = (datos.get('nuevo_estado') or '').strip().upper()
         id_usuario = obtener_usuario_actual()["id_usuario"]
 
@@ -752,16 +824,12 @@ def _exportar_listado_clientes_excel(clientes):
     libro = Workbook()
     hoja = libro.active
     hoja.title = "Clientes"
-    hoja.append(["RUT", "Razón Social", "Áreas", "Estado", "Fecha de creación", "Responsables asignados"])
-
-    for cliente in clientes:
-        hoja.append([
-            cliente["rut"], cliente["razon_social"], cliente["areas_nombres"],
-            cliente["estado"], cliente["fecha_creacion"], cliente["responsables_nombres"] or "",
-        ])
-        for celda in hoja[hoja.max_row]:
-            if celda.data_type == "f":
-                celda.data_type = "s"
+    escribir_filas(hoja, [["RUT", "Razón Social", "Áreas", "Estado", "Fecha de creación", "Responsables asignados"]])
+    escribir_filas(hoja, (
+        [cliente["rut"], cliente["razon_social"], cliente["areas_nombres"],
+         cliente["estado"], cliente["fecha_creacion"], cliente["responsables_nombres"] or ""]
+        for cliente in clientes
+    ), fila_inicial=2)
 
     buffer = io.BytesIO()
     libro.save(buffer)
@@ -890,7 +958,7 @@ def listar_observaciones_cliente(id_cliente):
 def registrar_observacion_cliente(id_cliente):
     conexion = None
     try:
-        datos = request.json or {}
+        datos = request.get_json(silent=True) or {}
         texto = (datos.get('texto') or '').strip()
         id_usuario = obtener_usuario_actual()["id_usuario"]
 

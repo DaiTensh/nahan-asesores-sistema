@@ -11,8 +11,11 @@ Jinja2==3.1.6
 MarkupSafe==3.0.3
 mysql-connector-python==9.4.0
 openpyxl==3.1.5
-python-dotenv==1.2.1
+# PYSEC-2026-2270 (set_key/unset_key, que el código no usa) se corrige en 1.2.2, que exige
+# Python 3.10 o superior; con Python 3.9 la última versión instalable es 1.2.1.
+python-dotenv==1.2.1; python_version < "3.10"
+python-dotenv==1.2.2; python_version >= "3.10"
 typing_extensions==4.15.0
-Werkzeug==3.1.8
+Werkzeug==3.1.9
 zipp==3.23.1
 reportlab==4.4.10

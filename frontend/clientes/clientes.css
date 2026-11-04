@@ -151,6 +151,7 @@
 
 .pagination {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: 14px;
@@ -263,7 +264,9 @@
   .clientes-cards,
   .clientes-toolbar,
   .form-grid {
-    grid-template-columns: 1fr;
+    /* minmax(0, ...) permite que la columna sea más angosta que su contenido; con 1fr a secas las tarjetas
+       del resumen quedaban cortadas a 360 px. */
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .clientes-section {
@@ -281,5 +284,16 @@
 
   .cliente-detail-label {
     border-bottom: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .cliente-card {
+    padding: 16px;
+  }
+
+  .cliente-card h2 {
+    font-size: 26px;
+    overflow-wrap: anywhere;
   }
 }

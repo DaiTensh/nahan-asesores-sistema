@@ -9,11 +9,11 @@
     document.getElementById("estadoCambiosRecientes").textContent = mensaje;
   }
 
-  function agregarOpciones(select, valores) {
+  function agregarOpciones(select, valores, etiqueta = valor => valor) {
     valores.forEach(valor => {
       const opcion = document.createElement("option");
       opcion.value = valor;
-      opcion.textContent = valor;
+      opcion.textContent = etiqueta(valor);
       select.appendChild(opcion);
     });
   }
@@ -48,7 +48,7 @@
 
     const filtros = await response.json();
     agregarOpciones(document.getElementById("filtroModuloCambios"), filtros.modulos || []);
-    agregarOpciones(document.getElementById("filtroTipoCambio"), filtros.tipos || []);
+    agregarOpciones(document.getElementById("filtroTipoCambio"), filtros.tipos || [], window.etiquetaAccionAuditoria);
     return true;
   }
 
@@ -91,7 +91,7 @@
 
     cambios.forEach(cambio => {
       const fila = document.createElement("tr");
-      crearCelda(fila, cambio.tipo);
+      crearCelda(fila, window.etiquetaAccionAuditoria(cambio.tipo));
       crearCelda(fila, cambio.modulo);
       crearCelda(fila, cambio.fecha);
       crearCelda(fila, cambio.hora);
@@ -157,6 +157,13 @@
     document.getElementById("filtroModuloCambios").addEventListener("change", cargarCambios);
     document.getElementById("filtroTipoCambio").addEventListener("change", cargarCambios);
     try {
+      // El panel es solo del administrador (RNF14): a los demás roles no se les pide nada, en vez de
+      // provocar un 403 en cada carga del dashboard. El servidor sigue siendo quien lo exige.
+      const usuario = await obtenerUsuarioActual();
+      if (!usuario || usuario.nombre_rol !== "ADMINISTRADOR") {
+        ocultarPorPermisos();
+        return;
+      }
       if (!(await cargarFiltros())) return;
       await cargarCambios();
       if (seccion.hidden) return;

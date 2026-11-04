@@ -13,7 +13,8 @@ existe por su clave natural (email o RUT) y no lo duplica.
     python database/seed_dev.py            # siembra
     python database/seed_dev.py --reset    # borra lo sembrado y vuelve a sembrar
 
-NO usar en producción: las contraseñas son públicas y están en este archivo.
+NO usar en producción: las contraseñas son públicas y están en este archivo. Con FLASK_ENV=production
+se niega a ejecutarse salvo que se pase --permitir-produccion.
 """
 import argparse
 import os
@@ -33,7 +34,13 @@ except ImportError as e:                                     # pragma: no cover
 
 # La misma para todos, a propósito: es una base local de desarrollo y tiene que
 # poder escribirse en la pizarra sin que nadie tenga que preguntarla.
-PASSWORD_DEV = "Nahan.2026"
+PASSWORD_PUBLICA_DE_DESARROLLO = "Nahan.2026"
+PASSWORD_DEV = PASSWORD_PUBLICA_DE_DESARROLLO
+
+# Fuera de un equipo de desarrollo esta contraseña no puede usarse: con --permitir-produccion
+# hay que dar otra en NAHAN_SEED_PASSWORD (al menos 12 caracteres).
+if os.getenv("NAHAN_SEED_PASSWORD"):
+    PASSWORD_DEV = os.environ["NAHAN_SEED_PASSWORD"]
 
 # (nombres, email, rol, area)
 USUARIOS = [
@@ -46,53 +53,63 @@ USUARIOS = [
     ("Iván Gómez",         "ivan.gomez@nahan.local",         "USUARIO_AREA_CONTABLE",  "CONTABLE"),
 ]
 
+# RUT de demostración que usaban las versiones anteriores del script: no cumplían el
+# dígito verificador que ahora exige la aplicación. Una base ya sembrada los conserva;
+# sembrar vuelve a rotular esos clientes en su lugar (sin borrar nada) y --reset
+# también los reconoce.
+RUT_ANTERIORES = {
+    "76.543.210-9": "11.111.111-1", "77.812.455-1": "22.222.222-2", "78.220.876-K": "33.333.333-3",
+    "79.004.331-5": "44.444.444-4", "80.115.998-3": "55.555.555-5", "81.667.220-7": "66.666.666-6",
+}
+
 # (rut, razon_social, email, telefono, direccion, estado, area)
+# Son RUT ficticios válidos (módulo 11) de dígitos repetidos, para no usar el de una persona o empresa real.
 CLIENTES = [
-    ("76.543.210-9", "Comercial Andes SpA",            "contacto@comercialandes.cl",  "+56 2 2345 6789", "Av. Providencia 1234, Santiago",  "ACTIVO",   "JURIDICA"),
-    ("77.812.455-1", "Constructora Los Robles Ltda.",  "admin@losrobles.cl",          "+56 2 2987 1122", "Av. Vitacura 4321, Santiago",     "ACTIVO",   "JURIDICA"),
-    ("78.220.876-K", "Importadora del Pacífico SpA",   "gerencia@impacifico.cl",      "+56 2 2456 7788", "Nueva Costanera 890, Santiago",   "ACTIVO",   "CONTABLE"),
-    ("79.004.331-5", "Agrícola Valle Verde Ltda.",     "contabilidad@valleverde.cl",  "+56 72 234 5566", "Camino El Roble s/n, Rancagua",   "ACTIVO",   "CONTABLE"),
-    ("80.115.998-3", "Servicios Australes SpA",        "contacto@australes.cl",       "+56 61 222 3344", "Bories 456, Punta Arenas",        "ACTIVO",   "JURIDICA"),
-    ("81.667.220-7", "Transportes Cordillera Ltda.",   "operaciones@tcordillera.cl",  "+56 2 2777 8899", "Camino a Melipilla 9100, Maipú",  "INACTIVO", "CONTABLE"),
+    ("11.111.111-1", "Comercial Andes SpA",            "contacto@comercialandes.cl",  "+56 2 2345 6789", "Av. Providencia 1234, Santiago",  "ACTIVO",   "JURIDICA"),
+    ("22.222.222-2", "Constructora Los Robles Ltda.",  "admin@losrobles.cl",          "+56 2 2987 1122", "Av. Vitacura 4321, Santiago",     "ACTIVO",   "JURIDICA"),
+    ("33.333.333-3", "Importadora del Pacífico SpA",   "gerencia@impacifico.cl",      "+56 2 2456 7788", "Nueva Costanera 890, Santiago",   "ACTIVO",   "CONTABLE"),
+    ("44.444.444-4", "Agrícola Valle Verde Ltda.",     "contabilidad@valleverde.cl",  "+56 72 234 5566", "Camino El Roble s/n, Rancagua",   "ACTIVO",   "CONTABLE"),
+    ("55.555.555-5", "Servicios Australes SpA",        "contacto@australes.cl",       "+56 61 222 3344", "Bories 456, Punta Arenas",        "ACTIVO",   "JURIDICA"),
+    ("66.666.666-6", "Transportes Cordillera Ltda.",   "operaciones@tcordillera.cl",  "+56 2 2777 8899", "Camino a Melipilla 9100, Maipú",  "INACTIVO", "CONTABLE"),
 ]
 
 # (cliente_rut, titulo, descripcion, estado, prioridad, dias_vencimiento, responsable_email, area)
 # dias_vencimiento es relativo a hoy: negativo = vencida.
 TAREAS = [
-    ("76.543.210-9", "Revisión de contrato de arriendo comercial",
+    ("11.111.111-1", "Revisión de contrato de arriendo comercial",
      "Revisar cláusulas de renovación automática y multa por término anticipado.",
      "PENDIENTE",   "ALTA",    5,   "elias.alarcon@nahan.local",     "JURIDICA"),
-    ("76.543.210-9", "Constitución de sociedad filial",
+    ("11.111.111-1", "Constitución de sociedad filial",
      "Redactar estatutos y coordinar firma ante notario.",
      "EN_PROCESO",  "MEDIA",   12,  "vicente.barahona@nahan.local",  "JURIDICA"),
-    ("77.812.455-1", "Defensa en reclamo de la Dirección del Trabajo",
+    ("22.222.222-2", "Defensa en reclamo de la Dirección del Trabajo",
      "Preparar descargos y reunir antecedentes del contrato de obra.",
      "EN_PROCESO",  "URGENTE", -3,  "elias.alarcon@nahan.local",     "JURIDICA"),
-    ("77.812.455-1", "Inscripción de marca comercial",
+    ("22.222.222-2", "Inscripción de marca comercial",
      "Presentar solicitud ante INAPI y hacer seguimiento de la publicación.",
      "EN_REVISION", "MEDIA",   8,   "vicente.barahona@nahan.local",  "JURIDICA"),
-    ("78.220.876-K", "Declaración mensual de IVA",
+    ("33.333.333-3", "Declaración mensual de IVA",
      "Consolidar libros de compra y venta del período y presentar el F29.",
      "COMPLETADA",  "ALTA",    -10, "carlos.castro@nahan.local",     "CONTABLE"),
-    ("78.220.876-K", "Conciliación bancaria del trimestre",
+    ("33.333.333-3", "Conciliación bancaria del trimestre",
      "Cuadrar cartolas contra el libro mayor y documentar las diferencias.",
      "PENDIENTE",   "MEDIA",   3,   "ivan.gomez@nahan.local",        "CONTABLE"),
-    ("79.004.331-5", "Cierre contable anual",
+    ("44.444.444-4", "Cierre contable anual",
      "Preparar balance de ocho columnas y estado de resultados.",
      "EN_PROCESO",  "ALTA",    20,  "carlos.castro@nahan.local",     "CONTABLE"),
-    ("79.004.331-5", "Regularización de facturas rechazadas",
+    ("44.444.444-4", "Regularización de facturas rechazadas",
      "Revisar el rechazo del SII y reemitir los documentos observados.",
      "PENDIENTE",   "URGENTE", -1,  "ivan.gomez@nahan.local",        "CONTABLE"),
-    ("80.115.998-3", "Redacción de pacto de accionistas",
+    ("55.555.555-5", "Redacción de pacto de accionistas",
      "Incorporar cláusula de arrastre y derecho preferente de compra.",
      "PENDIENTE",   "BAJA",    30,  "vicente.barahona@nahan.local",  "JURIDICA"),
-    ("80.115.998-3", "Actualización de poderes ante el banco",
+    ("55.555.555-5", "Actualización de poderes ante el banco",
      "Reunir la documentación societaria vigente y presentarla.",
      "CANCELADA",   "BAJA",    15,  "elias.alarcon@nahan.local",     "JURIDICA"),
-    ("81.667.220-7", "Revisión de contrato de transporte",
+    ("66.666.666-6", "Revisión de contrato de transporte",
      "Verificar cobertura de seguro de carga y responsabilidad del porteador.",
      "COMPLETADA",  "MEDIA",   -25, "carlos.castro@nahan.local",     "CONTABLE"),
-    ("76.543.210-9", "Informe tributario para la junta de accionistas",
+    ("11.111.111-1", "Informe tributario para la junta de accionistas",
      "Consolidar la carga tributaria del ejercicio y proyectar el siguiente.",
      "EN_REVISION", "ALTA",    2,   "ivan.gomez@nahan.local",        "CONTABLE"),
 ]
@@ -153,8 +170,20 @@ LIMPIEZA = [
 ]
 
 
+def actualizar_ruts_anteriores(cursor):
+    """Corrige en su lugar los RUT de demostración antiguos; no toca clientes que no sean de la siembra."""
+    for anterior, nuevo in RUT_ANTERIORES.items():
+        cursor.execute(
+            "UPDATE cliente SET rut = %s WHERE rut = %s AND NOT EXISTS "
+            "(SELECT 1 FROM (SELECT id_cliente FROM cliente WHERE rut = %s) AS existente)",
+            (nuevo, anterior, nuevo),
+        )
+        if cursor.rowcount:
+            print(f"  RUT {anterior} corregido a {nuevo}")
+
+
 def limpiar(cursor):
-    ruts = [c[0] for c in CLIENTES]
+    ruts = [c[0] for c in CLIENTES] + list(RUT_ANTERIORES)
     marcas = ", ".join(["%s"] * len(ruts))
     print("Borrando los datos de desarrollo anteriores...")
     for tabla, plantilla, lleva_ruts in LIMPIEZA:
@@ -181,6 +210,8 @@ def sembrar(cursor):
             "La base no tiene los roles y áreas base: falta " + ", ".join(sorted(set(faltan))) +
             ".\nImporta primero database/nahan_asesores.sql."
         )
+
+    actualizar_ruts_anteriores(cursor)
 
     # --- usuarios ---
     hash_dev = hash_password(PASSWORD_DEV)
@@ -269,7 +300,22 @@ def main():
     ap = argparse.ArgumentParser(description="Siembra los datos de desarrollo de Nahan Asesores.")
     ap.add_argument("--reset", action="store_true",
                     help="borra los datos de desarrollo anteriores antes de sembrar")
+    ap.add_argument("--permitir-produccion", action="store_true",
+                    help="permite sembrar con FLASK_ENV=production (crea cuentas con contraseña pública)")
     args = ap.parse_args()
+
+    entorno = os.getenv("FLASK_ENV", "").strip().lower()
+    # Falla cerrado: sin FLASK_ENV=development explícito se asume producción.
+    if entorno not in ("development", "dev", "testing", "test") and not args.permitir_produccion:
+        print(f"Se niega a sembrar: FLASK_ENV={entorno or '(sin definir)'}. Este script crea siete cuentas con una contraseña")
+        print("pública y, con --reset, borra datos. Si de verdad es lo que se quiere, repetir con --permitir-produccion.")
+        return 2
+
+    if entorno not in ("development", "dev", "testing", "test") and (
+            PASSWORD_DEV == PASSWORD_PUBLICA_DE_DESARROLLO or len(PASSWORD_DEV) < 12):
+        print("Aun con --permitir-produccion no se siembra con la contraseña pública de desarrollo.")
+        print("Defina NAHAN_SEED_PASSWORD (12 caracteres o más) y repita.")
+        return 2
 
     conexion = get_connection()
     if conexion is None:
@@ -295,7 +341,7 @@ def main():
     resumen("Creado", s.creado)
     resumen("Ya existía", s.omitido)
     print()
-    print(f"  Contraseña de todos los usuarios: {PASSWORD_DEV}")
+    print(f"  Contraseña de todos los usuarios: {PASSWORD_DEV}   (solo desarrollo local)")
     print("  Administrador: renato.villalobos@nahan.local")
     print("  Área jurídica: elias.alarcon@nahan.local")
     print("  Área contable: carlos.castro@nahan.local")

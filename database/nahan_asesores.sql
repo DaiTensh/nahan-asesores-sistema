@@ -83,7 +83,7 @@ CREATE TABLE tarea (
     id_creador INT NOT NULL,
     titulo VARCHAR(200) NOT NULL,
     descripcion TEXT,
-    estado ENUM('PENDIENTE','EN_PROCESO','EN_REVISION','COMPLETADA','CANCELADA') NOT NULL DEFAULT 'PENDIENTE',
+    estado ENUM('PENDIENTE','EN_PROCESO','EN_REVISION','COMPLETADA','CANCELADA','PAUSADA') NOT NULL DEFAULT 'PENDIENTE',
     prioridad ENUM('BAJA','MEDIA','ALTA','URGENTE') NOT NULL DEFAULT 'MEDIA',
     fecha_creacion DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     fecha_vencimiento DATE,
@@ -351,6 +351,49 @@ CREATE TABLE token_recuperacion (
 
     CONSTRAINT fk_token_recuperacion_usuario
         FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
+);
+
+-- SEC-02 — Límite de intentos fallidos de inicio de sesión (migración 008).
+-- Una fila = un intento que consume cuota: se inserta antes de comprobar la
+-- contraseña, se conserva si falla y se borra si el login tiene éxito. No
+-- guarda contraseñas ni correos (clave_cuenta es un HMAC; ip_cliente va
+-- truncada) y no tiene claves foráneas a propósito.
+CREATE TABLE intento_login_fallido (
+    id_intento BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    clave_cuenta BINARY(32) NOT NULL,
+    ip_cliente VARBINARY(16) NULL,
+    id_usuario INT NULL,
+    fecha DATETIME NOT NULL,
+
+    PRIMARY KEY (id_intento),
+    KEY idx_ilf_cuenta (clave_cuenta, fecha),
+    KEY idx_ilf_ip (ip_cliente, fecha),
+    KEY idx_ilf_fecha (fecha)
+) ENGINE=InnoDB;
+
+-- RF60 — Respaldando históricamente la información (migración 010).
+-- Historial de respaldos y restauraciones. Sin clave foránea a usuario a
+-- propósito, y excluida de los paquetes de respaldo, para que el historial
+-- sobreviva a una restauración.
+CREATE TABLE respaldo (
+    id_respaldo INT AUTO_INCREMENT PRIMARY KEY,
+    operacion ENUM('RESPALDO','RESTAURACION') NOT NULL DEFAULT 'RESPALDO',
+    tipo ENUM('MANUAL','PROGRAMADO','PREVIO_RESTAURACION') NOT NULL,
+    estado ENUM('EN_CURSO','EXITOSO','FALLIDO') NOT NULL DEFAULT 'EN_CURSO',
+    fecha_inicio DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha_fin DATETIME NULL,
+    duracion_segundos DECIMAL(10,2) NULL,
+    id_usuario INT NULL,
+    id_relacionado INT NULL,
+    nombre_archivo VARCHAR(120) NULL,
+    tamano_bytes BIGINT NULL,
+    sha256 CHAR(64) NULL,
+    detalle VARCHAR(500) NULL,
+    mensaje_error VARCHAR(500) NULL,
+    archivo_eliminado_en DATETIME NULL,
+
+    INDEX idx_respaldo_fecha (fecha_inicio, id_respaldo),
+    INDEX idx_respaldo_estado (estado, operacion)
 );
 
 CREATE INDEX idx_cliente_rut ON cliente(rut);

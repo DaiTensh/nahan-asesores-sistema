@@ -98,9 +98,8 @@ async function actualizarUsuario() {
         return;
     }
 
-    const confirmar = confirm(
-        "¿Desea guardar los cambios realizados en este usuario?"
-    );
+    const confirmar = await confirmarAccion(
+        "¿Desea guardar los cambios realizados en este usuario?", "advertencia");
 
     if (!confirmar) {
         return;

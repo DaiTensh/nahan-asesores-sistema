@@ -2,7 +2,7 @@
 
 **Incremento 2 · 4 RF · 26 HH · rama `feature/inc2-notificaciones`**
 
-Usuario para probar: `vicente.barahona@nahan.local` — contraseña `Nahan.2026`
+Usuario para probar: `vicente.barahona@nahan.local` — contraseña de desarrollo (ver `database/seed_dev.py`; solo en el entorno local)
 
 > Si algo aquí no calza con el código, avisa antes de programar: puede ser que
 > el informe y el repositorio se hayan separado.

@@ -310,7 +310,7 @@ def main():
             print(f"Frontend  →  {login} (PID {os.getpid()})")
         print(f"API       →  http://127.0.0.1:{puerto_api}/api (PID {proceso.pid})")
         print(f"Estado    →  http://127.0.0.1:{puerto_api}/")
-        print("Usuario   →  renato.villalobos@nahan.local  /  Nahan.2026")
+        print("Usuario   →  renato.villalobos@nahan.local  (contraseña de desarrollo: database/seed_dev.py)")
         print("\nListo. Ctrl+C para detener ambos procesos.\n", flush=True)
         if login and not args.sin_navegador:
             webbrowser.open(login)

@@ -1314,7 +1314,7 @@ def test_control_horas_inicio_filtra_tarea_inactiva_o_finalizada(
         if "rt.hora_fin IS NULL" in normalized:
             return []
         if "SELECT t.id_tarea" in normalized and "WHERE t.id_tarea" in normalized:
-            assert "t.estado IN ('PENDIENTE', 'EN_PROCESO', 'EN_REVISION')" in normalized
+            assert "t.estado IN ('PENDIENTE', 'EN_PROCESO', 'PAUSADA', 'EN_REVISION')" in normalized
             assert "c.estado = 'ACTIVO'" in normalized
             return []
         return []
@@ -1967,13 +1967,16 @@ def test_rf61_rf08_ficha_cuenta_activas_y_lista_referencias(client, iniciar_sesi
     iniciar_sesion(usuario_id=2, rol_id=2, area_id=1)
 
     def handler(sql, params, cursor):
+        if 'cliente_reciente' in sql:  # RF47: abrir la ficha registra la consulta (usuario, cliente)
+            assert params == (2, 5)
+            return []
         assert params == (5,)
         if 'FROM cliente WHERE' in sql:
             return [{'id_cliente': 5, 'razon_social': 'Cliente', 'estado': 'ACTIVO'}]
         if 'FROM cliente_area' in sql:
             return [{'nombre_area': 'JURIDICA'}]
         if 'FROM tarea t' in sql:
-            return [{'estado': estado} for estado in ('PENDIENTE', 'EN_PROCESO', 'EN_REVISION', 'COMPLETADA', 'CANCELADA')]
+            return [{'estado': estado} for estado in ('PENDIENTE', 'EN_PROCESO', 'PAUSADA', 'EN_REVISION', 'COMPLETADA', 'CANCELADA')]
         if 'FROM documento' in sql:
             assert "estado = 'ACTIVO' AND tipo_documento IS NOT NULL" in sql
             assert 'ORDER BY fecha_subida DESC' in sql
@@ -1985,7 +1988,9 @@ def test_rf61_rf08_ficha_cuenta_activas_y_lista_referencias(client, iniciar_sesi
     respuesta = client.get('/api/clientes/5/ficha')
     assert respuesta.status_code == 200
     datos = respuesta.get_json()
-    assert datos['tareas_activas'] == 2
+    # Activas: PENDIENTE, EN_PROCESO, PAUSADA y EN_REVISION. Esta prueba esperaba 2 y así fijaba que
+    # EN_REVISION no contaba (AUD-020); la definición única está en backend/utils/estados_tarea.py.
+    assert datos['tareas_activas'] == 4
     assert datos['areas_nombres'] == 'JURIDICA'
     assert datos['documentos'][0]['descripcion'] == 'Observación'
     assert conexion.closed
@@ -2066,7 +2071,7 @@ def test_error_de_integridad_cliente_rechaza_sin_commit(client, iniciar_sesion, 
         return []
     conexion = fake_connection_factory(handler)
     monkeypatch.setattr(clientes_routes, 'get_connection', lambda: conexion)
-    respuesta = client.post('/api/clientes', json={'rut': '1-9', 'razon_social': 'Prueba', 'areas': [999]})
+    respuesta = client.post('/api/clientes', json={'rut': '11.111.111-1', 'razon_social': 'Prueba', 'areas': [999]})
     assert respuesta.status_code == esperado
     assert conexion.commits == 0
     assert conexion.rollbacks == 1
