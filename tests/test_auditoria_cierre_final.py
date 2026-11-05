@@ -284,3 +284,54 @@ def test_hay_enlace_para_saltar_al_contenido_en_todas_las_pantallas_con_menu():
         for archivo in sorted(os.listdir(os.path.join(FRONTEND, carpeta))):
             if archivo.endswith(".html") and "navigation.js" in leer(carpeta, archivo):
                 assert "<main" in leer(carpeta, archivo), (carpeta, archivo)
+
+
+# H-16 y RF59 — comportamiento real de inactividad.js ante un 401, con reloj y fetch simulados (node).
+ARNES_INACTIVIDAD = r"""
+const fs = require('fs'), vm = require('vm');
+const codigo = fs.readFileSync(RUTA, 'utf8');
+const universal = () => new Proxy(function () {}, {
+  get: (_, p) => (p === Symbol.toPrimitive ? () => '' : universal()),
+  apply: () => universal(), set: () => true, construct: () => universal(),
+});
+const tick = () => new Promise(r => setImmediate(r));
+async function escenario([respuestas, avance]) {
+  let ahora = 1000000;
+  const intervalos = [];
+  const ventana = { location: { href: '' }, API_CONFIG: { API_URL: 'http://api', credentials: 'include' }, addEventListener() {} };
+  const contexto = {
+    window: ventana, document: universal(), console,
+    fetch: async () => { const r = respuestas.shift(); return { status: r.status, ok: r.status < 400, json: async () => r.cuerpo }; },
+    setInterval: fn => { intervalos.push(fn); return 1; }, clearInterval() {}, setTimeout: () => 1, clearTimeout() {},
+    Date: { now: () => ahora },
+  };
+  vm.createContext(contexto);
+  vm.runInContext(codigo, contexto);
+  await tick();                       // primera lectura al cargar la pantalla
+  ahora += avance * 1000;
+  await intervalos[0]();              // siguiente consulta periódica
+  await tick();
+  return ventana.location.href;
+}
+(async () => { console.log(JSON.stringify(await Promise.all(ESCENARIOS.map(escenario)))); })();
+"""
+
+
+def test_inactividad_solo_atribuye_a_la_inactividad_el_401_que_llega_con_poco_tiempo_restante():
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("requiere node para ejecutar inactividad.js")
+    ok = {"status": 200, "cuerpo": {"segundos_restantes": 280, "aviso_segundos": 15}}
+    casi = {"status": 200, "cuerpo": {"segundos_restantes": 40, "aviso_segundos": 15}}
+    sin_sesion = {"status": 401, "cuerpo": {}}
+    escenarios = [
+        [[ok, sin_sesion], 15],       # quedaban 280 s y la sesión ya no existe: otra causa
+        [[casi, sin_sesion], 25],     # quedaban 40 s, pasaron 25: se agotó por inactividad
+        [[ok, sin_sesion], 400],      # el equipo estuvo suspendido más que el límite: inactividad
+        [[sin_sesion], 0],            # primera lectura ya sin sesión: no se atribuye a la inactividad
+    ]
+    codigo = (f"const RUTA = {json.dumps(os.path.join(FRONTEND, 'assets', 'js', 'inactividad.js'))};"
+              f"const ESCENARIOS = {json.dumps(escenarios)};" + ARNES_INACTIVIDAD)
+    salida = subprocess.run([node, "-e", codigo], capture_output=True, text=True, timeout=60, check=True).stdout
+
+    assert [url.split("motivo=")[1] for url in json.loads(salida)] == ["sesion", "inactividad", "inactividad", "sesion"]
