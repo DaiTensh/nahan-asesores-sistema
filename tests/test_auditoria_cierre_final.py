@@ -69,12 +69,14 @@ def test_listado_de_tareas_avisa_cuando_no_se_pudo_cargar():
     assert js.count("mostrarErrorListado(") >= 3  # definición, respuesta con error y excepción de red
 
 
-def test_eliminar_usuario_no_pide_confirmacion_critica_ni_usa_alert():
+def test_pantalla_deshabilitar_no_ofrece_eliminar_ni_usa_alert():
+    html = leer("usuarios", "desactivar_usuario.html")
     js = leer("usuarios", "desactivar_usuario.js")
-    cuerpo = js[js.index("function eliminarUsuario"):]
+    cuerpo = _cuerpo_de(js, "desactivarUsuario")
 
-    assert "confirmarAccion" not in cuerpo and "alert(" not in cuerpo
-    assert "mostrarMensaje(" in cuerpo
+    assert "eliminarUsuario" not in js and "Eliminar Usuario" not in html
+    assert "alert(" not in js
+    assert 'confirmarAccion("¿Está seguro de deshabilitar este usuario?", "critica")' in cuerpo
 
 
 def test_las_fechas_de_registro_se_formatean_en_las_tres_pantallas():
