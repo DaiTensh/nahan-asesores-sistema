@@ -37,6 +37,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
+  if (usuarioActual.nombre_rol === "ADMINISTRADOR") {
+    const accionesControlHoras = document.getElementById("accionesControlHoras");
+    const enlaceTarifas = document.createElement("a");
+    enlaceTarifas.className = "btn btn-secondary";
+    enlaceTarifas.href = "../tarifas/tarifas.html";
+    enlaceTarifas.textContent = "Tarifas";
+    accionesControlHoras.appendChild(enlaceTarifas);
+    accionesControlHoras.hidden = false;
+  }
+
   clienteBusqueda.addEventListener("input", manejarCambioCliente);
   tareaBusqueda.addEventListener("input", manejarCambioTarea);
   btnIniciar.addEventListener("click", iniciarTemporizador);

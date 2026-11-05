@@ -15,6 +15,13 @@
   color: var(--color-text-secondary);
 }
 
+.control-header-actions {
+  display: flex;
+  gap: var(--spacing-3);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .time-shell {
   display: grid;
   grid-template-columns: minmax(0, 1.7fr) minmax(320px, .8fr);
@@ -249,6 +256,10 @@
   .section-heading,
   .control-header {
     flex-direction: column;
+  }
+
+  .control-header-actions {
+    justify-content: flex-start;
   }
 
   .timer-heading p {
