@@ -31,6 +31,12 @@ let ultimaCargaTareas = 0;
 let agrupacionActual = "";
 
 document.addEventListener("DOMContentLoaded", () => {
+  configurarPanelAlta({
+    botonId: "btnNuevaTarea",
+    panelId: "panelNuevaTarea",
+    primerCampoId: "cliente_busqueda"
+  });
+
   ClientesAutocomplete.configurarSelectorCliente({
     inputId: "cliente_busqueda",
     hiddenId: "id_cliente",
