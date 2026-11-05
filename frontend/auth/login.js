@@ -8,9 +8,17 @@ const botonLogin = loginForm.querySelector('button[type="submit"]');
 // (H-16), el aviso no atribuye el cierre a la inactividad.
 const MOTIVOS_DE_CIERRE = {
   inactividad: "Tu sesión se cerró por inactividad. Vuelve a iniciar sesión.",
-  sesion: "Tu sesión ya no está activa. Vuelve a iniciar sesión."
+  sesion: "Tu sesión ya no está activa. Vuelve a iniciar sesión.",
+  servidor: "No se pudo comprobar tu sesión porque el servidor no responde. Inténtalo de nuevo en unos minutos."
 };
-const motivoDeCierre = new URLSearchParams(window.location.search).get("motivo");
+let motivoDeCierre = new URLSearchParams(window.location.search).get("motivo");
+// permissions.js anota «servidor» cuando /auth/me no respondió; se lee una sola vez.
+try {
+  if (!motivoDeCierre && sessionStorage.getItem("nahan_sesion_motivo") === "servidor") motivoDeCierre = "servidor";
+  sessionStorage.removeItem("nahan_sesion_motivo");
+} catch (error) {
+  // Sin almacenamiento de sesión no hay causa que mostrar.
+}
 if (Object.prototype.hasOwnProperty.call(MOTIVOS_DE_CIERRE, motivoDeCierre)) {
   mensaje.textContent = MOTIVOS_DE_CIERRE[motivoDeCierre];
   mensaje.className = "mensaje error";
