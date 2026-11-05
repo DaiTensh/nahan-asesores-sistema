@@ -268,3 +268,19 @@ def test_login_distingue_cierre_por_inactividad_de_sesion_finalizada():
     # El cierre por cuenta regresiva (RF59) conserva el aviso de inactividad.
     assert re.search(r"cerrarPorInactividad\(\) \{.*?irAlLogin\(\);", inactividad, re.S)
 
+
+# H-17 — enlace «Saltar al contenido» para quien navega con el teclado.
+def test_hay_enlace_para_saltar_al_contenido_en_todas_las_pantallas_con_menu():
+    js = leer("assets", "js", "navigation.js")
+    css = leer("assets", "css", "navigation.css")
+
+    assert js.index("agregarSaltoAlContenido();") > js.index("async function cargarNavegacion")
+    assert 'enlace.href = `#${principal.id}`' in js and "document.body.prepend(enlace)" in js
+    bloque = css[css.index(".saltar-contenido {"):]
+    assert "translateY(-200%)" in bloque[:bloque.index("}")]          # fuera de pantalla hasta recibir el foco
+    assert ".saltar-contenido:focus {\n  transform: translateY(0);" in css
+    # El destino existe: toda pantalla con menú tiene un <main>.
+    for carpeta in ("auth", "clientes", "control_horas", "dashboard", "historial", "reportes", "respaldos", "tareas", "tarifas", "usuarios"):
+        for archivo in sorted(os.listdir(os.path.join(FRONTEND, carpeta))):
+            if archivo.endswith(".html") and "navigation.js" in leer(carpeta, archivo):
+                assert "<main" in leer(carpeta, archivo), (carpeta, archivo)

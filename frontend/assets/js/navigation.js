@@ -142,6 +142,21 @@ function aplicarEstadoSidebar(colapsada) {
   document.body.classList.toggle("sidebar-collapsed", colapsada);
 }
 
+// H-17 — Enlace para saltar el menú con el teclado: es el primer elemento enfocable de la pantalla.
+function agregarSaltoAlContenido() {
+  const principal = document.querySelector("main");
+  if (!principal || document.querySelector(".saltar-contenido")) return;
+
+  if (!principal.id) principal.id = "contenido-principal";
+  principal.setAttribute("tabindex", "-1");
+
+  const enlace = document.createElement("a");
+  enlace.className = "saltar-contenido";
+  enlace.href = `#${principal.id}`;
+  enlace.textContent = "Saltar al contenido";
+  document.body.prepend(enlace);
+}
+
 async function cargarNavegacion(rutaActiva = "") {
   const usuario = await obtenerUsuarioActual();
 
@@ -153,6 +168,8 @@ async function cargarNavegacion(rutaActiva = "") {
   const nav = document.getElementById("sidebar");
 
   if (!nav) return;
+
+  agregarSaltoAlContenido();
 
   const esAdmin = usuario.nombre_rol === "ADMINISTRADOR";
   // Sin preferencia guardada, en pantallas estrechas el menú arranca contraído

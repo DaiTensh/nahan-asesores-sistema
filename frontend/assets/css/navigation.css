@@ -298,3 +298,26 @@ body.sidebar-collapsed .sidebar-session-panel {
     padding: var(--spacing-5);
   }
 }
+
+/* H-17 — «Saltar al contenido»: queda fuera de la pantalla hasta que recibe el foco del teclado. */
+.saltar-contenido {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 1000;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+  transform: translateY(-200%);
+}
+
+.saltar-contenido:focus {
+  transform: translateY(0);
+}
+
+main[tabindex="-1"]:focus {
+  outline: none;
+}
