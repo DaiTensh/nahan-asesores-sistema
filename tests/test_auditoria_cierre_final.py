@@ -11,6 +11,7 @@ import re
 import pytest
 
 from backend.utils.estados_tarea import etiqueta_estado
+from backend.utils.security import LARGO_MINIMO_PASSWORD
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FRONTEND = os.path.join(RAIZ, "frontend")
@@ -147,3 +148,9 @@ def test_dashboard_los_paneles_de_error_apuntan_a_elementos_que_existen():
     assert 'aviso.className = "mensaje error"' in js and 'aviso.setAttribute("role", "alert")' in js
     assert '"—"' in js  # el contador muestra un guion, no un 0 que parezca dato real
 
+
+def test_alta_de_usuario_declara_el_largo_minimo_de_contrasena_del_servidor():
+    """H-13: el servidor exige LARGO_MINIMO_PASSWORD caracteres y el formulario solo avisaba después de confirmar."""
+    for pantalla in (("usuarios", "usuarios.html"), ("auth", "restablecer.html")):
+        campo = re.search(r'<input[^>]*id="password"[^>]*>', leer(*pantalla)).group(0)
+        assert f'minlength="{LARGO_MINIMO_PASSWORD}"' in campo, pantalla
