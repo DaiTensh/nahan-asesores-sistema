@@ -106,7 +106,6 @@ def test_tablas_principales_caben_en_1366_px():
 CARGADORES_DEL_DASHBOARD = {
     "cargarResumenUsuarios": "usuarios",
     "cargarCargaTrabajoPorUsuario": "cargaTrabajo",
-    "cargarClientesDesdeListado": "clientes",
     "cargarTareasVencidas": "vencidas",
     "cargarResumenTareasPendientes": "pendientes",
     "cargarResumenTareasFinalizadas": "finalizadas",
@@ -132,11 +131,16 @@ def test_dashboard_marca_el_panel_cuando_su_peticion_falla(funcion, panel):
     assert cuerpo.count(f'limpiarErrorPanel("{panel}")') == 1  # al llegar datos desaparece el aviso
 
 
-def test_dashboard_resumen_de_clientes_cae_al_listado_y_este_marca_el_error():
-    cuerpo = _cuerpo_de(leer("dashboard", "dashboard.js"), "cargarResumenClientes")
+def test_dashboard_resumen_de_clientes_cae_al_listado_sin_inventar_totales():
+    js = leer("dashboard", "dashboard.js")
+    resumen = _cuerpo_de(js, "cargarResumenClientes")
+    respaldo = _cuerpo_de(js, "cargarClientesDesdeListado")
 
-    assert cuerpo.count("await cargarClientesDesdeListado()") == 2
-    assert 'limpiarErrorPanel("clientes")' in cuerpo
+    assert resumen.count("await cargarClientesDesdeListado()") == 2
+    assert 'limpiarErrorPanel("clientes")' in resumen
+    # El respaldo trae solo 5 clientes: los muestra en la lista, pero sus contadores quedan en «—» con aviso.
+    assert respaldo.count('marcarErrorPanel("clientes")') == 3
+    assert "clientes.length" not in respaldo and "clientes.filter" not in respaldo
 
 
 def test_dashboard_los_paneles_de_error_apuntan_a_elementos_que_existen():
@@ -263,3 +267,4 @@ def test_login_distingue_cierre_por_inactividad_de_sesion_finalizada():
     assert "ultimaLectura" in inactividad and "function motivoDeCierre" in inactividad
     # El cierre por cuenta regresiva (RF59) conserva el aviso de inactividad.
     assert re.search(r"cerrarPorInactividad\(\) \{.*?irAlLogin\(\);", inactividad, re.S)
+

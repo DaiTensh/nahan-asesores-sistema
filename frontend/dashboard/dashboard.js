@@ -296,15 +296,11 @@ async function cargarClientesDesdeListado() {
       return;
     }
 
-    limpiarErrorPanel("clientes");
     const clientes = Array.isArray(data) ? data : data.clientes || [];
 
-    document.getElementById("totalClientes").textContent = clientes.length;
-    document.getElementById("clientesActivos").textContent =
-      clientes.filter(cliente => normalizarEstado(cliente.estado) === "ACTIVO").length;
-    document.getElementById("clientesInactivos").textContent =
-      clientes.filter(cliente => normalizarEstado(cliente.estado) === "INACTIVO").length;
-
+    // Este respaldo solo trae la primera página (5 clientes): sirve para la lista de últimos clientes, pero
+    // contarlos daría totales parciales presentados como reales. Los contadores quedan en «—» con su aviso.
+    marcarErrorPanel("clientes");
     cargarTablaClientes(clientes);
   } catch (error) {
     console.error(error);
