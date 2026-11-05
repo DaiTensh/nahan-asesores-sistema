@@ -575,9 +575,9 @@ async function cargarResumenTareasFinalizadas() {
       diferenciaElemento.textContent = "N/A";
     }
 
-    renderizarListaResumen("tareasFinalizadasPorArea", data.por_area || [], "area", "total");
-    renderizarListaResumen("tareasFinalizadasPorCliente", data.por_cliente || [], "cliente", "total");
-    renderizarListaResumen("tareasFinalizadasPorUsuario", data.por_usuario || [], "usuario", "total");
+    renderizarListaResumen("tareasFinalizadasPorArea", data.por_area || [], "area", "total", "Sin tareas finalizadas en el período.");
+    renderizarListaResumen("tareasFinalizadasPorCliente", data.por_cliente || [], "cliente", "total", "Sin tareas finalizadas en el período.");
+    renderizarListaResumen("tareasFinalizadasPorUsuario", data.por_usuario || [], "usuario", "total", "Sin tareas finalizadas en el período.");
   } catch (error) {
     console.error(error);
   }
@@ -658,13 +658,13 @@ function renderizarDistribucionArea(idContenedor, areas, claveCantidad, clavePor
   });
 }
 
-function renderizarListaResumen(idLista, elementos, etiquetaClave, etiquetaValor) {
+function renderizarListaResumen(idLista, elementos, etiquetaClave, etiquetaValor, mensajeVacio = "Sin tareas pendientes.") {
   const lista = document.getElementById(idLista);
   lista.innerHTML = "";
 
   if (!elementos.length) {
     const item = document.createElement("li");
-    item.textContent = "Sin tareas pendientes.";
+    item.textContent = mensajeVacio;
     lista.appendChild(item);
     return;
   }
