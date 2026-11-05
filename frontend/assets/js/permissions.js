@@ -32,7 +32,12 @@ async function protegerPagina(rolesPermitidos) {
   }
 
   if (!rolesPermitidos.includes(usuario.nombre_rol)) {
-    alert("No tiene permisos para acceder a este módulo.");
+    const aviso = "No tiene permisos para acceder a este módulo.";
+    if (window.avisarAccion) {
+      await avisarAccion(aviso, "advertencia");
+    } else {
+      alert(aviso);
+    }
     window.location.href = "../dashboard/dashboard.html";
   }
 }

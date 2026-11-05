@@ -102,4 +102,88 @@
       (nivelUsado === "critica" ? cancelar : aceptar).focus();
     });
   };
+
+  // Aviso de un solo botón con el aspecto de las confirmaciones: reemplaza al alert() nativo.
+  //
+  //   avisarAccion("No se pudo asignar la tarea", "error");   // "error", "advertencia", "exito" o "info"
+  //
+  // Devuelve una promesa que se cumple al cerrarlo (botón, Esc o clic fuera del cuadro). No bloquea la
+  // página: quien necesite esperar (por ejemplo antes de redirigir) debe usar await.
+  const AVISOS = {
+    error: { titulo: "No se pudo completar", icono: "!", clase: "confirmacion-critica" },
+    advertencia: { titulo: "Revise la información", icono: "!", clase: "confirmacion-advertencia" },
+    exito: { titulo: "Listo", icono: "✓", clase: "confirmacion-normal" },
+    info: { titulo: "Aviso", icono: "i", clase: "confirmacion-normal" }
+  };
+
+  window.avisarAccion = function (mensaje, tipo = "info") {
+    const config = AVISOS[tipo] || AVISOS.info;
+    const elementoPrevio = document.activeElement;
+
+    return new Promise(resolve => {
+      const fondo = document.createElement("div");
+      fondo.className = "confirmacion-fondo";
+
+      const cuadro = document.createElement("div");
+      cuadro.className = `confirmacion-cuadro ${config.clase}`;
+      cuadro.setAttribute("role", "alertdialog");
+      cuadro.setAttribute("aria-modal", "true");
+      const idTitulo = `aviso-titulo-${Date.now()}`;
+      const idMensaje = `aviso-mensaje-${Date.now()}`;
+      cuadro.setAttribute("aria-labelledby", idTitulo);
+      cuadro.setAttribute("aria-describedby", idMensaje);
+
+      const cabecera = document.createElement("div");
+      cabecera.className = "confirmacion-cabecera";
+      const icono = document.createElement("span");
+      icono.className = "confirmacion-icono";
+      icono.setAttribute("aria-hidden", "true");
+      icono.textContent = config.icono;
+      const titulo = document.createElement("h2");
+      titulo.id = idTitulo;
+      titulo.className = "confirmacion-titulo";
+      titulo.textContent = config.titulo;
+      cabecera.append(icono, titulo);
+
+      const texto = document.createElement("p");
+      texto.id = idMensaje;
+      texto.className = "confirmacion-mensaje";
+      texto.textContent = mensaje;
+
+      const acciones = document.createElement("div");
+      acciones.className = "confirmacion-acciones";
+      const aceptar = document.createElement("button");
+      aceptar.type = "button";
+      aceptar.className = "btn btn-primary";
+      aceptar.textContent = "Aceptar";
+      acciones.appendChild(aceptar);
+
+      cuadro.append(cabecera, texto, acciones);
+      fondo.appendChild(cuadro);
+
+      function cerrar() {
+        document.removeEventListener("keydown", alTeclear, true);
+        fondo.remove();
+        if (elementoPrevio && typeof elementoPrevio.focus === "function") elementoPrevio.focus();
+        resolve();
+      }
+
+      function alTeclear(evento) {
+        if (evento.key === "Escape") {
+          evento.preventDefault();
+          cerrar();
+        } else if (evento.key === "Tab") {
+          evento.preventDefault();
+          aceptar.focus();
+        }
+      }
+
+      aceptar.addEventListener("click", cerrar);
+      fondo.addEventListener("mousedown", evento => { if (evento.target === fondo) cerrar(); });
+      document.addEventListener("keydown", alTeclear, true);
+
+      document.body.appendChild(fondo);
+      aceptar.focus();
+    });
+  };
 })();

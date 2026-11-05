@@ -52,7 +52,7 @@ async function buscarUsuario() {
     const usuario = await UsuariosAutocomplete.obtenerUsuarioSeleccionado("usuario_busqueda");
 
     if (!usuario) {
-        alert("Seleccione un usuario de la lista");
+        avisarAccion("Seleccione un usuario de la lista", "advertencia");
         return;
     }
 
@@ -71,7 +71,7 @@ async function cargarUsuarioPorId(id) {
         const data = await response.json();
 
         if (!response.ok) {
-            alert(data.error || "Usuario no encontrado");
+            avisarAccion(data.error || "Usuario no encontrado", "error");
             return;
         }
 
@@ -93,7 +93,7 @@ async function cargarUsuarioPorId(id) {
     }
     catch(error) {
         console.error(error);
-        alert("Error al buscar usuario");
+        avisarAccion("Error al buscar usuario", "error");
     }
 }
 
@@ -102,7 +102,7 @@ async function actualizarUsuario() {
     const id = usuarioActual ? usuarioActual.id_usuario : document.getElementById("id_usuario").value;
 
     if (!id) {
-        alert("Debe buscar un usuario antes de actualizar");
+        avisarAccion("Debe buscar un usuario antes de actualizar", "advertencia");
         return;
     }
 
@@ -142,11 +142,11 @@ async function actualizarUsuario() {
         const resultado = await response.json();
 
         if (!response.ok) {
-            alert(resultado.error || "Error al actualizar usuario");
+            avisarAccion(resultado.error || "Error al actualizar usuario", "error");
             return;
         }
 
-        alert(resultado.message);
+        avisarAccion(resultado.message, "exito");
         usuarioActual = {
             ...usuarioActual,
             ...datos,
@@ -156,7 +156,7 @@ async function actualizarUsuario() {
     }
     catch(error) {
         console.error(error);
-        alert("Error al actualizar usuario");
+        avisarAccion("Error al actualizar usuario", "error");
     } finally {
         botonActualizar.disabled = false;
         botonActualizar.textContent = "Guardar cambios";

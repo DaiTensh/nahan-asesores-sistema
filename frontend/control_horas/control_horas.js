@@ -655,9 +655,9 @@ async function leerRespuestaJson(response) {
   }
 }
 
-function manejarAccesoDenegado(estado, mensaje) {
+async function manejarAccesoDenegado(estado, mensaje) {
   if (estado === 401 || estado === 403) {
-    alert(mensaje || "La sesión ya no está activa.");
+    await avisarAccion(mensaje || "La sesión ya no está activa.", "advertencia");
     window.location.href = "../auth/login.html";
     return;
   }

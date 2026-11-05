@@ -218,3 +218,36 @@ def test_baja_de_cliente_usa_el_mismo_vocabulario_en_listado_y_pantalla():
     # Los botones nombran el resultado concreto según los vínculos del cliente.
     botones = leer("clientes", "eliminar_cliente.js")
     assert '"Deshabilitar cliente"' in botones and '"Eliminar definitivamente"' in botones
+
+
+# H-10 y coherencia visual — los avisos usan el cuadro de la aplicación, no el alert() nativo del navegador.
+def test_la_interfaz_no_usa_alert_nativo_salvo_el_respaldo_de_permissions():
+    encontrados = []
+    for carpeta, _, archivos in os.walk(FRONTEND):
+        for nombre in archivos:
+            if nombre.endswith(".js"):
+                ruta = os.path.join(carpeta, nombre)
+                with open(ruta, encoding="utf-8") as archivo:
+                    for numero, linea in enumerate(archivo, 1):
+                        if not linea.lstrip().startswith("//") and re.search(r"(?<![\w.])alert\(", linea):
+                            encontrados.append((os.path.relpath(ruta, FRONTEND), linea.strip()))
+
+    assert encontrados == [(os.path.join("assets", "js", "permissions.js"), "alert(aviso);")]
+
+
+def test_avisarAccion_tiene_el_aspecto_de_las_confirmaciones_y_se_cierra_con_esc():
+    js = leer("assets", "js", "confirmar.js")
+    cuerpo = js[js.index("window.avisarAccion"):]
+
+    assert 'cuadro.setAttribute("role", "alertdialog")' in cuerpo and 'cuadro.setAttribute("aria-modal", "true")' in cuerpo
+    assert 'evento.key === "Escape"' in cuerpo and "return new Promise" in cuerpo
+    for tipo in ("error:", "advertencia:", "exito:", "info:"):
+        assert tipo in js[js.index("const AVISOS"):js.index("window.avisarAccion")]
+
+
+def test_acceso_denegado_espera_el_aviso_antes_de_redirigir():
+    assert "await avisarAccion(aviso, \"advertencia\")" in leer("assets", "js", "permissions.js")
+    horas = leer("control_horas", "control_horas.js")
+    cuerpo = _cuerpo_de(horas.replace("async function manejarAccesoDenegado", "async function manejarAccesoDenegado"), "manejarAccesoDenegado")
+    assert cuerpo.index("await avisarAccion(") < cuerpo.index('window.location.href = "../auth/login.html"')
+

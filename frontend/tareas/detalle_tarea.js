@@ -284,7 +284,7 @@ async function descargarAdjunto(idDocumento, nombreDocumento) {
 
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      alert(data.error || "No se pudo descargar el archivo");
+      avisarAccion(data.error || "No se pudo descargar el archivo", "error");
       return;
     }
 
@@ -300,7 +300,7 @@ async function descargarAdjunto(idDocumento, nombreDocumento) {
 
   } catch (error) {
     console.error(error);
-    alert("Error al conectar con el servidor");
+    avisarAccion("Error al conectar con el servidor", "error");
   }
 }
 
