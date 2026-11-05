@@ -181,7 +181,6 @@ async function cargarNavegacion(rutaActiva = "") {
   aplicarEstadoSidebar(sidebarColapsada);
 
   nav.textContent = "";
-  nav.setAttribute("aria-label", "Navegación principal");
 
   const header = document.createElement("div");
   header.className = "sidebar-header";
@@ -227,9 +226,12 @@ async function cargarNavegacion(rutaActiva = "") {
 
   // Los enlaces van en su propio contenedor con scroll: en pantallas de poca altura
   // el menú de administración es más largo que la ventana y no debe dejar fuera de
-  // alcance sus últimas opciones ni el cierre de sesión.
-  const zonaEnlaces = document.createElement("div");
+  // alcance sus últimas opciones ni el cierre de sesión. Es el <nav> de la pantalla: el <aside> que lo
+  // contiene solo agrupa la marca, el menú y la sesión, así que el lector de pantalla ve un único
+  // punto de referencia de navegación con nombre.
+  const zonaEnlaces = document.createElement("nav");
   zonaEnlaces.className = "sidebar-scroll";
+  zonaEnlaces.setAttribute("aria-label", "Navegación principal");
 
   const lista = document.createElement("div");
   lista.className = "sidebar-nav";
