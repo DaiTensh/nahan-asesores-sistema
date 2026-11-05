@@ -207,3 +207,14 @@ def test_las_tres_pantallas_con_hora_usan_el_formateador_unico():
     # Los avisos del topbar se cargan después de fechas.js, que es la que les da formato.
     assert 'montarModuloTopbar("fechas", () => montarModuloTopbar("notificaciones"))' in leer("assets", "js", "topbar.js")
 
+
+# H-19 — la acción se llama igual que el requisito RF03: «eliminar o deshabilitar».
+def test_baja_de_cliente_usa_el_mismo_vocabulario_en_listado_y_pantalla():
+    listado = leer("clientes", "listar_clientes.js")
+    pantalla = leer("clientes", "eliminar_cliente.html")
+
+    assert 'crearEnlaceAccion("Eliminar", `eliminar_cliente.html' in listado and '"Quitar"' not in listado
+    assert "<title>Eliminar o deshabilitar cliente</title>" in pantalla and "<h1>Eliminar o deshabilitar cliente</h1>" in pantalla
+    # Los botones nombran el resultado concreto según los vínculos del cliente.
+    botones = leer("clientes", "eliminar_cliente.js")
+    assert '"Deshabilitar cliente"' in botones and '"Eliminar definitivamente"' in botones

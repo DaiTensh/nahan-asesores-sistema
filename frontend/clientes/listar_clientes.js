@@ -362,7 +362,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (esAdmin) {
       contenedor.appendChild(crearEnlaceAccion("Estado", `cambiar_estado.html?id=${cliente.id_cliente}`, "btn btn-warning btn-small"));
-      contenedor.appendChild(crearEnlaceAccion("Quitar", `eliminar_cliente.html?id=${cliente.id_cliente}`, "btn btn-danger btn-small"));
+      contenedor.appendChild(crearEnlaceAccion("Eliminar", `eliminar_cliente.html?id=${cliente.id_cliente}`, "btn btn-danger btn-small"));
     }
 
     celda.appendChild(contenedor);
