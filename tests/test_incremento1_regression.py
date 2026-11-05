@@ -129,6 +129,45 @@ def test_login_con_credenciales_invalidas(client, fake_connection_factory, monke
     assert connection.closed is True
 
 
+def _login_de_cuenta_inactiva(client, fake_connection_factory, monkeypatch, clave_correcta):
+    fila = {"id_usuario": 9, "nombres": "Cuenta Inactiva", "email": "inactiva@nahan.test", "password_hash": "hash", "estado": "INACTIVO",
+            "id_rol": 2, "nombre_rol": "USUARIO_AREA_JURIDICA", "id_area": 1, "nombre_area": "JURIDICA"}
+    connection = fake_connection_factory(lambda sql, params, cursor: [fila.copy()] if "FROM usuario u" in normalize_sql(sql) else [])
+    monkeypatch.setattr(auth_routes, "get_connection", lambda: connection)
+    monkeypatch.setattr(auth_routes, "check_password", lambda password, password_hash: clave_correcta)
+    return client.post("/api/login", json={"email": "inactiva@nahan.test", "password": "una-clave"})
+
+
+def test_login_de_cuenta_inactiva_con_clave_incorrecta_no_revela_el_estado(client, fake_connection_factory, monkeypatch):
+    """Auditoría de cierre: «Usuario inactivo» se devolvía antes de comprobar la clave y delataba la cuenta."""
+    respuesta = _login_de_cuenta_inactiva(client, fake_connection_factory, monkeypatch, clave_correcta=False)
+
+    assert respuesta.status_code == 401
+    assert respuesta.get_json() == {"error": "Credenciales incorrectas"}
+
+
+def test_login_de_cuenta_inactiva_con_clave_correcta_informa_el_estado(client, fake_connection_factory, monkeypatch):
+    respuesta = _login_de_cuenta_inactiva(client, fake_connection_factory, monkeypatch, clave_correcta=True)
+
+    assert respuesta.status_code == 403
+    assert "inactivo" in respuesta.get_json()["error"].lower()
+    with client.session_transaction() as sesion:
+        assert "usuario_id" not in sesion
+
+
+def test_login_con_correo_inexistente_tambien_gasta_un_bcrypt(client, fake_connection_factory, monkeypatch):
+    """Sin esto el tiempo de respuesta (≈6 ms frente a ≈240 ms) delataba qué correos existen."""
+    connection = fake_connection_factory(lambda sql, params, cursor: [])
+    monkeypatch.setattr(auth_routes, "get_connection", lambda: connection)
+    llamadas = []
+    monkeypatch.setattr(auth_routes, "check_password", lambda clave, hash_: llamadas.append(hash_) or False)
+
+    respuesta = client.post("/api/login", json={"email": "nadie@nahan.test", "password": "una-clave"})
+
+    assert respuesta.status_code == 401 and respuesta.get_json() == {"error": "Credenciales incorrectas"}
+    assert len(llamadas) == 1 and llamadas[0].startswith("$2")
+
+
 def test_auth_me_autenticado(client, fake_connection_factory, monkeypatch):
     # obtener_usuario_actual() resuelve nombre/rol/área consultando la BD
     # (no confía en la sesión), así que hay que simular esa fila en vez de
