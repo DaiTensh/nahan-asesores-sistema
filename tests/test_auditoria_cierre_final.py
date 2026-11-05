@@ -81,3 +81,15 @@ def test_etiquetas_de_estado_de_tarea():
     assert etiqueta_estado("EN_PROCESO") == "En proceso"
     assert etiqueta_estado("EN_REVISION") == "En revisión"
     assert etiqueta_estado("ESTADO_NUEVO") == "ESTADO_NUEVO"
+
+
+def test_tablas_principales_caben_en_1366_px():
+    """Medido en Chrome: Tareas pedía 1048 px (la columna Acciones quedaba cortada) y la carga de trabajo del
+    dashboard se pasaba 26 px; la tabla de usuarios se ensanchaba con nombres y correos largos."""
+    tareas = leer("tareas", "tareas.css")
+    dashboard = leer("dashboard", "dashboard.css")
+    usuarios = leer("usuarios", "usuarios.css")
+
+    assert ".tareas-table td" in tareas and "padding-left: 8px" in tareas
+    assert ".dashboard-table td" in dashboard and "padding-left: 10px" in dashboard
+    assert ".usuarios-tabla td { overflow-wrap: anywhere; }" in usuarios

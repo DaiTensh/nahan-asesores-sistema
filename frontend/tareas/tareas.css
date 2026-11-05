@@ -356,3 +356,11 @@
   left: 14px;
   display: inline-block;
 }
+
+/* A 1366 px (portátil) la tabla pedía 1048 px y la columna Acciones quedaba cortada: «Adjuntos» se veía
+   a medias y los campos de responsable, estado y prioridad exigían desplazar la tabla. */
+.tareas-table th,
+.tareas-table td {
+  padding-left: 8px;
+  padding-right: 8px;
+}

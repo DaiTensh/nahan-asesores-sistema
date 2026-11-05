@@ -36,6 +36,11 @@ body {
 .usuarios-filtros .form-group { min-width: 0; }
 .usuarios-tabla { min-width: 760px; }
 .usuarios-tabla td { vertical-align: middle; }
+/* Un nombre o correo largo (hasta 100 y 150 caracteres) y roles como USUARIO_AREA_JURIDICA no tienen
+   espacios: sin esto la tabla se ensanchaba y «Ver perfil», la única forma de abrir un usuario, quedaba
+   fuera de la pantalla en 1366 px. */
+.usuarios-tabla td { overflow-wrap: anywhere; }
+.usuarios-tabla td:last-child { white-space: nowrap; }
 .usuarios-tabla .usuario-fila-inactiva td { background: var(--color-neutral-soft); }
 .usuario-estado {
     display: inline-block;

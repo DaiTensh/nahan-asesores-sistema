@@ -249,3 +249,10 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* La tabla de carga de trabajo (9 columnas) se desbordaba 26 px en 1366 px. */
+.dashboard-table th,
+.dashboard-table td {
+  padding-left: 10px;
+  padding-right: 10px;
+}
