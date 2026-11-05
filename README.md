@@ -168,7 +168,7 @@ bash scripts/test.sh tests/test_rf26_restablecimiento.py -v
 bash scripts/test.sh -k historial
 ```
 
-La suite (`tests/`, 1.667 pruebas) no usa tu base de datos real: trabaja con conexiones
+La suite (`tests/`, 1.723 pruebas) no usa tu base de datos real: trabaja con conexiones
 simuladas, con una base SQLite temporal o, en las pruebas marcadas «MySQL real», con un
 `mysqld` propio y desechable en un puerto efímero que se borra al terminar (necesita
 `mysqld` y `mysqldump` instalados; sin ellos esas pruebas se omiten). Cubre autenticación,
@@ -179,8 +179,8 @@ exportaciones, respaldos y las reglas de cada requisito funcional. `pytest` est�
 Por defecto quedan 14 pruebas omitidas, que se activan a propósito: 5 de RF60 con
 `NAHAN_TEST_OTRO_DISPOSITIVO=<carpeta de un volumen distinto del disco de la aplicación>` y 9 del
 límite de inicios de sesión con `NAHAN_TEST_MYSQL_PORT=<puerto de un MySQL local desechable>`.
-Referencia del 3-nov-2026: 1.667 correctas y ninguna omitida con ambas variables y Python 3.12;
-1.653 correctas y 14 omitidas con Python 3.9 y la configuración por defecto.
+Referencia del 5-nov-2026 (Python 3.9, macOS): 1.723 correctas y ninguna omitida con ambas variables;
+1.709 correctas y 14 omitidas con la configuración por defecto.
 
 ## Estructura del proyecto
 
