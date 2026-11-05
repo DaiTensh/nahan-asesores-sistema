@@ -241,6 +241,8 @@
 
 .tareas-filtro-responsable {
   margin-bottom: 0;
+  /* A 320 px el campo de 220 px no cabía y empujaba la página 25 px a la derecha (WCAG 1.4.10). */
+  min-width: 0;
 }
 
 .tareas-filtro-responsable-input {
