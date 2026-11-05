@@ -190,6 +190,7 @@ async function cargarTareasPendientes() {
 
     if (!response.ok) {
       console.error(tareas.error || "Error al cargar tareas");
+      mostrarErrorListado(tareas.error);
       return;
     }
 
@@ -212,7 +213,21 @@ async function cargarTareasPendientes() {
 
   } catch (error) {
     console.error(error);
+    mostrarErrorListado();
   }
+}
+
+// Sin esto una falla del servidor o de la red dejaba el listado vacío y los contadores en 0,
+// como si no existieran tareas.
+function mostrarErrorListado(detalle) {
+  tablaTareas.textContent = "";
+  const fila = document.createElement("tr");
+  const celda = document.createElement("td");
+  celda.colSpan = 10;
+  celda.className = "mensaje error";
+  celda.textContent = `No se pudieron cargar las tareas. ${detalle || "Revise la conexión e intente nuevamente."}`;
+  fila.appendChild(celda);
+  tablaTareas.appendChild(fila);
 }
 
 // --- RF68 — Visualizando Tareas Asignadas a un Usuario Específico --------
