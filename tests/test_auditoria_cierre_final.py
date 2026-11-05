@@ -6,6 +6,9 @@ código fuente lo que se comprobó en Chrome durante la auditoría (menú con sc
 Las que dependen del backend (fechas de usuarios y clientes, avisos) están junto a las de su módulo.
 """
 import os
+import re
+
+import pytest
 
 from backend.utils.estados_tarea import etiqueta_estado
 
@@ -93,3 +96,54 @@ def test_tablas_principales_caben_en_1366_px():
     assert ".tareas-table td" in tareas and "padding-left: 8px" in tareas
     assert ".dashboard-table td" in dashboard and "padding-left: 10px" in dashboard
     assert ".usuarios-tabla td { overflow-wrap: anywhere; }" in usuarios
+
+
+# H-11 — cargador del dashboard → panel que marca como fallido (clave de PANELES en dashboard.js).
+CARGADORES_DEL_DASHBOARD = {
+    "cargarResumenUsuarios": "usuarios",
+    "cargarCargaTrabajoPorUsuario": "cargaTrabajo",
+    "cargarClientesDesdeListado": "clientes",
+    "cargarTareasVencidas": "vencidas",
+    "cargarResumenTareasPendientes": "pendientes",
+    "cargarResumenTareasFinalizadas": "finalizadas",
+    "cargarDistribucionPorArea": "distribucion",
+    "cargarResumenTareas": "estadoTareas",
+    "cargarTareasPrioritarias": "prioritarias",
+    "cargarTareasPorVencer": "porVencer",
+}
+
+
+def _cuerpo_de(js, funcion):
+    inicio = js.index(f"async function {funcion}(")
+    siguiente = re.search(r"\n(?:async )?function ", js[inicio + 1:])
+    return js[inicio:inicio + 1 + siguiente.start()] if siguiente else js[inicio:]
+
+
+@pytest.mark.parametrize("funcion,panel", CARGADORES_DEL_DASHBOARD.items())
+def test_dashboard_marca_el_panel_cuando_su_peticion_falla(funcion, panel):
+    """Con una respuesta 500 o sin red los contadores quedaban en 0, como si no hubiera datos."""
+    cuerpo = _cuerpo_de(leer("dashboard", "dashboard.js"), funcion)
+
+    assert cuerpo.count(f'marcarErrorPanel("{panel}")') == 2  # respuesta con error y excepción de red
+    assert cuerpo.count(f'limpiarErrorPanel("{panel}")') == 1  # al llegar datos desaparece el aviso
+
+
+def test_dashboard_resumen_de_clientes_cae_al_listado_y_este_marca_el_error():
+    cuerpo = _cuerpo_de(leer("dashboard", "dashboard.js"), "cargarResumenClientes")
+
+    assert cuerpo.count("await cargarClientesDesdeListado()") == 2
+    assert 'limpiarErrorPanel("clientes")' in cuerpo
+
+
+def test_dashboard_los_paneles_de_error_apuntan_a_elementos_que_existen():
+    js = leer("dashboard", "dashboard.js")
+    html = leer("dashboard", "dashboard.html")
+    paneles = js[js.index("const PANELES = {"):js.index("function marcarErrorPanel")]
+    ids = [i for lista in re.findall(r"(?:contadores|listas): \[([^\]]*)\]", paneles)
+           for i in re.findall(r'"([^"]+)"', lista)]
+
+    assert len(ids) >= 30
+    assert [i for i in ids if f'id="{i}"' not in html] == []
+    assert 'aviso.className = "mensaje error"' in js and 'aviso.setAttribute("role", "alert")' in js
+    assert '"—"' in js  # el contador muestra un guion, no un 0 que parezca dato real
+
