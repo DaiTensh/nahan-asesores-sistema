@@ -169,7 +169,15 @@ def servir_frontend(puerto_front, puerto_api):
                 self.end_headers()
                 self.wfile.write(contenido)
                 return
+            self.revalidar = True
             super().do_GET()
+
+        def end_headers(self):
+            # Servidor de desarrollo: sin esto el navegador reutiliza un .js o .css antiguo tras un cambio
+            # y se prueba código que ya no existe. «no-cache» revalida cada vez (responde 304 si no cambió).
+            if getattr(self, "revalidar", False):
+                self.send_header("Cache-Control", "no-cache")
+            super().end_headers()
 
         def log_message(self, *a, **k):
             pass

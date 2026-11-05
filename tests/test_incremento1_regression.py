@@ -2115,3 +2115,28 @@ def test_error_de_integridad_cliente_rechaza_sin_commit(client, iniciar_sesion, 
     assert conexion.commits == 0
     assert conexion.rollbacks == 1
     assert conexion.closed
+
+
+def test_dev_sirve_el_frontend_sin_cache_para_no_probar_codigo_antiguo():
+    """El navegador reutilizaba un .js viejo tras un cambio: los archivos se revalidan siempre; api_config.js sigue sin guardarse."""
+    import http.client
+    import threading
+    from scripts import dev
+
+    servidor = dev.servir_frontend(0, 5002)
+    hilo = threading.Thread(target=servidor.serve_forever, daemon=True)
+    hilo.start()
+    try:
+        conexion = http.client.HTTPConnection("127.0.0.1", servidor.server_address[1], timeout=10)
+        conexion.request("GET", "/frontend/assets/js/fechas.js")
+        estatico = conexion.getresponse()
+        estatico.read()
+        conexion.request("GET", "/frontend/assets/js/api_config.js")
+        config = conexion.getresponse()
+        config.read()
+    finally:
+        servidor.shutdown()
+        servidor.server_close()
+
+    assert estatico.status == 200 and estatico.getheader("Cache-Control") == "no-cache"
+    assert config.status == 200 and config.getheader("Cache-Control") == "no-store"
