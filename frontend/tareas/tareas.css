@@ -163,7 +163,9 @@
 }
 
 .tareas-table input[type="checkbox"] {
-  width: auto;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-primary);
 }
 
 .tareas-actions {
