@@ -4,9 +4,15 @@ const loginForm = document.getElementById("loginForm");
 const mensaje = document.getElementById("mensaje");
 const botonLogin = loginForm.querySelector('button[type="submit"]');
 
-// RF59: aviso cuando se llega aquí por cierre automático de sesión.
-if (new URLSearchParams(window.location.search).get("motivo") === "inactividad") {
-  mensaje.textContent = "Tu sesión se cerró por inactividad. Vuelve a iniciar sesión.";
+// RF59: aviso cuando se llega aquí por cierre automático de sesión. Si la sesión terminó por otra causa
+// (H-16), el aviso no atribuye el cierre a la inactividad.
+const MOTIVOS_DE_CIERRE = {
+  inactividad: "Tu sesión se cerró por inactividad. Vuelve a iniciar sesión.",
+  sesion: "Tu sesión ya no está activa. Vuelve a iniciar sesión."
+};
+const motivoDeCierre = new URLSearchParams(window.location.search).get("motivo");
+if (Object.prototype.hasOwnProperty.call(MOTIVOS_DE_CIERRE, motivoDeCierre)) {
+  mensaje.textContent = MOTIVOS_DE_CIERRE[motivoDeCierre];
   mensaje.className = "mensaje error";
 }
 

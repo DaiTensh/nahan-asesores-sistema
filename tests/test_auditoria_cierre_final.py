@@ -251,3 +251,15 @@ def test_acceso_denegado_espera_el_aviso_antes_de_redirigir():
     cuerpo = _cuerpo_de(horas.replace("async function manejarAccesoDenegado", "async function manejarAccesoDenegado"), "manejarAccesoDenegado")
     assert cuerpo.index("await avisarAccion(") < cuerpo.index('window.location.href = "../auth/login.html"')
 
+
+# H-16 — el login no atribuye a la inactividad una sesión que terminó por otra causa.
+def test_login_distingue_cierre_por_inactividad_de_sesion_finalizada():
+    login = leer("auth", "login.js")
+    inactividad = leer("assets", "js", "inactividad.js")
+
+    assert "Tu sesión se cerró por inactividad." in login and "Tu sesión ya no está activa." in login
+    assert "sesion:" in login
+    assert inactividad.count("irAlLogin(motivoDeCierre())") == 2  # respuesta 401 al renovar y al consultar
+    assert "ultimaLectura" in inactividad and "function motivoDeCierre" in inactividad
+    # El cierre por cuenta regresiva (RF59) conserva el aviso de inactividad.
+    assert re.search(r"cerrarPorInactividad\(\) \{.*?irAlLogin\(\);", inactividad, re.S)
