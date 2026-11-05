@@ -24,6 +24,13 @@ from backend.utils.entorno import entorno_actual, es_entorno_de_desarrollo
 from backend.utils.respaldos import restauracion_en_curso
 
 
+MENSAJES_HTTP = {
+    400: "La solicitud no es válida o está incompleta.",
+    404: "El recurso solicitado no existe.",
+    405: "Método no permitido para este recurso.",
+    415: "Tipo de contenido no admitido.",
+}
+
 DEFAULT_DEV_SECRET_KEY = "dev-secret-key-change-me"
 DEFAULT_DEV_ORIGINS = (
     "http://127.0.0.1:5500",
@@ -174,7 +181,9 @@ def create_app():
     def error_http(error):
         respuesta = error.get_response()
         if request.path.startswith("/api/"):
-            respuesta.data = app.json.dumps({"error": error.description})
+            # Werkzeug redacta estos mensajes en inglés; la API responde en español.
+            descripcion = MENSAJES_HTTP.get(error.code, error.description)
+            respuesta.data = app.json.dumps({"error": descripcion})
             respuesta.content_type = "application/json"
         return respuesta
 

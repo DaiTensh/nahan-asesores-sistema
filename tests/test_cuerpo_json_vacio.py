@@ -50,3 +50,12 @@ def test_un_cuerpo_ausente_es_un_error_del_cliente_no_un_500(client, iniciar_ses
     iniciar_sesion(usuario_id=1, rol_id=1)
     respuesta = getattr(client, metodo)(ruta, headers=encabezados)
     assert 400 <= respuesta.status_code < 500, (respuesta.status_code, respuesta.get_json())
+
+
+def test_los_errores_http_genericos_de_la_api_salen_en_espanol(client):
+    """Werkzeug los redacta en inglés («The requested URL was not found on the server...»)."""
+    inexistente = client.get("/api/no-existe")
+    metodo = client.delete("/api/clientes")
+
+    assert inexistente.status_code == 404 and inexistente.get_json() == {"error": "El recurso solicitado no existe."}
+    assert metodo.status_code == 405 and metodo.get_json() == {"error": "Método no permitido para este recurso."}
