@@ -371,8 +371,9 @@ async function detenerTemporizador() {
       return;
     }
 
+    const textoExito = data.message || "Horas registradas correctamente.";
     desactivarTemporizador({ limpiarMensaje: false });
-    mostrarMensaje(data.message || "Horas registradas correctamente.", "success");
+    mostrarMensaje(textoExito, "success");
 
     if (data.resumen) {
       renderizarResumen(data.resumen);
@@ -380,6 +381,11 @@ async function detenerTemporizador() {
 
     await cargarRegistros();
     await cargarContexto();
+    // H-18 — cargarContexto reescribe el aviso («Cargando…» y luego nada): se repone el de éxito
+    // salvo que la recarga haya fallado y dejado un error.
+    if (!mensajeControl.classList.contains("error")) {
+      mostrarMensaje(textoExito, "success");
+    }
   } catch (error) {
     console.error(error);
     mostrarMensaje("No se pudo conectar con el servidor.", "error");

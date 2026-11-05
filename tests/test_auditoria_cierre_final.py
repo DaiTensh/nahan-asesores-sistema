@@ -154,3 +154,13 @@ def test_alta_de_usuario_declara_el_largo_minimo_de_contrasena_del_servidor():
     for pantalla in (("usuarios", "usuarios.html"), ("auth", "restablecer.html")):
         campo = re.search(r'<input[^>]*id="password"[^>]*>', leer(*pantalla)).group(0)
         assert f'minlength="{LARGO_MINIMO_PASSWORD}"' in campo, pantalla
+
+
+def test_detener_temporizador_deja_visible_el_mensaje_de_exito():
+    """H-18: cargarContexto() reescribía el aviso («Cargando…» y luego vacío) y el éxito nunca se veía."""
+    js = leer("control_horas", "control_horas.js")
+    cuerpo = _cuerpo_de(js, "detenerTemporizador")
+
+    assert cuerpo.index("await cargarContexto()") < cuerpo.rindex("mostrarMensaje(textoExito")
+    assert cuerpo.count("mostrarMensaje(textoExito") == 2  # al detener y al terminar de recargar
+    assert 'mensajeControl.classList.contains("error")' in cuerpo  # no pisa un error de la recarga
