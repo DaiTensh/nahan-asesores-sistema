@@ -23,18 +23,31 @@
 }
 
 .btn-success{
-  background:var(--color-success);
+  background:var(--color-success-solid);
   color:white;
+}
+
+.btn-success:hover{
+  background:var(--color-success-solid-hover);
 }
 
 .btn-danger{
-  background:var(--color-danger);
+  background:var(--color-danger-solid);
   color:white;
 }
 
+.btn-danger:hover{
+  background:var(--color-danger-solid-hover);
+}
+
+/* Texto oscuro: el blanco sobre ámbar queda en 2,2:1. */
 .btn-warning{
   background:var(--color-warning);
-  color:white;
+  color:var(--color-text-primary);
+}
+
+.btn-warning:hover{
+  background:#D97706;
 }
 
 .btn-secondary{

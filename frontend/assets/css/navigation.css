@@ -321,3 +321,8 @@ body.sidebar-collapsed .sidebar-session-panel {
 main[tabindex="-1"]:focus {
   outline: none;
 }
+
+/* El menú es azul oscuro: sobre él el anillo de foco debe ser claro (el color del resto no llega a 3:1). */
+.sidebar :focus-visible {
+  outline-color: #fff;
+}

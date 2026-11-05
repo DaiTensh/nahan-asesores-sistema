@@ -124,11 +124,11 @@
 }
 
 .mensaje.success {
-  color: var(--color-success);
+  color: var(--color-success-strong);
 }
 
 .mensaje.error {
-  color: var(--color-danger);
+  color: var(--color-danger-strong);
 }
 
 .tareas-table {
@@ -191,7 +191,7 @@
 
 .badge.estado-en_proceso {
   background: #fef3c7;
-  color: #d97706;
+  color: var(--color-warning-strong);
 }
 
 .badge.estado-pausada {
@@ -201,23 +201,23 @@
 
 .badge.estado-en_revision {
   background: #dbeafe;
-  color: #2563eb;
+  color: var(--color-info-strong);
 }
 
 .badge.prioridad-baja {
   background: #dcfce7;
-  color: #16a34a;
+  color: var(--color-success-strong);
 }
 
 .badge.prioridad-media {
   background: #fef3c7;
-  color: #d97706;
+  color: var(--color-warning-strong);
 }
 
 .badge.prioridad-alta,
 .badge.prioridad-urgente {
   background: #fee2e2;
-  color: #dc2626;
+  color: var(--color-danger-strong);
 }
 
 .tareas-filtros {

@@ -43,11 +43,11 @@ body {
 }
 
 .mensaje.success {
-  color: var(--color-success);
+  color: var(--color-success-strong);
 }
 
 .mensaje.error {
-  color: var(--color-danger);
+  color: var(--color-danger-strong);
 }
 
 .ayuda {

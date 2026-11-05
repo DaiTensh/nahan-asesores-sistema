@@ -150,12 +150,12 @@
 
 .badge.activo {
   background: #dcfce7;
-  color: #16a34a;
+  color: var(--color-success-strong);
 }
 
 .badge.inactivo {
   background: #fee2e2;
-  color: #dc2626;
+  color: var(--color-danger-strong);
 }
 
 .dashboard-row-actions {
