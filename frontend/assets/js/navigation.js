@@ -208,10 +208,16 @@ async function cargarNavegacion(rutaActiva = "") {
   header.appendChild(toggle);
   nav.appendChild(header);
 
+  // Los enlaces van en su propio contenedor con scroll: en pantallas de poca altura
+  // el menú de administración es más largo que la ventana y no debe dejar fuera de
+  // alcance sus últimas opciones ni el cierre de sesión.
+  const zonaEnlaces = document.createElement("div");
+  zonaEnlaces.className = "sidebar-scroll";
+
   const lista = document.createElement("div");
   lista.className = "sidebar-nav";
   NAV_ITEMS.forEach(item => lista.appendChild(crearLinkNavegacion(item, rutaActiva)));
-  nav.appendChild(lista);
+  zonaEnlaces.appendChild(lista);
 
   if (esAdmin) {
     const detalles = document.createElement("details");
@@ -247,8 +253,10 @@ async function cargarNavegacion(rutaActiva = "") {
       crearLinkNavegacion(item, rutaActiva, "sidebar-sublink")
     ));
     detalles.appendChild(submenu);
-    nav.appendChild(detalles);
+    zonaEnlaces.appendChild(detalles);
   }
+
+  nav.appendChild(zonaEnlaces);
 
   const footer = document.createElement("div");
   footer.className = "sidebar-user";
