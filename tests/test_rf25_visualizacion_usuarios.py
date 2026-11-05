@@ -1,4 +1,5 @@
 import re
+from datetime import datetime
 
 import pytest
 
@@ -188,3 +189,22 @@ def test_rf25_respeta_autorizacion_existente(client, iniciar_sesion, usuarios_db
     iniciar_sesion(usuario_id=2, rol_id=2, area_id=1)
     assert client.get("/api/usuarios").status_code == 200
     assert client.get("/api/usuarios/2").status_code == 403
+
+def test_rf25_fecha_de_registro_no_sale_en_formato_http(client, iniciar_sesion, usuarios_db):
+    """MySQL entrega un datetime y Flask lo escribiría como «Thu, 05 Nov 2026 00:57:12 GMT»."""
+    iniciar_sesion()
+    original = usuarios_db.handler
+
+    def con_datetime(sql, params, cursor):
+        filas = original(sql, params, cursor)
+        for fila in filas:
+            fila["fecha_creacion"] = datetime(2026, 11, 5, 0, 57, 12)
+        return filas
+
+    usuarios_db.handler = con_datetime
+
+    listado = client.get("/api/usuarios").get_json()
+    detalle = client.get("/api/usuarios/1").get_json()
+
+    assert {u["fecha_creacion"] for u in listado} == {"2026-11-05 00:57:12"}
+    assert detalle["fecha_creacion"] == "2026-11-05 00:57:12"

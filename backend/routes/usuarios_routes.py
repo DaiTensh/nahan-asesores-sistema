@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 
 from mysql.connector import IntegrityError
 from mysql.connector.errors import DatabaseError
@@ -25,6 +26,18 @@ AREA_POR_ROL = {
     ROL_USUARIO_AREA_JURIDICA: AREA_JURIDICA,
     ROL_USUARIO_AREA_CONTABLE: AREA_CONTABLE,
 }
+
+FORMATO_FECHA_HORA = "%Y-%m-%d %H:%M:%S"
+
+
+def _con_fecha_en_texto(usuario):
+    """Flask serializa un datetime como «Thu, 05 Nov 2026 00:57:12 GMT»: en inglés y con una
+    zona que MySQL no guardó. La fecha de registro sale con el mismo formato del historial."""
+    fecha = usuario.get("fecha_creacion")
+    if isinstance(fecha, datetime):
+        usuario["fecha_creacion"] = fecha.strftime(FORMATO_FECHA_HORA)
+    return usuario
+
 
 NOMBRE_AREA_POR_ROL = {
     ROL_ID_ADMINISTRADOR: "Ambas áreas",
@@ -311,7 +324,7 @@ def listar_usuarios():
             sql += " ORDER BY u.nombres ASC, u.id_usuario ASC"
 
         cursor.execute(sql, tuple(parametros))
-        usuarios = cursor.fetchall()
+        usuarios = [_con_fecha_en_texto(usuario) for usuario in cursor.fetchall()]
 
         return jsonify(usuarios), 200
 
@@ -361,7 +374,7 @@ def obtener_usuario(id_usuario):
         if not usuario:
             return jsonify({"error": "Usuario no encontrado"}), 404
 
-        return jsonify(usuario), 200
+        return jsonify(_con_fecha_en_texto(usuario)), 200
 
     except Exception:
         if connection:

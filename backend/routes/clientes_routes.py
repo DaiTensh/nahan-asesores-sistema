@@ -900,6 +900,11 @@ def listado_general_paginado_clientes():
         if formato == "excel":
             return _exportar_listado_clientes_excel(clientes), 200
 
+        for cliente in clientes:
+            # Un datetime se serializaría como «Thu, 05 Nov 2026 01:12:13 GMT» (inglés y con una zona falsa).
+            if isinstance(cliente.get("fecha_creacion"), datetime):
+                cliente["fecha_creacion"] = cliente["fecha_creacion"].strftime("%Y-%m-%d %H:%M:%S")
+
         return jsonify({"clientes": clientes}), 200
 
     except Exception:

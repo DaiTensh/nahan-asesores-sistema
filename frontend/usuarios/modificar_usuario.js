@@ -1,5 +1,13 @@
 const API_URL = window.API_CONFIG.API_URL;
 
+// La API entrega la fecha de registro como «AAAA-MM-DD HH:MM:SS»; se muestra como en el historial.
+function formatearFechaRegistro(valor) {
+  if (!valor) return "Sin fecha";
+  const [fecha, hora = ""] = String(valor).split(" ");
+  const [anio, mes, dia] = fecha.split("-");
+  return `${dia}-${mes}-${anio} ${hora.substring(0, 5)}`.trim();
+}
+
 let usuarioActual = null;
 
 const AREA_POR_ROL = {
@@ -78,7 +86,7 @@ async function cargarUsuarioPorId(id) {
         document.getElementById("perfilId").textContent = data.id_usuario;
         document.getElementById("perfilRol").textContent = data.nombre_rol || "Sin rol";
         document.getElementById("perfilArea").textContent = data.nombre_area || "Sin área";
-        document.getElementById("fechaCreacion").textContent = data.fecha_creacion || "Sin fecha";
+        document.getElementById("fechaCreacion").textContent = formatearFechaRegistro(data.fecha_creacion);
         document.getElementById("perfilUsuario").hidden = false;
         sincronizarAreaConRol();
 

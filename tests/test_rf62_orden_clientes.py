@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest
 
 from backend.routes import clientes_routes
@@ -102,3 +104,20 @@ def test_rf62_sin_sesion(client):
     response = client.get("/api/clientes/listado?orden=fecha_creacion")
 
     assert response.status_code in (401, 403)
+
+def test_rf62_fecha_de_creacion_no_sale_en_formato_http(client, iniciar_sesion, fake_connection_factory, monkeypatch):
+    """Un datetime de MySQL se serializaría como «Thu, 05 Nov 2026 01:12:13 GMT» en la tabla."""
+    iniciar_sesion()
+    fila = {"id_cliente": 1, "rut": "11.111.111-1", "razon_social": "Cliente Uno", "estado": "ACTIVO",
+            "telefono": "+56 9 1111 2222", "fecha_creacion": datetime(2026, 11, 5, 1, 12, 13),
+            "responsables_nombres": None}
+    def handler(sql, params, cursor):
+        return [{"nombre_area": "JURIDICA"}] if "SELECT a.nombre_area" in sql else [dict(fila)]
+
+    fake_conn = fake_connection_factory(handler)
+    monkeypatch.setattr(clientes_routes, "get_connection", lambda: fake_conn)
+
+    response = client.get("/api/clientes/listado")
+
+    assert response.status_code == 200
+    assert response.get_json()["clientes"][0]["fecha_creacion"] == "2026-11-05 01:12:13"

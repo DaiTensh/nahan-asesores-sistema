@@ -1,5 +1,13 @@
 const API_URL = window.API_CONFIG.API_URL;
 
+// La API entrega la fecha de registro como «AAAA-MM-DD HH:MM:SS»; se muestra como en el historial.
+function formatearFechaRegistro(valor) {
+  if (!valor) return "Sin fecha";
+  const [fecha, hora = ""] = String(valor).split(" ");
+  const [anio, mes, dia] = fecha.split("-");
+  return `${dia}-${mes}-${anio} ${hora.substring(0, 5)}`.trim();
+}
+
 const formUsuario = document.getElementById("formUsuario");
 const mensaje = document.getElementById("mensaje");
 const selectorRol = document.getElementById("id_rol");
@@ -86,7 +94,7 @@ function mostrarUsuarios(usuarios) {
     estado.textContent = inactivo ? "Inactivo" : "Activo";
     const celdaEstado = document.createElement("td");
     celdaEstado.appendChild(estado);
-    fila.append(celdaEstado, crearCelda(usuario.fecha_creacion));
+    fila.append(celdaEstado, crearCelda(formatearFechaRegistro(usuario.fecha_creacion)));
 
     const enlace = document.createElement("a");
     enlace.className = "btn btn-secondary btn-small";
