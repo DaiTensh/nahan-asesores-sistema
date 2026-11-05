@@ -26,11 +26,16 @@
     <header class="topbar" id="topbar"></header>
 
     <main class="main-content">
-      <section class="reportes-header">
+      <section class="reportes-header reportes-header--acciones">
         <div>
           <h1>Historial consolidado</h1>
           <p>Consolida las actividades de todos los módulos dentro de un período, para auditorías internas.</p>
         </div>
+        <nav class="reportes-header-actions" aria-label="Informes">
+          <a class="btn btn-secondary" href="reportes.html">Reportes</a>
+          <a class="btn btn-secondary" href="productividad.html">Productividad</a>
+          <a class="btn btn-secondary" href="historial_consolidado.html" aria-current="page">Historial consolidado</a>
+        </nav>
       </section>
 
       <section class="reportes-section">
@@ -136,7 +141,7 @@
 
 <script>
   protegerPagina(["ADMINISTRADOR"]);
-  cargarNavegacion("historial-consolidado");
+  cargarNavegacion("reportes");
   cargarTopbar();
 </script>
 
