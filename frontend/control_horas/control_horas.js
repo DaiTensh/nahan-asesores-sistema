@@ -623,19 +623,7 @@ function formatearMoneda(valor) {
 function formatearFechaHora(valor) {
   if (!valor) return "No disponible";
 
-  const fecha = new Date(valor);
-
-  if (Number.isNaN(fecha.getTime())) {
-    return valor;
-  }
-
-  return fecha.toLocaleString("es-CL", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
+  return formatearFechaHora24(valor);
 }
 
 function extraerFecha(valor) {

@@ -327,5 +327,5 @@ function formatearFechaHora(fecha) {
     return "Sin registrar";
   }
 
-  return new Date(fecha).toLocaleString("es-CL", { timeZone: "UTC" });
+  return formatearFechaHora24(fecha, { utc: true });
 }

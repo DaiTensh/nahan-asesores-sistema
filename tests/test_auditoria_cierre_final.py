@@ -5,8 +5,11 @@ El código de la interfaz es JavaScript sin framework y estas pruebas corren sin
 código fuente lo que se comprobó en Chrome durante la auditoría (menú con scroll, textos y formatos).
 Las que dependen del backend (fechas de usuarios y clientes, avisos) están junto a las de su módulo.
 """
+import json
 import os
 import re
+import shutil
+import subprocess
 
 import pytest
 
@@ -164,3 +167,43 @@ def test_detener_temporizador_deja_visible_el_mensaje_de_exito():
     assert cuerpo.index("await cargarContexto()") < cuerpo.rindex("mostrarMensaje(textoExito")
     assert cuerpo.count("mostrarMensaje(textoExito") == 2  # al detener y al terminar de recargar
     assert 'mensajeControl.classList.contains("error")' in cuerpo  # no pisa un error de la recarga
+
+
+# H-20 — un solo formato de fecha y hora (dd-mm-aaaa hh:mm, 24 h) para detalle de tarea, control de horas y avisos.
+def _formato_con_node(*casos):
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("requiere node para ejecutar fechas.js")
+    codigo = (
+        "global.window = {};"
+        f"require({json.dumps(os.path.join(FRONTEND, 'assets', 'js', 'fechas.js'))});"
+        f"const casos = {json.dumps(casos)};"
+        "console.log(JSON.stringify(casos.map(([v, o]) => window.formatearFechaHora24(v, o))));"
+    )
+    salida = subprocess.run([node, "-e", codigo], capture_output=True, text=True, timeout=30, check=True).stdout
+    return json.loads(salida)
+
+
+def test_formatearFechaHora24_usa_reloj_de_24_horas_sin_a_m_ni_coma():
+    resultado = _formato_con_node(
+        ["2026-11-05T13:01:05", {}],                                # hora local sin zona (control de horas)
+        ["Thu, 05 Nov 2026 01:25:10 GMT", {"utc": True}],           # hora del servidor rotulada GMT (tareas, avisos)
+        ["Thu, 05 Nov 2026 00:05:00 GMT", {"utc": True}],           # medianoche: 00:05, no 24:05 ni 12:05 a. m.
+        ["Thu, 05 Nov 2026 23:59:59 GMT", {"utc": True}],
+        ["no es una fecha", {}],
+    )
+
+    assert resultado == ["05-11-2026 13:01", "05-11-2026 01:25", "05-11-2026 00:05", "05-11-2026 23:59", "no es una fecha"]
+
+
+def test_las_tres_pantallas_con_hora_usan_el_formateador_unico():
+    for archivo in (("tareas", "detalle_tarea.js"), ("control_horas", "control_horas.js"), ("assets", "js", "notificaciones.js")):
+        js = leer(*archivo)
+        assert "formatearFechaHora24(" in js, archivo
+        assert 'toLocaleString("es-CL"' not in js, archivo  # el reloj de 12 h con «a. m.» venía de aquí
+    for pagina in (("tareas", "detalle_tarea.html"), ("control_horas", "control_horas.html")):
+        html = leer(*pagina)
+        assert html.index("fechas.js") < html.index(pagina[1].replace(".html", ".js")), pagina
+    # Los avisos del topbar se cargan después de fechas.js, que es la que les da formato.
+    assert 'montarModuloTopbar("fechas", () => montarModuloTopbar("notificaciones"))' in leer("assets", "js", "topbar.js")
+
