@@ -53,7 +53,7 @@ async function cargarUsuarioPorId(idUsuario) {
 
     document.getElementById("nombres").textContent = data.nombres;
     document.getElementById("email").textContent = data.email;
-    document.getElementById("rol").textContent = data.nombre_rol;
+    document.getElementById("rol").textContent = nombreRolNatural(data.nombre_rol);
     document.getElementById("area").textContent = data.nombre_area;
     document.getElementById("estado").textContent = data.estado;
 

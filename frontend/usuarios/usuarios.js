@@ -44,14 +44,14 @@ function sincronizarAreaConRol() {
   selectorArea.disabled = true;
 }
 
-function agregarOpcionesDinamicas(selector, usuarios, campoId, campoNombre, etiquetaTodos) {
+function agregarOpcionesDinamicas(selector, usuarios, campoId, campoNombre, etiquetaTodos, formatear = String) {
   const valorActual = selector.value;
   const opciones = new Map();
 
   usuarios.forEach(usuario => {
     const id = usuario[campoId];
     const nombre = usuario[campoNombre];
-    if (id != null && nombre) opciones.set(String(id), String(nombre));
+    if (id != null && nombre) opciones.set(String(id), formatear(String(nombre)));
   });
 
   selector.replaceChildren(new Option(etiquetaTodos, ""));
@@ -85,7 +85,7 @@ function mostrarUsuarios(usuarios) {
     fila.append(
       crearCelda(usuario.nombres),
       crearCelda(usuario.email),
-      crearCelda(usuario.nombre_rol),
+      crearCelda(nombreRolNatural(usuario.nombre_rol)),
       crearCelda(usuario.nombre_area || "Sin área")
     );
 
@@ -131,7 +131,7 @@ async function cargarListadoUsuarios() {
 
     if (!opcionesUsuariosCargadas) {
       catalogoUsuarios = usuarios;
-      agregarOpcionesDinamicas(filtroRol, catalogoUsuarios, "id_rol", "nombre_rol", "Todos los roles");
+      agregarOpcionesDinamicas(filtroRol, catalogoUsuarios, "id_rol", "nombre_rol", "Todos los roles", nombreRolNatural);
       agregarOpcionesDinamicas(filtroArea, catalogoUsuarios, "id_area", "nombre_area", "Todas las áreas");
       opcionesUsuariosCargadas = true;
     }

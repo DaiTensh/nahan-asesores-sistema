@@ -84,7 +84,7 @@ async function cargarUsuarioPorId(id) {
         document.getElementById("id_area").value = data.id_area;
         document.getElementById("estado").value = data.estado;
         document.getElementById("perfilId").textContent = data.id_usuario;
-        document.getElementById("perfilRol").textContent = data.nombre_rol || "Sin rol";
+        document.getElementById("perfilRol").textContent = data.nombre_rol ? nombreRolNatural(data.nombre_rol) : "Sin rol";
         document.getElementById("perfilArea").textContent = data.nombre_area || "Sin área";
         document.getElementById("fechaCreacion").textContent = formatearFechaRegistro(data.fecha_creacion);
         document.getElementById("perfilUsuario").hidden = false;
