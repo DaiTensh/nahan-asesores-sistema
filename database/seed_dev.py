@@ -152,21 +152,46 @@ def resumen(titulo, mapa):
 
 # --------------------------------------------------------------------- reset
 # (tabla, sql, ¿lleva la lista de RUT como parámetros?) — en orden hijo → padre.
+#
+# Además de lo que siembra este script, se borran las filas que crea el uso normal de la aplicación sobre
+# lo sembrado (revisiones, comentarios, documentos, observaciones, avisos de recuperación, cobros...): sin
+# eso --reset falla con el error 1451 en cuanto alguien envía una tarea a revisión o sube un documento.
+# «%%» y no «%»: varias sentencias llevan parámetros y el conector trataría un «%@» suelto como formato.
+_USUARIOS = "(SELECT id_usuario FROM usuario WHERE email LIKE '%%@nahan.local')"
+_CLIENTES = "(SELECT id_cliente FROM cliente WHERE rut IN ({ruts}))"
+# Tareas de los clientes sembrados o creadas por, o asignadas a, las cuentas sembradas.
+_TAREAS = ("(SELECT id_tarea FROM tarea WHERE id_cliente IN " + _CLIENTES
+           + " OR id_creador IN " + _USUARIOS + " OR id_responsable IN " + _USUARIOS + ")")
 LIMPIEZA = [
-    ("registro_tiempo", "DELETE FROM registro_tiempo WHERE id_usuario IN "
-                        "(SELECT id_usuario FROM usuario WHERE email LIKE '%@nahan.local')", False),
-    ("notificacion",    "DELETE FROM notificacion WHERE id_usuario IN "
-                        "(SELECT id_usuario FROM usuario WHERE email LIKE '%@nahan.local')", False),
-    ("reporte",         "DELETE FROM reporte WHERE id_usuario IN "
-                        "(SELECT id_usuario FROM usuario WHERE email LIKE '%@nahan.local')", False),
-    ("auditoria",       "DELETE FROM auditoria WHERE id_usuario IN "
-                        "(SELECT id_usuario FROM usuario WHERE email LIKE '%@nahan.local')", False),
-    ("tarea",           "DELETE FROM tarea WHERE id_cliente IN "
-                        "(SELECT id_cliente FROM cliente WHERE rut IN ({ruts}))", True),
-    ("cliente_area",    "DELETE FROM cliente_area WHERE id_cliente IN "
-                        "(SELECT id_cliente FROM cliente WHERE rut IN ({ruts}))", True),
-    ("cliente",         "DELETE FROM cliente WHERE rut IN ({ruts})", True),
-    ("usuario",         "DELETE FROM usuario WHERE email LIKE '%@nahan.local'", False),
+    ("cobro",               "DELETE FROM cobro WHERE id_tarea IN " + _TAREAS, True),
+    ("registro_tiempo",     "DELETE FROM registro_tiempo WHERE id_usuario IN " + _USUARIOS, False),
+    ("registro_tiempo",     "DELETE FROM registro_tiempo WHERE id_tarea IN " + _TAREAS, True),
+    ("tiempo_trabajado",    "DELETE FROM tiempo_trabajado WHERE id_usuario IN " + _USUARIOS, False),
+    ("tiempo_trabajado",    "DELETE FROM tiempo_trabajado WHERE id_tarea IN " + _TAREAS, True),
+    ("comentario_tarea",    "DELETE FROM comentario_tarea WHERE id_usuario IN " + _USUARIOS, False),
+    ("comentario_tarea",    "DELETE FROM comentario_tarea WHERE id_tarea IN " + _TAREAS, True),
+    ("revision_tarea",      "DELETE FROM revision_tarea WHERE id_revisor IN " + _USUARIOS, False),
+    ("revision_tarea",      "DELETE FROM revision_tarea WHERE id_tarea IN " + _TAREAS, True),
+    ("tarea_documento",     "DELETE FROM tarea_documento WHERE id_tarea IN " + _TAREAS, True),
+    ("tarea_documento",     "DELETE FROM tarea_documento WHERE id_documento IN "
+                            "(SELECT id_documento FROM documento WHERE subido_por IN " + _USUARIOS + ")", False),
+    ("tarea_documento",     "DELETE FROM tarea_documento WHERE id_documento IN "
+                            "(SELECT id_documento FROM documento WHERE id_cliente IN " + _CLIENTES + ")", True),
+    ("documento",           "DELETE FROM documento WHERE subido_por IN " + _USUARIOS, False),
+    ("documento",           "DELETE FROM documento WHERE id_cliente IN " + _CLIENTES, True),
+    ("observacion_cliente", "DELETE FROM observacion_cliente WHERE id_usuario IN " + _USUARIOS, False),
+    ("observacion_cliente", "DELETE FROM observacion_cliente WHERE id_cliente IN " + _CLIENTES, True),
+    ("cliente_reciente",    "DELETE FROM cliente_reciente WHERE id_usuario IN " + _USUARIOS, False),
+    ("cliente_reciente",    "DELETE FROM cliente_reciente WHERE id_cliente IN " + _CLIENTES, True),
+    ("token_recuperacion",  "DELETE FROM token_recuperacion WHERE id_usuario IN " + _USUARIOS, False),
+    ("notificacion",        "DELETE FROM notificacion WHERE id_usuario IN " + _USUARIOS, False),
+    ("reporte",             "DELETE FROM reporte WHERE id_usuario IN " + _USUARIOS, False),
+    ("auditoria",           "DELETE FROM auditoria WHERE id_usuario IN " + _USUARIOS, False),
+    ("tarea",               "DELETE FROM tarea WHERE id_cliente IN " + _CLIENTES
+                            + " OR id_creador IN " + _USUARIOS + " OR id_responsable IN " + _USUARIOS, True),
+    ("cliente_area",        "DELETE FROM cliente_area WHERE id_cliente IN " + _CLIENTES, True),
+    ("cliente",             "DELETE FROM cliente WHERE rut IN ({ruts})", True),
+    ("usuario",             "DELETE FROM usuario WHERE email LIKE '%@nahan.local'", False),
 ]
 
 
