@@ -101,11 +101,19 @@ def migraciones():
     return lista
 
 
-def sentencias(ruta):
-    """Las sentencias del archivo, sin los comentarios de línea."""
-    texto = open(ruta, encoding="utf-8").read()
+def dividir_sentencias(texto):
+    """Las sentencias de un script SQL, sin los comentarios de línea.
+
+    Un «;» dentro de un comentario no separa nada. Lo usa también scripts/setup.py
+    para importar database/nahan_asesores.sql.
+    """
     sin_comentarios = "\n".join(l for l in texto.splitlines() if not l.strip().startswith("--"))
     return [s.strip() for s in sin_comentarios.split(";") if s.strip()]
+
+
+def sentencias(ruta):
+    """Las sentencias del archivo, sin los comentarios de línea."""
+    return dividir_sentencias(open(ruta, encoding="utf-8").read())
 
 
 def aplicada(cur, numero):
