@@ -299,6 +299,13 @@ body.sidebar-collapsed .sidebar-session-panel {
   }
 }
 
+/* Con el menú contraído a 84 px el contenido mide ~306 px a 390 px de pantalla: 16 px de margen en vez de 24. */
+@media (max-width: 640px) {
+  .main-content {
+    padding: var(--spacing-4);
+  }
+}
+
 /* H-17 — «Saltar al contenido»: queda fuera de la pantalla hasta que recibe el foco del teclado. */
 .saltar-contenido {
   position: fixed;
