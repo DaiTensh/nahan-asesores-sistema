@@ -26,6 +26,12 @@ body {
   margin-bottom: 24px;
 }
 
+.volver-usuarios {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--spacing-4);
+}
+
 .datos {
   margin-top: 24px;
   padding: 18px;

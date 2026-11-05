@@ -25,8 +25,11 @@
 
     <main class="main-content">
       <section class="usuarios-card">
+        <div class="volver-usuarios">
+          <a href="usuarios.html" class="btn btn-secondary">Volver a Usuarios</a>
+        </div>
         <h1>Deshabilitar Usuario</h1>
-        <p class="subtitle">Eliminar o deshabilitar usuarios del sistema.</p>
+        <p class="subtitle">Deshabilita a un usuario. Sus datos se conservan por trazabilidad.</p>
 
         <div class="form-group">
           <label class="form-label" for="usuario_busqueda">Usuario</label>
@@ -48,11 +51,6 @@
           <button class="btn btn-danger" onclick="desactivarUsuario()">
               Deshabilitar Usuario
           </button>
-
-          <button class="btn btn-danger" onclick="eliminarUsuario()">
-              Eliminar Usuario
-          </button>
-
         </div>
 
         <p id="mensaje" class="mensaje" aria-live="polite"></p>
@@ -73,7 +71,7 @@
 
 <script>
   protegerPagina(["ADMINISTRADOR"]);
-  cargarNavegacion("desactivar");
+  cargarNavegacion("usuarios");
   cargarTopbar();
 </script>
 

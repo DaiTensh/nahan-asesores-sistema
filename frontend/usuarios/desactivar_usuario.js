@@ -12,6 +12,11 @@ document.addEventListener("DOMContentLoaded", () => {
     datalistId: "usuarios_datalist",
     onSelect: (usuario) => cargarUsuarioPorId(usuario.id_usuario)
   });
+
+  const idUsuario = new URLSearchParams(window.location.search).get("id");
+  if (idUsuario && /^\d+$/.test(idUsuario) && Number(idUsuario) > 0) {
+    cargarUsuarioPorId(idUsuario);
+  }
 });
 
 function mostrarMensaje(texto, tipo) {
@@ -102,10 +107,4 @@ async function desactivarUsuario() {
     console.error(error);
     mostrarMensaje("Error al conectar con el servidor", "error");
   }
-}
-
-function eliminarUsuario() {
-  // El sistema nunca borra usuarios (trazabilidad de la auditoría): se avisa en la propia página,
-  // sin pedir una confirmación crítica para una acción que no existe.
-  mostrarMensaje("Por trazabilidad, el sistema no elimina usuarios físicamente. Use «Deshabilitar Usuario».", "error");
 }

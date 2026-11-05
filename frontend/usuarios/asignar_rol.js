@@ -24,6 +24,11 @@ document.addEventListener("DOMContentLoaded", () => {
     datalistId: "usuarios_datalist",
     onSelect: (usuario) => cargarUsuarioPorId(usuario.id_usuario)
   });
+
+  const idUsuario = new URLSearchParams(window.location.search).get("id");
+  if (idUsuario && /^\d+$/.test(idUsuario) && Number(idUsuario) > 0) {
+    cargarUsuarioPorId(idUsuario);
+  }
 });
 
 function mostrarMensaje(texto, tipo) {
