@@ -24,7 +24,21 @@ body {
     box-shadow: 0 4px 15px rgba(0,0,0,0.08);
 }
 
-.usuarios-page-title { margin-bottom: var(--spacing-5); }
+.usuarios-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 28px;
+}
+.usuarios-page-title { margin-bottom: 6px; }
+.usuarios-header-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+.usuarios-form-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .usuarios-listado { width: 100%; margin-bottom: var(--spacing-6); }
 .usuarios-listado h2 { margin-bottom: var(--spacing-4); }
 .usuarios-filtros {
@@ -36,11 +50,9 @@ body {
 .usuarios-filtros .form-group { min-width: 0; }
 .usuarios-tabla { min-width: 760px; }
 .usuarios-tabla td { vertical-align: middle; }
-/* Un nombre o correo largo (hasta 100 y 150 caracteres) y roles como USUARIO_AREA_JURIDICA no tienen
-   espacios: sin esto la tabla se ensanchaba y «Ver perfil», la única forma de abrir un usuario, quedaba
-   fuera de la pantalla en 1366 px. */
 .usuarios-tabla td { overflow-wrap: anywhere; }
-.usuarios-tabla td:last-child { white-space: nowrap; }
+.usuarios-tabla td:last-child { white-space: normal; }
+.usuarios-acciones { display: flex; gap: 8px; flex-wrap: wrap; }
 .usuarios-tabla .usuario-fila-inactiva td { background: var(--color-neutral-soft); }
 .usuario-estado {
     display: inline-block;
@@ -53,6 +65,8 @@ body {
 .usuario-estado-inactivo { background: var(--color-danger-soft); color: var(--color-danger-strong); }
 
 @media (max-width: 900px) {
+    .usuarios-header { flex-direction: column; }
+    .usuarios-header-actions { justify-content: flex-start; }
     .usuarios-filtros { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 

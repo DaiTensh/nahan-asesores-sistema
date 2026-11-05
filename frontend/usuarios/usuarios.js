@@ -1,5 +1,12 @@
 const API_URL = window.API_CONFIG.API_URL;
 
+configurarPanelAlta({
+  botonId: "btnNuevoUsuario",
+  panelId: "panelNuevoUsuario",
+  primerCampoId: "nombres",
+  botonCerrarId: "btnCerrarNuevoUsuario"
+});
+
 // La API entrega la fecha de registro como «AAAA-MM-DD HH:MM:SS»; se muestra como en el historial.
 function formatearFechaRegistro(valor) {
   if (!valor) return "Sin fecha";
@@ -67,6 +74,31 @@ function crearCelda(texto) {
   return celda;
 }
 
+function crearCeldaAcciones(usuario) {
+  const celda = document.createElement("td");
+  const acciones = document.createElement("div");
+  const id = encodeURIComponent(usuario.id_usuario);
+  acciones.className = "usuarios-acciones";
+
+  const crearEnlace = (texto, destino, clase, ariaLabel) => {
+    const enlace = document.createElement("a");
+    enlace.href = destino;
+    enlace.className = clase;
+    enlace.textContent = texto;
+    enlace.setAttribute("aria-label", ariaLabel);
+    acciones.appendChild(enlace);
+  };
+
+  crearEnlace("Editar", `modificar_usuario.html?id=${id}`, "btn btn-primary btn-small", `Editar a ${usuario.nombres}`);
+  crearEnlace("Asignar rol", `asignar_rol.html?id=${id}`, "btn btn-secondary btn-small", `Asignar rol a ${usuario.nombres}`);
+  if (usuario.estado === "ACTIVO") {
+    crearEnlace("Deshabilitar", `desactivar_usuario.html?id=${id}`, "btn btn-warning btn-small", `Deshabilitar a ${usuario.nombres}`);
+  }
+
+  celda.appendChild(acciones);
+  return celda;
+}
+
 function mostrarUsuarios(usuarios) {
   tablaUsuarios.replaceChildren();
   if (!usuarios.length) {
@@ -96,13 +128,7 @@ function mostrarUsuarios(usuarios) {
     celdaEstado.appendChild(estado);
     fila.append(celdaEstado, crearCelda(formatearFechaRegistro(usuario.fecha_creacion)));
 
-    const enlace = document.createElement("a");
-    enlace.className = "btn btn-secondary btn-small";
-    enlace.href = `modificar_usuario.html?id=${encodeURIComponent(usuario.id_usuario)}`;
-    enlace.textContent = "Ver perfil";
-    const celdaPerfil = document.createElement("td");
-    celdaPerfil.appendChild(enlace);
-    fila.appendChild(celdaPerfil);
+    fila.appendChild(crearCeldaAcciones(usuario));
     tablaUsuarios.appendChild(fila);
   });
 }
@@ -194,6 +220,7 @@ formUsuario.addEventListener("submit", async (event) => {
     mensaje.className = "mensaje success";
     formUsuario.reset();
     sincronizarAreaConRol();
+    await cargarListadoUsuarios();
 
   } catch (error) {
     mensaje.textContent = "No se pudo conectar con el servidor";
