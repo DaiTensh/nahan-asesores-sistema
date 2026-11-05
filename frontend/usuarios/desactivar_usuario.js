@@ -104,12 +104,8 @@ async function desactivarUsuario() {
   }
 }
 
-async function eliminarUsuario() {
-  const confirmar = await confirmarAccion("¿Está seguro de intentar eliminar este usuario?", "critica");
-
-  if (!confirmar) {
-    return;
-  }
-
-  alert("Por trazabilidad, el sistema no elimina usuarios físicamente. Se recomienda deshabilitarlos.");
+function eliminarUsuario() {
+  // El sistema nunca borra usuarios (trazabilidad de la auditoría): se avisa en la propia página,
+  // sin pedir una confirmación crítica para una acción que no existe.
+  mostrarMensaje("Por trazabilidad, el sistema no elimina usuarios físicamente. Use «Deshabilitar Usuario».", "error");
 }

@@ -148,8 +148,10 @@ def test_el_responsable_recibe_notificacion_del_cambio_de_estado(cliente, base):
     ).fetchone()
 
     assert notificacion is not None
-    assert "PENDIENTE" in notificacion["mensaje"]
-    assert "EN_PROCESO" in notificacion["mensaje"]
+    # El aviso nombra los estados como los ve la persona, no con el código interno.
+    assert "«Pendiente»" in notificacion["mensaje"]
+    assert "«En proceso»" in notificacion["mensaje"]
+    assert "EN_PROCESO" not in notificacion["mensaje"]
     assert str(id_tarea) in notificacion["url_destino"]
 
 

@@ -200,7 +200,7 @@ function renderizarHistorial(historial) {
 
     fila.appendChild(crearCelda(formatearFechaHora(evento.fecha)));
     fila.appendChild(crearCelda(evento.usuario));
-    fila.appendChild(crearCelda(evento.accion));
+    fila.appendChild(crearCelda(window.etiquetaAccionAuditoria(evento.accion)));
     fila.appendChild(crearCelda(evento.datos_anteriores));
     fila.appendChild(crearCelda(evento.datos_nuevos));
 

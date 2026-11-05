@@ -247,7 +247,7 @@ def test_flujo_completo_cambio_de_estado_consulta_y_lectura(cliente, base):
     aviso = datos["notificaciones"][0]
 
     assert aviso["tipo"] == "CAMBIO_ESTADO_TAREA"
-    assert "PENDIENTE" in aviso["mensaje"] and "EN_PROCESO" in aviso["mensaje"]
+    assert "«Pendiente»" in aviso["mensaje"] and "«En proceso»" in aviso["mensaje"]
     assert aviso["url_destino"] == "/frontend/tareas/detalle_tarea.html?id=1"
     assert datos["no_leidas"] == 2
 
