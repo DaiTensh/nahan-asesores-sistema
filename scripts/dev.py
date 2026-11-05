@@ -182,6 +182,10 @@ def servir_frontend(puerto_front, puerto_api):
         def log_message(self, *a, **k):
             pass
 
+    # La cola de conexiones pendientes mide 5 por omisión. Cada archivo usa una conexión nueva (HTTP/1.0) y
+    # el navegador pide ~15 de golpe al abrir una pantalla: el sistema reseteaba las que no cabían y la
+    # página quedaba sin menú ni barra superior («cargarTopbar is not defined»).
+    http.server.ThreadingHTTPServer.request_queue_size = 128
     return http.server.ThreadingHTTPServer(("127.0.0.1", puerto_front), Handler)
 
 
