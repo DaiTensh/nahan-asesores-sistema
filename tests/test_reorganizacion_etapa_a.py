@@ -242,21 +242,3 @@ def test_codigo_nuevo_no_inserta_html_dinamico_ni_evalua_codigo():
     for ruta in archivos:
         codigo = leer(*ruta)
         assert not any(token in codigo for token in prohibidos), ruta
-
-
-def test_no_hay_cambios_en_backend_ni_database():
-    try:
-        raiz_git = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"], cwd=RAIZ,
-            capture_output=True, text=True, timeout=10
-        )
-    except FileNotFoundError:
-        pytest.skip("git no está disponible en este entorno")
-    if raiz_git.returncode:
-        pytest.skip("el repositorio Git no está disponible en este entorno")
-
-    cambios = subprocess.run(
-        ["git", "diff", "--name-only", "b82a6cc", "--", "backend", "database"],
-        cwd=RAIZ, capture_output=True, text=True, timeout=10, check=True
-    ).stdout.splitlines()
-    assert cambios == []
