@@ -2,6 +2,7 @@ import logging
 from decimal import Decimal, InvalidOperation
 from flask import Blueprint, jsonify, request
 from backend.config.db import get_connection
+from backend.routes.reportes_routes import _periodo_opcional
 from backend.utils.auditoria import registrar_auditoria
 from backend.utils.auth import login_required, obtener_usuario_actual
 from backend.utils.estados_tarea import SQL_ESTADOS_ACTIVOS
@@ -150,6 +151,15 @@ def _condiciones_registros(usuario, id_usuario_sesion, args):
         parametros.append(id_usuario_sesion)
 
     return condiciones, parametros
+
+
+def _leer_id_filtro(args, nombre):
+    valor = args.get(nombre, "").strip()
+    if not valor:
+        return None, None
+    if not valor.isdecimal() or int(valor) < 1:
+        return None, f"{nombre} debe ser un ID entero positivo"
+    return int(valor), None
 
 
 def _consultar_resumen(cursor, condiciones, parametros):
@@ -602,6 +612,26 @@ def listar_registros():
             id_usuario,
             request.args,
         )
+        fecha_inicio, fecha_fin, error_periodo = _periodo_opcional(request.args)
+        if error_periodo:
+            return jsonify({"error": error_periodo}), 400
+
+        id_cliente, error_cliente = _leer_id_filtro(request.args, "id_cliente")
+        if error_cliente:
+            return jsonify({"error": error_cliente}), 400
+        id_tarea, error_tarea = _leer_id_filtro(request.args, "id_tarea")
+        if error_tarea:
+            return jsonify({"error": error_tarea}), 400
+
+        if fecha_inicio and fecha_fin:
+            condiciones.append("rt.fecha BETWEEN %s AND %s")
+            parametros.extend([fecha_inicio, fecha_fin])
+        if id_cliente:
+            condiciones.append("rt.id_cliente = %s")
+            parametros.append(id_cliente)
+        if id_tarea:
+            condiciones.append("rt.id_tarea = %s")
+            parametros.append(id_tarea)
 
         cursor.execute(
             f"""
@@ -642,6 +672,90 @@ def listar_registros():
     except Exception:
         logger.exception("Error al listar registros de control de horas")
         return jsonify({"error": "Error interno al listar registros de horas."}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
+@control_horas_bp.route("/control-horas/filtros", methods=["GET"])
+@login_required
+def obtener_filtros_registros():
+    usuario_sesion = obtener_usuario_actual()
+    id_usuario = usuario_sesion["id_usuario"]
+
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_connection()
+        if connection is None:
+            return jsonify({"error": "No se pudo conectar con la base de datos."}), 500
+
+        cursor = connection.cursor(dictionary=True)
+        usuario = _obtener_usuario(cursor, id_usuario)
+        error_usuario = _validar_usuario(usuario)
+        if error_usuario:
+            return jsonify({"error": error_usuario}), 403
+
+        condiciones = ["rt.hora_fin IS NOT NULL"]
+        parametros = []
+        if usuario["nombre_rol"] != "ADMINISTRADOR":
+            condiciones.append("rt.id_usuario = %s")
+            parametros.append(id_usuario)
+        filtro_alcance = " AND ".join(condiciones)
+
+        cursor.execute(
+            f"""
+            SELECT DISTINCT c.id_cliente, c.razon_social, c.rut
+            FROM registro_tiempo rt
+            INNER JOIN cliente c ON rt.id_cliente = c.id_cliente
+            WHERE {filtro_alcance}
+            ORDER BY c.razon_social ASC
+            """,
+            tuple(parametros),
+        )
+        clientes = cursor.fetchall()
+
+        cursor.execute(
+            f"""
+            SELECT DISTINCT t.id_tarea, t.titulo, t.id_cliente,
+                   c.razon_social AS cliente
+            FROM registro_tiempo rt
+            INNER JOIN tarea t ON rt.id_tarea = t.id_tarea
+            INNER JOIN cliente c ON rt.id_cliente = c.id_cliente
+            WHERE {filtro_alcance}
+            ORDER BY c.razon_social ASC, t.titulo ASC
+            """,
+            tuple(parametros),
+        )
+        tareas = cursor.fetchall()
+
+        usuarios = []
+        if usuario["nombre_rol"] == "ADMINISTRADOR":
+            cursor.execute(
+                f"""
+                SELECT DISTINCT u.id_usuario, u.nombres
+                FROM registro_tiempo rt
+                INNER JOIN usuario u ON rt.id_usuario = u.id_usuario
+                WHERE {filtro_alcance}
+                ORDER BY u.nombres ASC
+                """,
+                tuple(parametros),
+            )
+            usuarios = cursor.fetchall()
+
+        return jsonify({
+            "clientes": clientes,
+            "tareas": tareas,
+            "usuarios": usuarios,
+        }), 200
+
+    except Exception:
+        logger.exception("Error al obtener los filtros de control de horas")
+        return jsonify({"error": "Error interno al cargar los filtros."}), 500
 
     finally:
         if cursor:
