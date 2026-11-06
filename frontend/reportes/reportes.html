@@ -28,7 +28,7 @@
       <section class="reportes-header reportes-header--acciones">
         <div>
           <h1>Reportes</h1>
-          <p>Consulta actividad por cliente, responsable o área de trabajo dentro de un período, y el monto a cobrar a un cliente por sus horas registradas.</p>
+          <p>Consulta actividad por cliente, responsable o área de trabajo, horas trabajadas y montos a cobrar dentro de un período.</p>
         </div>
         <nav class="reportes-header-actions" aria-label="Informes">
           <a class="btn btn-secondary" href="reportes.html" aria-current="page">Reportes</a>
@@ -44,10 +44,54 @@
           <div class="form-group">
             <label class="form-label" for="selectTipoReporte">Agrupar por</label>
             <select id="selectTipoReporte" class="form-input">
+              <optgroup label="Tareas">
+                <option value="cliente">Cliente</option>
+                <option value="responsable">Usuario responsable</option>
+                <option value="area">Área de trabajo</option>
+              </optgroup>
+              <optgroup label="Horas">
+                <option value="horas">Horas trabajadas</option>
+                <option value="cobro">Cobro por cliente (horas y monto)</option>
+              </optgroup>
+            </select>
+          </div>
+
+          <div class="form-group" id="grupoAgruparHoras" hidden>
+            <label class="form-label" for="selectAgruparHoras">Agrupar horas por</label>
+            <select id="selectAgruparHoras" class="form-input">
               <option value="cliente">Cliente</option>
-              <option value="responsable">Usuario responsable</option>
-              <option value="area">Área de trabajo</option>
-              <option value="cobro">Cobro por cliente (horas y monto)</option>
+              <option value="tarea">Tarea</option>
+              <option value="usuario">Usuario</option>
+              <option value="periodo">Período</option>
+            </select>
+          </div>
+
+          <div class="form-group" id="grupoGranularidad" hidden>
+            <label class="form-label" for="selectGranularidad">Período por</label>
+            <select id="selectGranularidad" class="form-input">
+              <option value="dia">Día</option>
+              <option value="mes">Mes</option>
+            </select>
+          </div>
+
+          <div class="form-group" id="grupoHorasCliente" hidden>
+            <label class="form-label" for="selectHorasCliente">Cliente</label>
+            <select id="selectHorasCliente" class="form-input">
+              <option value="">Todos los clientes</option>
+            </select>
+          </div>
+
+          <div class="form-group" id="grupoHorasTarea" hidden>
+            <label class="form-label" for="selectHorasTarea">Tarea</label>
+            <select id="selectHorasTarea" class="form-input">
+              <option value="">Todas las tareas</option>
+            </select>
+          </div>
+
+          <div class="form-group" id="grupoHorasUsuario" hidden>
+            <label class="form-label" for="selectHorasUsuario">Usuario</label>
+            <select id="selectHorasUsuario" class="form-input">
+              <option value="">Todos los usuarios</option>
             </select>
           </div>
 
@@ -90,6 +134,7 @@
         </form>
 
         <p id="ayudaPeriodoCobro" class="form-help" hidden>Para el cobro puede dejar las fechas vacías: se incluirán todas las horas registradas del cliente.</p>
+        <p id="ayudaPeriodoHoras" class="form-help" hidden>Puede dejar las fechas vacías: se incluirán todas las horas registradas.</p>
 
         <p id="mensajeReporte" class="mensaje" aria-live="polite"></p>
       </section>
@@ -115,6 +160,7 @@
             <strong id="resultadoFechaGeneracion">-</strong>
           </div>
         </div>
+        <p id="resultadoFiltrosHoras" class="form-help" hidden></p>
 
         <div id="resultadoDetalle">
           <div class="clientes-cards" id="resumenEstadoCards"></div>
@@ -205,6 +251,17 @@
                 </tr>
               </thead>
               <tbody id="tablaAreas"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="resultadoHoras" hidden>
+          <div class="cobro-resumen" id="resumenHoras"></div>
+          <h3 id="tituloTablaHoras"></h3>
+          <div class="table-responsive">
+            <table class="table">
+              <thead id="encabezadoTablaHoras"></thead>
+              <tbody id="cuerpoTablaHoras"></tbody>
             </table>
           </div>
         </div>

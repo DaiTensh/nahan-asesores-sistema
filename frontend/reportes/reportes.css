@@ -156,9 +156,15 @@
   overflow-wrap: anywhere;
 }
 
-#resultadoCobro > h3 {
+#resultadoCobro > h3,
+#resultadoHoras > h3 {
   font-size: 18px;
   margin: 8px 0 12px;
+}
+
+#resultadoFiltrosHoras {
+  margin-bottom: var(--spacing-4);
+  overflow-wrap: anywhere;
 }
 
 .table td.numero,
