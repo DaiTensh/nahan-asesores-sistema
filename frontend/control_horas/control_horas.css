@@ -22,6 +22,28 @@
   justify-content: flex-end;
 }
 
+.control-filtros {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--spacing-4);
+  margin-bottom: var(--spacing-3);
+}
+
+.control-filtros .form-group {
+  min-width: 0;
+}
+
+.control-filtros-actions {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+}
+
+#estadoFiltrosHoras {
+  margin-bottom: var(--spacing-4);
+}
+
 .time-shell {
   display: grid;
   grid-template-columns: minmax(0, 1.7fr) minmax(320px, .8fr);
@@ -252,6 +274,10 @@
 }
 
 @media (max-width: 900px) {
+  .control-filtros {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .timer-heading,
   .section-heading,
   .control-header {
@@ -260,6 +286,10 @@
 
   .control-header-actions {
     justify-content: flex-start;
+  }
+
+  .control-filtros-actions {
+    align-items: flex-start;
   }
 
   .timer-heading p {
@@ -277,5 +307,11 @@
   .time-side-card,
   .control-section {
     padding: var(--spacing-4);
+  }
+}
+
+@media (max-width: 540px) {
+  .control-filtros {
+    grid-template-columns: 1fr;
   }
 }

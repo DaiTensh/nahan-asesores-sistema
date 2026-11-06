@@ -115,27 +115,28 @@
           <div>
             <h2>Resumen</h2>
             <p>Totales calculados con registros cerrados.</p>
+            <p id="alcanceResumen" class="form-help">Mostrando: mis registros. Filtros: ninguno.</p>
           </div>
         </div>
 
         <div class="resumen-cards">
           <div class="resumen-card metric-card">
-            <p>Horas trabajadas hoy</p>
+            <p id="rotuloHorasHoy">Mis horas hoy</p>
             <h3 id="horasHoy">00h 00m</h3>
           </div>
 
           <div class="resumen-card metric-card">
-            <p>Total de horas</p>
+            <p id="rotuloHorasTotal">Mis horas en total</p>
             <h3 id="horasAcumuladas">00h 00m</h3>
           </div>
 
           <div class="resumen-card metric-card">
-            <p>Monto acumulado</p>
+            <p id="rotuloMontoTotal">Mi monto acumulado</p>
             <h3 id="montoAcumulado">$0</h3>
           </div>
 
           <div class="resumen-card metric-card">
-            <p>Registros cerrados</p>
+            <p id="rotuloRegistros">Mis registros cerrados</p>
             <h3 id="totalRegistros">0</h3>
           </div>
         </div>
@@ -161,11 +162,55 @@
           </div>
         </div>
 
+        <form id="formFiltrosHoras" class="control-filtros">
+          <div class="form-group">
+            <label class="form-label" for="filtroPeriodoRapido">Período rápido</label>
+            <select id="filtroPeriodoRapido" class="form-input">
+              <option value="">Personalizado</option>
+              <option value="semana">Última semana</option>
+              <option value="mes">Último mes</option>
+              <option value="anio">Año actual</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="filtroDesde">Desde</label>
+            <input id="filtroDesde" class="form-input" type="date">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="filtroHasta">Hasta</label>
+            <input id="filtroHasta" class="form-input" type="date">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="filtroCliente">Cliente</label>
+            <select id="filtroCliente" class="form-input">
+              <option value="">Todos los clientes</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="filtroTarea">Tarea</label>
+            <select id="filtroTarea" class="form-input">
+              <option value="">Todas las tareas</option>
+            </select>
+          </div>
+          <div class="form-group" id="grupoFiltroUsuario" hidden>
+            <label class="form-label" for="filtroUsuario">Usuario</label>
+            <select id="filtroUsuario" class="form-input">
+              <option value="">Todos los usuarios</option>
+            </select>
+          </div>
+          <div class="form-group control-filtros-actions">
+            <button type="submit" class="btn btn-primary">Filtrar</button>
+            <button type="button" id="btnLimpiarFiltrosHoras" class="btn btn-secondary">Limpiar filtros</button>
+          </div>
+        </form>
+        <p id="estadoFiltrosHoras" class="form-help" aria-live="polite"></p>
+
         <div class="table-responsive">
           <table class="table control-table">
             <thead>
               <tr>
                 <th>Fecha</th>
+                <th id="thUsuarioRegistro" hidden>Usuario</th>
                 <th>Cliente</th>
                 <th>Tarea</th>
                 <th>Inicio</th>

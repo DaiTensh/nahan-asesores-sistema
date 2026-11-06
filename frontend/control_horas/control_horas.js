@@ -28,6 +28,20 @@ const horasHoy = document.getElementById("horasHoy");
 const horasAcumuladas = document.getElementById("horasAcumuladas");
 const montoAcumulado = document.getElementById("montoAcumulado");
 const totalRegistros = document.getElementById("totalRegistros");
+const formFiltrosHoras = document.getElementById("formFiltrosHoras");
+const filtroPeriodoRapido = document.getElementById("filtroPeriodoRapido");
+const filtroDesde = document.getElementById("filtroDesde");
+const filtroHasta = document.getElementById("filtroHasta");
+const filtroCliente = document.getElementById("filtroCliente");
+const filtroTarea = document.getElementById("filtroTarea");
+const grupoFiltroUsuario = document.getElementById("grupoFiltroUsuario");
+const filtroUsuario = document.getElementById("filtroUsuario");
+const estadoFiltrosHoras = document.getElementById("estadoFiltrosHoras");
+const alcanceResumen = document.getElementById("alcanceResumen");
+const thUsuarioRegistro = document.getElementById("thUsuarioRegistro");
+
+let tareasFiltroHoras = [];
+let falloCargaFiltrosHoras = false;
 
 document.addEventListener("DOMContentLoaded", async () => {
   usuarioActual = await obtenerUsuarioActual();
@@ -39,6 +53,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   if (usuarioActual.nombre_rol === "ADMINISTRADOR") {
     const accionesControlHoras = document.getElementById("accionesControlHoras");
+    const enlaceInformesHoras = document.createElement("a");
+    enlaceInformesHoras.className = "btn btn-secondary";
+    enlaceInformesHoras.href = "../reportes/reportes.html?tipo=horas";
+    enlaceInformesHoras.textContent = "Informes de horas";
+    accionesControlHoras.appendChild(enlaceInformesHoras);
+
     const enlaceTarifas = document.createElement("a");
     enlaceTarifas.className = "btn btn-secondary";
     enlaceTarifas.href = "../tarifas/tarifas.html";
@@ -47,14 +67,157 @@ document.addEventListener("DOMContentLoaded", async () => {
     accionesControlHoras.hidden = false;
   }
 
+  const esAdministrador = usuarioActual.nombre_rol === "ADMINISTRADOR";
+  grupoFiltroUsuario.hidden = !esAdministrador;
+  thUsuarioRegistro.hidden = !esAdministrador;
+  document.querySelector("#tablaRegistros td").colSpan = esAdministrador ? 9 : 8;
+  actualizarRotulosResumen();
+
   clienteBusqueda.addEventListener("input", manejarCambioCliente);
   tareaBusqueda.addEventListener("input", manejarCambioTarea);
   btnIniciar.addEventListener("click", iniciarTemporizador);
   btnDetener.addEventListener("click", detenerTemporizador);
+  formFiltrosHoras.addEventListener("submit", async evento => {
+    evento.preventDefault();
+    await cargarRegistros();
+  });
+  filtroPeriodoRapido.addEventListener("change", actualizarFechasFiltro);
+  [filtroDesde, filtroHasta].forEach(input => {
+    ["input", "change"].forEach(evento => input.addEventListener(evento, () => {
+      filtroPeriodoRapido.value = "";
+    }));
+  });
+  filtroCliente.addEventListener("change", actualizarTareasFiltro);
+  document.getElementById("btnLimpiarFiltrosHoras").addEventListener("click", async () => {
+    formFiltrosHoras.reset();
+    filtroPeriodoRapido.value = "";
+    actualizarTareasFiltro();
+    await cargarRegistros();
+  });
 
   await cargarContexto();
+  await cargarFiltrosRegistros();
   await cargarRegistros();
 });
+
+async function cargarFiltrosRegistros() {
+  try {
+    const response = await fetch(`${API_URL}/control-horas/filtros`, {
+      credentials: window.API_CONFIG.credentials
+    });
+    const data = await leerRespuestaJson(response);
+
+    if (!response.ok) {
+      falloCargaFiltrosHoras = true;
+      manejarAccesoDenegado(response.status, data.error);
+      estadoFiltrosHoras.textContent = data.error || "No se pudieron cargar los filtros.";
+      return;
+    }
+
+    falloCargaFiltrosHoras = false;
+    tareasFiltroHoras = data.tareas || [];
+    poblarFiltro(
+      filtroCliente,
+      data.clientes || [],
+      "Todos los clientes",
+      cliente => [cliente.id_cliente, obtenerTextoCliente(cliente)]
+    );
+    poblarFiltro(
+      filtroUsuario,
+      data.usuarios || [],
+      "Todos los usuarios",
+      usuario => [usuario.id_usuario, usuario.nombres]
+    );
+    actualizarTareasFiltro();
+  } catch (error) {
+    console.error(error);
+    falloCargaFiltrosHoras = true;
+    estadoFiltrosHoras.textContent = "No se pudieron cargar los filtros.";
+    mostrarMensaje("No se pudieron cargar los filtros.", "error");
+  }
+}
+
+function poblarFiltro(select, opciones, textoInicial, obtenerOpcion) {
+  select.textContent = "";
+  const opcionInicial = document.createElement("option");
+  opcionInicial.value = "";
+  opcionInicial.textContent = textoInicial;
+  select.appendChild(opcionInicial);
+
+  opciones.forEach(opcion => {
+    const [valor, texto] = obtenerOpcion(opcion);
+    const elemento = document.createElement("option");
+    elemento.value = valor;
+    elemento.textContent = texto || "";
+    select.appendChild(elemento);
+  });
+}
+
+function actualizarTareasFiltro() {
+  const idCliente = filtroCliente.value;
+  const tareas = idCliente
+    ? tareasFiltroHoras.filter(tarea => Number(tarea.id_cliente) === Number(idCliente))
+    : tareasFiltroHoras;
+
+  poblarFiltro(
+    filtroTarea,
+    tareas,
+    "Todas las tareas",
+    tarea => [
+      tarea.id_tarea,
+      `${tarea.titulo}${tarea.cliente ? ` — ${tarea.cliente}` : ""}`
+    ]
+  );
+}
+
+function actualizarFechasFiltro() {
+  const valor = filtroPeriodoRapido.value;
+  if (!valor) return;
+
+  const fin = new Date();
+  const inicio = new Date(fin);
+  if (valor === "anio") inicio.setMonth(0, 1);
+  else if (valor === "mes") inicio.setMonth(inicio.getMonth() - 1);
+  else inicio.setDate(inicio.getDate() - 6);
+
+  filtroDesde.value = fechaLocal(inicio);
+  filtroHasta.value = fechaLocal(fin);
+}
+
+function fechaLocal(fecha) {
+  return `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, "0")}-${String(fecha.getDate()).padStart(2, "0")}`;
+}
+
+function crearParametrosFiltrosHoras() {
+  const desde = filtroDesde.value;
+  const hasta = filtroHasta.value;
+
+  if (Boolean(desde) !== Boolean(hasta)) {
+    const error = "Debe indicar ambas fechas o dejar las dos vacías.";
+    estadoFiltrosHoras.textContent = error;
+    mostrarMensaje(error, "error");
+    return null;
+  }
+
+  if (desde && desde > hasta) {
+    const error = "La fecha desde no puede ser posterior a la fecha hasta.";
+    estadoFiltrosHoras.textContent = error;
+    mostrarMensaje(error, "error");
+    return null;
+  }
+
+  const parametros = new URLSearchParams();
+  if (desde) {
+    parametros.set("fecha_inicio", desde);
+    parametros.set("fecha_fin", hasta);
+  }
+  if (filtroCliente.value) parametros.set("id_cliente", filtroCliente.value);
+  if (filtroTarea.value) parametros.set("id_tarea", filtroTarea.value);
+  if (usuarioActual.nombre_rol === "ADMINISTRADOR" && filtroUsuario.value) {
+    parametros.set("id_usuario", filtroUsuario.value);
+  }
+  return parametros;
+}
 
 async function cargarContexto() {
   try {
@@ -385,10 +548,6 @@ async function detenerTemporizador() {
     desactivarTemporizador({ limpiarMensaje: false });
     mostrarMensaje(textoExito, "success");
 
-    if (data.resumen) {
-      renderizarResumen(data.resumen);
-    }
-
     await cargarRegistros();
     await cargarContexto();
     // H-18 — cargarContexto reescribe el aviso («Cargando…» y luego nada): se repone el de éxito
@@ -474,24 +633,38 @@ function actualizarTemporizador() {
 }
 
 async function cargarRegistros() {
+  const parametros = crearParametrosFiltrosHoras();
+  if (!parametros) return;
+
   try {
     mostrarFilaTabla("Cargando registros...");
 
-    const response = await fetch(`${API_URL}/control-horas/registros`, {
+    const query = parametros.toString();
+    const url = `${API_URL}/control-horas/registros${query ? `?${query}` : ""}`;
+    const response = await fetch(url, {
       credentials: window.API_CONFIG.credentials
     });
     const data = await leerRespuestaJson(response);
 
     if (!response.ok) {
       manejarAccesoDenegado(response.status, data.error);
+      estadoFiltrosHoras.textContent = data.error || "No se pudieron cargar los registros.";
       return;
     }
 
-    renderizarRegistros(data.registros || []);
+    const registros = data.registros || [];
+    renderizarRegistros(registros);
     renderizarResumen(data.resumen || {});
+    estadoFiltrosHoras.textContent = registros.length
+      ? `Mostrando ${registros.length} registros.`
+      : "No hay registros para los filtros elegidos.";
+    if (falloCargaFiltrosHoras) {
+      estadoFiltrosHoras.textContent += " No se pudieron cargar los filtros.";
+    }
   } catch (error) {
     console.error(error);
     mostrarFilaTabla("Error al conectar con el servidor.");
+    estadoFiltrosHoras.textContent = "Error al conectar con el servidor.";
   }
 }
 
@@ -505,8 +678,10 @@ function renderizarRegistros(registros) {
 
   registros.forEach(registro => {
     const fila = document.createElement("tr");
-
     agregarCelda(fila, registro.fecha || extraerFecha(registro.inicio));
+    if (usuarioActual.nombre_rol === "ADMINISTRADOR") {
+      agregarCelda(fila, registro.usuario_responsable);
+    }
     agregarCelda(fila, registro.cliente);
     agregarCelda(fila, registro.tarea);
     agregarCelda(fila, registro.inicio_hora || registro.inicio);
@@ -523,7 +698,7 @@ function mostrarFilaTabla(mensaje) {
   tablaRegistros.textContent = "";
   const fila = document.createElement("tr");
   const celda = document.createElement("td");
-  celda.colSpan = 8;
+  celda.colSpan = usuarioActual.nombre_rol === "ADMINISTRADOR" ? 9 : 8;
   celda.className = "text-loading";
   celda.textContent = mensaje;
   fila.appendChild(celda);
@@ -537,6 +712,7 @@ function agregarCelda(fila, valor) {
 }
 
 function renderizarResumen(resumen) {
+  actualizarRotulosResumen();
   horasHoy.textContent = formatearMinutos(resumen.minutos_hoy || 0);
   horasAcumuladas.textContent = formatearMinutos(resumen.minutos_acumulados || 0);
   montoAcumulado.textContent = formatearMoneda(resumen.monto_acumulado || 0);
@@ -544,6 +720,48 @@ function renderizarResumen(resumen) {
 
   renderizarTotales("totalesCliente", resumen.totales_cliente || []);
   renderizarTotales("totalesTarea", resumen.totales_tarea || []);
+}
+
+function actualizarRotulosResumen() {
+  const esAdministrador = usuarioActual?.nombre_rol === "ADMINISTRADOR";
+  const idUsuario = esAdministrador ? filtroUsuario.value : "";
+  const nombreUsuario = idUsuario
+    ? filtroUsuario.selectedOptions[0]?.textContent
+    : "";
+  const sufijo = esAdministrador
+    ? ` · ${nombreUsuario || "todos los usuarios"}`
+    : "";
+
+  document.getElementById("rotuloHorasHoy").textContent =
+    `${esAdministrador ? "Horas de hoy" : "Mis horas hoy"}${sufijo}`;
+  document.getElementById("rotuloHorasTotal").textContent =
+    `${esAdministrador ? "Horas en total" : "Mis horas en total"}${sufijo}`;
+  document.getElementById("rotuloMontoTotal").textContent =
+    `${esAdministrador ? "Monto acumulado" : "Mi monto acumulado"}${sufijo}`;
+  document.getElementById("rotuloRegistros").textContent =
+    `${esAdministrador ? "Registros cerrados" : "Mis registros cerrados"}${sufijo}`;
+
+  const alcance = esAdministrador
+    ? `Mostrando: registros de ${nombreUsuario || "todos los usuarios"}.`
+    : "Mostrando: mis registros.";
+  const filtros = [];
+  if (filtroDesde.value && filtroHasta.value) {
+    filtros.push(`período ${formatearFechaFiltro(filtroDesde.value)} a ${formatearFechaFiltro(filtroHasta.value)}`);
+  }
+  if (filtroCliente.value) {
+    filtros.push(`cliente ${filtroCliente.selectedOptions[0]?.textContent || ""}`);
+  }
+  if (filtroTarea.value) {
+    filtros.push(`tarea ${filtroTarea.selectedOptions[0]?.textContent || ""}`);
+  }
+  if (idUsuario) filtros.push(`usuario ${nombreUsuario}`);
+
+  alcanceResumen.textContent = `${alcance} Filtros: ${filtros.length ? `${filtros.join(" · ")}.` : "ninguno."}`;
+}
+
+function formatearFechaFiltro(fecha) {
+  const [anio, mes, dia] = fecha.split("-");
+  return `${dia}-${mes}-${anio}`;
 }
 
 function renderizarTotales(idContenedor, totales) {
