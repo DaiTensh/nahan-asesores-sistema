@@ -24,6 +24,7 @@ body {
     box-shadow: 0 4px 15px rgba(0,0,0,0.08);
 }
 
+#panelNuevoUsuario { scroll-margin-top: 168px; }
 .usuarios-header {
     display: flex;
     justify-content: space-between;

@@ -100,6 +100,10 @@
   margin-bottom: 24px;
 }
 
+#panelNuevaTarea {
+  scroll-margin-top: 168px;
+}
+
 .tareas-section h2 {
   margin-bottom: 18px;
 }

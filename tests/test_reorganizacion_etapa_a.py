@@ -27,18 +27,20 @@ def test_panel_alta_abre_cierra_mueve_el_foco_y_ignora_ids_inexistentes():
     guion = r"""
 const fs = require('fs'), vm = require('vm'), assert = require('assert');
 const elementos = new Map();
+const eventosOrden = [];
 function crearElemento() {
   return {
     hidden: false,
     atributos: {},
     eventos: {},
     foco: 0,
+    eventosOrden,
     desplazamientos: [],
     setAttribute(nombre, valor) { this.atributos[nombre] = valor; },
     getAttribute(nombre) { return this.atributos[nombre] || null; },
     addEventListener(nombre, callback) { this.eventos[nombre] = callback; },
-    focus() { this.foco += 1; },
-    scrollIntoView(opciones) { this.desplazamientos.push(opciones); }
+    focus(opciones) { this.foco += 1; this.ultimoFoco = opciones; this.eventosOrden.push('focus'); },
+    scrollIntoView(opciones) { this.desplazamientos.push(opciones); this.eventosOrden.push('scroll'); }
   };
 }
 for (const id of ['boton', 'panel', 'campo', 'cerrar']) elementos.set(id, crearElemento());
@@ -57,7 +59,9 @@ boton.eventos.click();
 assert.strictEqual(panel.hidden, false);
 assert.strictEqual(boton.atributos['aria-expanded'], 'true');
 assert.strictEqual(campo.foco, 1);
+assert.strictEqual(JSON.stringify(campo.ultimoFoco), '{"preventScroll":true}');
 assert.strictEqual(JSON.stringify(panel.desplazamientos), '[{"block":"nearest"}]');
+assert.deepStrictEqual(panel.eventosOrden, ['focus', 'scroll']);
 boton.eventos.click();
 assert.strictEqual(panel.hidden, true);
 assert.strictEqual(boton.atributos['aria-expanded'], 'false');
@@ -76,6 +80,19 @@ console.log('ok');
 
     assert resultado.returncode == 0, resultado.stderr
     assert resultado.stdout.strip() == "ok"
+
+
+def test_paneles_de_alta_reservan_espacio_para_la_barra_superior():
+    for ruta, selector in (
+        (("frontend", "tareas", "tareas.css"), "#panelNuevaTarea"),
+        (("frontend", "usuarios", "usuarios.css"), "#panelNuevoUsuario")
+    ):
+        css = leer(*ruta)
+        regla = re.search(
+            rf"{re.escape(selector)}\s*\{{\s*scroll-margin-top:\s*(\d+)px;\s*\}}",
+            css
+        )
+        assert regla and int(regla.group(1)) >= 152, ruta
 
 
 def test_menu_conserva_los_items_base_y_solo_las_seis_entradas_administrativas():
