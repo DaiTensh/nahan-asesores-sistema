@@ -277,13 +277,13 @@ def _consultar_horas_trabajadas(
         clave_sql = "DATE_FORMAT(rt.fecha, '%Y-%m')"
         etiqueta_sql = "DATE_FORMAT(rt.fecha, '%m-%Y')"
         detalle_sql = "NULL"
-        grupo_sql = "DATE_FORMAT(rt.fecha, '%Y-%m')"
+        grupo_sql = "DATE_FORMAT(rt.fecha, '%Y-%m'), DATE_FORMAT(rt.fecha, '%m-%Y')"
         orden_sql = "DATE_FORMAT(rt.fecha, '%Y-%m') ASC"
     elif agrupar_por == "periodo" and granularidad == "dia":
         clave_sql = "rt.fecha"
         etiqueta_sql = "DATE_FORMAT(rt.fecha, '%d-%m-%Y')"
         detalle_sql = "NULL"
-        grupo_sql = "rt.fecha"
+        grupo_sql = "rt.fecha, DATE_FORMAT(rt.fecha, '%d-%m-%Y')"
         orden_sql = "rt.fecha ASC"
     elif agrupar_por in agrupaciones:
         (
