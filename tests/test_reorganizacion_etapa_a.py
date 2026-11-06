@@ -95,6 +95,13 @@ def test_paneles_de_alta_reservan_espacio_para_la_barra_superior():
         assert regla and int(regla.group(1)) >= 152, ruta
 
 
+def test_datos_de_usuario_permiten_dividir_correos_largos_en_movil():
+    for pantalla in ("asignar_rol", "desactivar_usuario"):
+        css = leer("frontend", "usuarios", f"{pantalla}.css")
+        regla = re.search(r"\.datos p\s*\{([^}]*)\}", css, re.S)
+        assert regla and re.search(r"overflow-wrap:\s*anywhere\s*;", regla.group(1)), pantalla
+
+
 def test_menu_conserva_los_items_base_y_solo_las_seis_entradas_administrativas():
     js = leer("frontend", "assets", "js", "navigation.js")
     nav_items = extraer_array(js, "NAV_ITEMS")
