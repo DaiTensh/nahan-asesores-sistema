@@ -187,6 +187,181 @@ def test_usuarios_adapta_tabla_a_columnas_y_tarjetas_por_ancho():
     assert "min-width: 0" in movil.group(1)
 
 
+@pytest.mark.skipif(NODE is None, reason="requiere Node.js")
+def test_acciones_por_fila_generan_destino_etiqueta_clase_y_id_codificado():
+    ruta = os.path.join(RAIZ, "frontend", "usuarios", "usuarios.js")
+    guion = r"""
+const fs = require('fs'), vm = require('vm');
+class Element {
+  constructor(tag) {
+    this.tagName = tag;
+    this.children = [];
+    this.dataset = {};
+    this.attributes = {};
+    this.options = [];
+    this.value = '';
+    this.classList = { add() {} };
+  }
+  appendChild(child) { this.children.push(child); return child; }
+  append(...children) { this.children.push(...children); }
+  replaceChildren(...children) { this.children = children; this.options = children; }
+  addEventListener() {}
+  setAttribute(name, value) { this.attributes[name] = value; }
+  getAttribute(name) { return this.attributes[name] || null; }
+  querySelector() { return new Element('button'); }
+}
+const ids = ['formUsuario','mensaje','id_rol','id_area','tablaUsuarios',
+  'mensajeListadoUsuarios','filtroRol','filtroArea','filtroEstado','ordenUsuarios'];
+const elementos = Object.fromEntries(ids.map(id => [id, new Element('select')]));
+elementos.formUsuario = new Element('form');
+const contexto = {
+  window: { API_CONFIG: { API_URL: 'http://local', credentials: 'include' } },
+  document: {
+    getElementById: id => elementos[id] || null,
+    createElement: tag => new Element(tag)
+  },
+  configurarPanelAlta() {},
+  nombreRolNatural: value => value,
+  fetch: async () => ({ ok: true, json: async () => [] }),
+  URLSearchParams,
+  Option: function(text, value) { this.text = text; this.value = value; }
+};
+vm.createContext(contexto);
+vm.runInContext(fs.readFileSync(process.argv[1], 'utf8'), contexto);
+function enlaces(usuario) {
+  return contexto.crearCeldaAcciones(usuario).children[0].children.map(enlace => ({
+    text: enlace.textContent,
+    href: enlace.href,
+    className: enlace.className,
+    ariaLabel: enlace.getAttribute('aria-label')
+  }));
+}
+console.log(JSON.stringify({
+  activo: enlaces({ id_usuario: '9&2', nombres: 'Alicia Ejemplo', estado: 'ACTIVO' }),
+  inactivo: enlaces({ id_usuario: 7, nombres: 'Bruno Ejemplo', estado: 'INACTIVO' })
+}));
+"""
+    resultado = subprocess.run(
+        [NODE, "-e", guion, ruta], capture_output=True, text=True, timeout=30
+    )
+    assert resultado.returncode == 0, resultado.stderr
+    datos = json.loads(resultado.stdout)
+    assert datos["activo"] == [
+        {
+            "text": "Editar",
+            "href": "modificar_usuario.html?id=9%262",
+            "className": "btn btn-primary btn-small",
+            "ariaLabel": "Editar a Alicia Ejemplo"
+        },
+        {
+            "text": "Asignar rol",
+            "href": "asignar_rol.html?id=9%262",
+            "className": "btn btn-secondary btn-small",
+            "ariaLabel": "Asignar rol a Alicia Ejemplo"
+        },
+        {
+            "text": "Deshabilitar",
+            "href": "desactivar_usuario.html?id=9%262",
+            "className": "btn btn-warning btn-small",
+            "ariaLabel": "Deshabilitar a Alicia Ejemplo"
+        }
+    ]
+    assert [enlace["text"] for enlace in datos["inactivo"]] == ["Editar", "Asignar rol"]
+
+
+@pytest.mark.skipif(NODE is None, reason="requiere Node.js")
+def test_ids_de_url_solo_consultan_ids_validos_y_cargan_el_usuario_solicitado():
+    rutas = [
+        os.path.join(RAIZ, "frontend", "usuarios", "asignar_rol.js"),
+        os.path.join(RAIZ, "frontend", "usuarios", "desactivar_usuario.js")
+    ]
+    guion = r"""
+const fs = require('fs'), vm = require('vm'), assert = require('assert');
+const rutas = process.argv.slice(1);
+function crearEscenario(ruta, id) {
+  const elementos = {};
+  class Element {
+    constructor() {
+      this.value = '';
+      this.textContent = '';
+      this.className = '';
+      this.classes = new Set(['hidden']);
+      this.classList = {
+        add: nombre => this.classes.add(nombre),
+        remove: nombre => this.classes.delete(nombre)
+      };
+    }
+  }
+  const obtener = nombre => elementos[nombre] || (elementos[nombre] = new Element());
+  const llamadas = [];
+  let listo;
+  const usuario = {
+    id_usuario: 9, nombres: 'Usuario Nueve', email: 'nueve@nahan.local',
+    id_rol: 2, nombre_rol: 'USUARIO_AREA_JURIDICA',
+    nombre_area: 'JURIDICA', estado: 'ACTIVO'
+  };
+  const contexto = {
+    window: {
+      location: { search: id === null ? '' : `?id=${encodeURIComponent(id)}` },
+      API_CONFIG: { API_URL: '/api', credentials: 'include' }
+    },
+    URLSearchParams,
+    document: {
+      getElementById: obtener,
+      addEventListener: (evento, callback) => { if (evento === 'DOMContentLoaded') listo = callback; }
+    },
+    UsuariosAutocomplete: {
+      configurarSelectorUsuario() {},
+      mostrarUsuarioEnInput(inputId, hiddenId, data) {
+        obtener(inputId).value = data.nombres;
+        obtener(hiddenId).value = String(data.id_usuario);
+      }
+    },
+    nombreRolNatural: value => value,
+    fetch: async url => {
+      llamadas.push(url);
+      return { ok: true, json: async () => usuario };
+    },
+    console
+  };
+  vm.createContext(contexto);
+  vm.runInContext(fs.readFileSync(ruta, 'utf8'), contexto);
+  return Promise.resolve(listo()).then(() => new Promise(resolve => setImmediate(() => resolve({
+    llamadas,
+    nombre: obtener('nombres').textContent,
+    correo: obtener('email').textContent,
+    idSeleccionado: obtener('id_usuario').value,
+    visible: !obtener('datosUsuario').classes.has('hidden'),
+    rol: obtener('rol_actual').textContent,
+    estado: obtener('estado').textContent
+  }))));
+}
+(async () => {
+  for (const ruta of rutas) {
+    for (const invalido of ['abc', '0', '-5']) {
+      const resultado = await crearEscenario(ruta, invalido);
+      assert.deepStrictEqual(resultado.llamadas, [], `${ruta}: ${invalido} no debe consultar`);
+      assert.strictEqual(resultado.visible, false);
+    }
+    const resultado = await crearEscenario(ruta, '9');
+    assert.deepStrictEqual(resultado.llamadas, ['/api/usuarios/9']);
+    assert.strictEqual(resultado.nombre, 'Usuario Nueve');
+    assert.strictEqual(resultado.correo, 'nueve@nahan.local');
+    assert.strictEqual(resultado.idSeleccionado, '9');
+    assert.strictEqual(resultado.visible, true);
+    if (ruta.includes('asignar_rol')) assert.strictEqual(resultado.rol, 'USUARIO_AREA_JURIDICA');
+    else assert.strictEqual(resultado.estado, 'ACTIVO');
+  }
+  console.log('ok');
+})().catch(error => { console.error(error); process.exitCode = 1; });
+"""
+    resultado = subprocess.run(
+        [NODE, "-e", guion, *rutas], capture_output=True, text=True, timeout=30
+    )
+    assert resultado.returncode == 0, resultado.stderr
+    assert resultado.stdout.strip() == "ok"
+
+
 def test_menu_conserva_los_items_base_y_solo_las_seis_entradas_administrativas():
     js = leer("frontend", "assets", "js", "navigation.js")
     nav_items = extraer_array(js, "NAV_ITEMS")
