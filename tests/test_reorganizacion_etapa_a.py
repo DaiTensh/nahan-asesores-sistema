@@ -136,7 +136,9 @@ class Element {
     this.children = children;
     if (this.tagName === 'select') this.options = children;
   }
-  addEventListener() {}
+  addEventListener(evento, callback) {
+    if (evento === 'DOMContentLoaded') this.domContentLoaded = callback;
+  }
   setAttribute(name, value) { this.attributes[name] = value; }
   getAttribute(name) { return this.attributes[name] || null; }
   querySelector() { return elementos.botonRegistrar; }
@@ -147,13 +149,16 @@ const ids = ['formUsuario','mensaje','id_rol','id_area','tablaUsuarios',
 const elementos = Object.fromEntries(ids.map(id => [id, new Element(id.startsWith('filtro') || id === 'ordenUsuarios' || id.startsWith('id_') ? 'select' : 'div')]));
 elementos.botonRegistrar = new Element('button');
 let configuracionPanel;
+let alCargarDOM;
 const contexto = {
   window: { API_CONFIG: { API_URL: 'http://local', credentials: 'include' } },
   document: {
     getElementById: id => elementos[id] || null,
-    createElement: tag => new Element(tag)
+    createElement: tag => new Element(tag),
+    addEventListener: (evento, callback) => { if (evento === 'DOMContentLoaded') alCargarDOM = callback; }
   },
   configurarPanelAlta: configuracion => { configuracionPanel = configuracion; },
+  obtenerUsuarioActual: async () => ({ nombre_rol: process.argv[2] }),
   nombreRolNatural: value => value,
   fetch: async () => ({ ok: true, json: async () => [] }),
   URLSearchParams,
@@ -161,34 +166,42 @@ const contexto = {
 };
 vm.createContext(contexto);
 vm.runInContext(fs.readFileSync(process.argv[1], 'utf8'), contexto);
-elementos.mensaje.textContent = 'Usuario registrado correctamente';
-elementos.mensaje.className = 'mensaje success';
-configuracionPanel.alAbrir();
-contexto.mostrarUsuarios([{
-  id_usuario: 14, nombres: 'Prueba Móvil', email: 'persona@nahan.local',
-  nombre_rol: 'USUARIO_AREA_JURIDICA', nombre_area: 'Jurídica',
-  estado: 'ACTIVO', fecha_creacion: '2026-11-05 10:30:00'
-}]);
-const celdas = elementos.tablaUsuarios.children[0].children;
-console.log(JSON.stringify(celdas.map(celda => ({
-  label: celda.dataset.label, text: celda.textContent, children: celda.children.length
-})).concat([{
-  label: 'mensaje',
-  text: elementos.mensaje.textContent,
-  className: elementos.mensaje.className
-}])));
+(async () => {
+  await alCargarDOM();
+  elementos.mensaje.textContent = 'Usuario registrado correctamente';
+  elementos.mensaje.className = 'mensaje success';
+  configuracionPanel.alAbrir();
+  contexto.mostrarUsuarios([{
+    id_usuario: 14, nombres: 'Prueba Móvil', email: 'persona@nahan.local',
+    nombre_rol: 'USUARIO_AREA_JURIDICA', nombre_area: 'Jurídica',
+    estado: 'ACTIVO', fecha_creacion: '2026-11-05 10:30:00'
+  }]);
+  const celdas = elementos.tablaUsuarios.children[0].children;
+  console.log(JSON.stringify(celdas.map(celda => ({
+    label: celda.dataset.label, text: celda.textContent, children: celda.children.length,
+    links: celda.children[0] ? celda.children[0].children.length : 0
+  })).concat([{
+    label: 'mensaje',
+    text: elementos.mensaje.textContent,
+    className: elementos.mensaje.className
+  }])));
+})().catch(error => { console.error(error); process.exitCode = 1; });
 """
-    resultado = subprocess.run(
-        [NODE, "-e", guion, ruta], capture_output=True, text=True, timeout=30
-    )
-    assert resultado.returncode == 0, resultado.stderr
-    celdas = json.loads(resultado.stdout)
-    assert [celda["label"] for celda in celdas[:7]] == [
-        "Nombre", "Correo electrónico", "Rol", "Área", "Estado", "Fecha de registro", "Acciones"
-    ]
-    assert celdas[5]["text"] == "05-11-2026 10:30"
-    assert celdas[6]["children"] == 1
-    assert celdas[7] == {"label": "mensaje", "text": "", "className": "mensaje"}
+    for rol in ("ADMINISTRADOR", "USUARIO_AREA_JURIDICA", "USUARIO_AREA_CONTABLE"):
+        resultado = subprocess.run(
+            [NODE, "-e", guion, ruta, rol], capture_output=True, text=True, timeout=30
+        )
+        assert resultado.returncode == 0, resultado.stderr
+        celdas = json.loads(resultado.stdout)
+        assert [celda["label"] for celda in celdas[:7]] == [
+            "Nombre", "Correo electrónico", "Rol", "Área", "Estado", "Fecha de registro", "Acciones"
+        ]
+        assert celdas[5]["text"] == "05-11-2026 10:30"
+        if rol == "ADMINISTRADOR":
+            assert celdas[6]["children"] == 1 and celdas[6]["links"] == 3
+        else:
+            assert celdas[6]["children"] == 0 and celdas[6]["links"] == 0
+        assert celdas[7] == {"label": "mensaje", "text": "", "className": "mensaje"}
 
 
 def test_usuarios_adapta_tabla_a_columnas_y_tarjetas_por_ancho():
@@ -240,7 +253,8 @@ const contexto = {
   window: { API_CONFIG: { API_URL: 'http://local', credentials: 'include' } },
   document: {
     getElementById: id => elementos[id] || null,
-    createElement: tag => new Element(tag)
+    createElement: tag => new Element(tag),
+    addEventListener() {}
   },
   configurarPanelAlta() {},
   nombreRolNatural: value => value,

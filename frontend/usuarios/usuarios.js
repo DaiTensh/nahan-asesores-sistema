@@ -34,6 +34,7 @@ const ordenUsuarios = document.getElementById("ordenUsuarios");
 let catalogoUsuarios = [];
 let opcionesUsuariosCargadas = false;
 let solicitudListado = 0;
+let usuarioActual = null;
 
 const AREA_POR_ROL = {
   1: 3,
@@ -138,7 +139,11 @@ function mostrarUsuarios(usuarios) {
       crearCelda(formatearFechaRegistro(usuario.fecha_creacion), "Fecha de registro")
     );
 
-    fila.appendChild(crearCeldaAcciones(usuario));
+    fila.appendChild(
+      usuarioActual && usuarioActual.nombre_rol === "ADMINISTRADOR"
+        ? crearCeldaAcciones(usuario)
+        : crearCelda("", "Acciones")
+    );
     tablaUsuarios.appendChild(fila);
   });
 }
@@ -185,7 +190,10 @@ filtroRol.addEventListener("change", cargarListadoUsuarios);
 filtroArea.addEventListener("change", cargarListadoUsuarios);
 filtroEstado.addEventListener("change", cargarListadoUsuarios);
 ordenUsuarios.addEventListener("change", cargarListadoUsuarios);
-cargarListadoUsuarios();
+document.addEventListener("DOMContentLoaded", async () => {
+  usuarioActual = await obtenerUsuarioActual();
+  await cargarListadoUsuarios();
+});
 
 formUsuario.addEventListener("submit", async (event) => {
   event.preventDefault();
