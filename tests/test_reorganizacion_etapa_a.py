@@ -34,12 +34,16 @@ function crearElemento() {
     hidden: false,
     atributos: {},
     eventos: {},
+    cantidadesEvento: {},
     foco: 0,
     eventosOrden,
     desplazamientos: [],
     setAttribute(nombre, valor) { this.atributos[nombre] = valor; },
     getAttribute(nombre) { return this.atributos[nombre] || null; },
-    addEventListener(nombre, callback) { this.eventos[nombre] = callback; },
+    addEventListener(nombre, callback) {
+      this.cantidadesEvento[nombre] = (this.cantidadesEvento[nombre] || 0) + 1;
+      this.eventos[nombre] = callback;
+    },
     focus(opciones) { this.foco += 1; this.ultimoFoco = opciones; this.eventosOrden.push('focus'); },
     scrollIntoView(opciones) { this.desplazamientos.push(opciones); this.eventosOrden.push('scroll'); }
   };
@@ -50,10 +54,15 @@ vm.createContext(contexto);
 vm.runInContext(fs.readFileSync(process.argv[1], 'utf8'), contexto);
 const boton = elementos.get('boton'), panel = elementos.get('panel');
 const campo = elementos.get('campo'), cerrar = elementos.get('cerrar');
-const api = contexto.configurarPanelAlta({
+const opcionesPanel = {
   botonId: 'boton', panelId: 'panel', primerCampoId: 'campo', botonCerrarId: 'cerrar',
   alAbrir: () => { aperturas += 1; }
-});
+};
+const api = contexto.configurarPanelAlta(opcionesPanel);
+const apiDuplicada = contexto.configurarPanelAlta(opcionesPanel);
+assert.strictEqual(apiDuplicada, api);
+assert.strictEqual(boton.cantidadesEvento.click, 1);
+assert.strictEqual(cerrar.cantidadesEvento.click, 1);
 assert.strictEqual(panel.hidden, true);
 assert.strictEqual(boton.atributos['aria-expanded'], 'false');
 assert.strictEqual(boton.atributos['aria-controls'], 'panel');

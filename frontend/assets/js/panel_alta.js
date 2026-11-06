@@ -1,7 +1,10 @@
+const instanciasPanelAlta = new WeakMap();
+
 function configurarPanelAlta({ botonId, panelId, primerCampoId, botonCerrarId, alAbrir } = {}) {
   const boton = document.getElementById(botonId);
   const panel = document.getElementById(panelId);
   if (!boton || !panel) return null;
+  if (instanciasPanelAlta.has(boton)) return instanciasPanelAlta.get(boton);
 
   const primerCampo = primerCampoId ? document.getElementById(primerCampoId) : null;
   const botonCerrar = botonCerrarId ? document.getElementById(botonCerrarId) : null;
@@ -32,5 +35,7 @@ function configurarPanelAlta({ botonId, panelId, primerCampoId, botonCerrarId, a
   });
   if (botonCerrar) botonCerrar.addEventListener("click", cerrar);
 
-  return { abrir, cerrar, estaAbierto };
+  const instancia = { abrir, cerrar, estaAbierto };
+  instanciasPanelAlta.set(boton, instancia);
+  return instancia;
 }
