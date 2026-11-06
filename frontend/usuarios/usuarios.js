@@ -68,14 +68,16 @@ function agregarOpcionesDinamicas(selector, usuarios, campoId, campoNombre, etiq
   if ([...selector.options].some(opcion => opcion.value === valorActual)) selector.value = valorActual;
 }
 
-function crearCelda(texto) {
+function crearCelda(texto, etiqueta) {
   const celda = document.createElement("td");
   celda.textContent = texto || "-";
+  if (etiqueta) celda.dataset.label = etiqueta;
   return celda;
 }
 
 function crearCeldaAcciones(usuario) {
   const celda = document.createElement("td");
+  celda.dataset.label = "Acciones";
   const acciones = document.createElement("div");
   const id = encodeURIComponent(usuario.id_usuario);
   acciones.className = "usuarios-acciones";
@@ -115,18 +117,22 @@ function mostrarUsuarios(usuarios) {
     const inactivo = usuario.estado === "INACTIVO";
     if (inactivo) fila.classList.add("usuario-fila-inactiva");
     fila.append(
-      crearCelda(usuario.nombres),
-      crearCelda(usuario.email),
-      crearCelda(nombreRolNatural(usuario.nombre_rol)),
-      crearCelda(usuario.nombre_area || "Sin área")
+      crearCelda(usuario.nombres, "Nombre"),
+      crearCelda(usuario.email, "Correo electrónico"),
+      crearCelda(nombreRolNatural(usuario.nombre_rol), "Rol"),
+      crearCelda(usuario.nombre_area || "Sin área", "Área")
     );
 
     const estado = document.createElement("span");
     estado.className = `usuario-estado ${inactivo ? "usuario-estado-inactivo" : "usuario-estado-activo"}`;
     estado.textContent = inactivo ? "Inactivo" : "Activo";
     const celdaEstado = document.createElement("td");
+    celdaEstado.dataset.label = "Estado";
     celdaEstado.appendChild(estado);
-    fila.append(celdaEstado, crearCelda(formatearFechaRegistro(usuario.fecha_creacion)));
+    fila.append(
+      celdaEstado,
+      crearCelda(formatearFechaRegistro(usuario.fecha_creacion), "Fecha de registro")
+    );
 
     fila.appendChild(crearCeldaAcciones(usuario));
     tablaUsuarios.appendChild(fila);

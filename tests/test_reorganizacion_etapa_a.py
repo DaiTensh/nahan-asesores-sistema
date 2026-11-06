@@ -102,6 +102,91 @@ def test_datos_de_usuario_permiten_dividir_correos_largos_en_movil():
         assert regla and re.search(r"overflow-wrap:\s*anywhere\s*;", regla.group(1)), pantalla
 
 
+@pytest.mark.skipif(NODE is None, reason="requiere Node.js")
+def test_filas_de_usuario_conservan_etiquetas_y_fecha_para_vista_responsiva():
+    ruta = os.path.join(RAIZ, "frontend", "usuarios", "usuarios.js")
+    guion = r"""
+const fs = require('fs'), vm = require('vm');
+class Element {
+  constructor(tag) {
+    this.tagName = tag;
+    this.children = [];
+    this.dataset = {};
+    this.attributes = {};
+    this.classList = { add: value => { this.className = value; } };
+    this.options = [];
+    this.value = '';
+  }
+  appendChild(child) { this.children.push(child); return child; }
+  append(...children) { this.children.push(...children); }
+  replaceChildren(...children) {
+    this.children = children;
+    if (this.tagName === 'select') this.options = children;
+  }
+  addEventListener() {}
+  setAttribute(name, value) { this.attributes[name] = value; }
+  getAttribute(name) { return this.attributes[name] || null; }
+  querySelector() { return elementos.botonRegistrar; }
+}
+const ids = ['formUsuario','mensaje','id_rol','id_area','tablaUsuarios',
+  'mensajeListadoUsuarios','filtroRol','filtroArea','filtroEstado','ordenUsuarios',
+  'btnNuevoUsuario','panelNuevoUsuario','nombres','btnCerrarNuevoUsuario','email','password'];
+const elementos = Object.fromEntries(ids.map(id => [id, new Element(id.startsWith('filtro') || id === 'ordenUsuarios' || id.startsWith('id_') ? 'select' : 'div')]));
+elementos.botonRegistrar = new Element('button');
+const contexto = {
+  window: { API_CONFIG: { API_URL: 'http://local', credentials: 'include' } },
+  document: {
+    getElementById: id => elementos[id] || null,
+    createElement: tag => new Element(tag)
+  },
+  configurarPanelAlta() {},
+  nombreRolNatural: value => value,
+  fetch: async () => ({ ok: true, json: async () => [] }),
+  URLSearchParams,
+  Option: function(text, value) { this.text = text; this.value = value; }
+};
+vm.createContext(contexto);
+vm.runInContext(fs.readFileSync(process.argv[1], 'utf8'), contexto);
+contexto.mostrarUsuarios([{
+  id_usuario: 14, nombres: 'Prueba Móvil', email: 'persona@nahan.local',
+  nombre_rol: 'USUARIO_AREA_JURIDICA', nombre_area: 'Jurídica',
+  estado: 'ACTIVO', fecha_creacion: '2026-11-05 10:30:00'
+}]);
+const celdas = elementos.tablaUsuarios.children[0].children;
+console.log(JSON.stringify(celdas.map(celda => ({
+  label: celda.dataset.label, text: celda.textContent, children: celda.children.length
+}))));
+"""
+    resultado = subprocess.run(
+        [NODE, "-e", guion, ruta], capture_output=True, text=True, timeout=30
+    )
+    assert resultado.returncode == 0, resultado.stderr
+    celdas = json.loads(resultado.stdout)
+    assert [celda["label"] for celda in celdas] == [
+        "Nombre", "Correo electrónico", "Rol", "Área", "Estado", "Fecha de registro", "Acciones"
+    ]
+    assert celdas[5]["text"] == "05-11-2026 10:30"
+    assert celdas[6]["children"] == 1
+
+
+def test_usuarios_adapta_tabla_a_columnas_y_tarjetas_por_ancho():
+    css = leer("frontend", "usuarios", "usuarios.css")
+    rango_intermedio = re.search(
+        r"@media\s*\(min-width:\s*769px\)\s*and\s*\(max-width:\s*1100px\)\s*\{(.*?)\n\}",
+        css, re.S
+    )
+    movil = re.search(r"@media\s*\(max-width:\s*768px\)\s*\{(.*)", css, re.S)
+    assert rango_intermedio and movil
+    assert "table-layout: fixed" in rango_intermedio.group(1)
+    assert ".usuarios-tabla th:nth-child(6)" in rango_intermedio.group(1)
+    assert ".usuarios-tabla td:nth-child(6)" in rango_intermedio.group(1)
+    assert "display: none" in rango_intermedio.group(1)
+    assert ".usuarios-tabla tbody tr" in movil.group(1)
+    assert "display: block" in movil.group(1)
+    assert "content: attr(data-label)" in movil.group(1)
+    assert "min-width: 0" in movil.group(1)
+
+
 def test_menu_conserva_los_items_base_y_solo_las_seis_entradas_administrativas():
     js = leer("frontend", "assets", "js", "navigation.js")
     nav_items = extraer_array(js, "NAV_ITEMS")
