@@ -1,4 +1,4 @@
-function configurarPanelAlta({ botonId, panelId, primerCampoId, botonCerrarId } = {}) {
+function configurarPanelAlta({ botonId, panelId, primerCampoId, botonCerrarId, alAbrir } = {}) {
   const boton = document.getElementById(botonId);
   const panel = document.getElementById(panelId);
   if (!boton || !panel) return null;
@@ -14,6 +14,7 @@ function configurarPanelAlta({ botonId, panelId, primerCampoId, botonCerrarId } 
   const abrir = () => {
     panel.hidden = false;
     boton.setAttribute("aria-expanded", "true");
+    if (typeof alAbrir === "function") alAbrir();
     if (primerCampo) primerCampo.focus({ preventScroll: true });
     if (typeof panel.scrollIntoView === "function") {
       panel.scrollIntoView({ block: "nearest" });

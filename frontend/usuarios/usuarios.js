@@ -4,7 +4,11 @@ configurarPanelAlta({
   botonId: "btnNuevoUsuario",
   panelId: "panelNuevoUsuario",
   primerCampoId: "nombres",
-  botonCerrarId: "btnCerrarNuevoUsuario"
+  botonCerrarId: "btnCerrarNuevoUsuario",
+  alAbrir: () => {
+    mensaje.textContent = "";
+    mensaje.className = "mensaje";
+  }
 });
 
 // La API entrega la fecha de registro como «AAAA-MM-DD HH:MM:SS»; se muestra como en el historial.

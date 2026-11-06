@@ -28,6 +28,7 @@ def test_panel_alta_abre_cierra_mueve_el_foco_y_ignora_ids_inexistentes():
 const fs = require('fs'), vm = require('vm'), assert = require('assert');
 const elementos = new Map();
 const eventosOrden = [];
+let aperturas = 0;
 function crearElemento() {
   return {
     hidden: false,
@@ -50,7 +51,8 @@ vm.runInContext(fs.readFileSync(process.argv[1], 'utf8'), contexto);
 const boton = elementos.get('boton'), panel = elementos.get('panel');
 const campo = elementos.get('campo'), cerrar = elementos.get('cerrar');
 const api = contexto.configurarPanelAlta({
-  botonId: 'boton', panelId: 'panel', primerCampoId: 'campo', botonCerrarId: 'cerrar'
+  botonId: 'boton', panelId: 'panel', primerCampoId: 'campo', botonCerrarId: 'cerrar',
+  alAbrir: () => { aperturas += 1; }
 });
 assert.strictEqual(panel.hidden, true);
 assert.strictEqual(boton.atributos['aria-expanded'], 'false');
@@ -59,6 +61,7 @@ boton.eventos.click();
 assert.strictEqual(panel.hidden, false);
 assert.strictEqual(boton.atributos['aria-expanded'], 'true');
 assert.strictEqual(campo.foco, 1);
+assert.strictEqual(aperturas, 1);
 assert.strictEqual(JSON.stringify(campo.ultimoFoco), '{"preventScroll":true}');
 assert.strictEqual(JSON.stringify(panel.desplazamientos), '[{"block":"nearest"}]');
 assert.deepStrictEqual(panel.eventosOrden, ['focus', 'scroll']);
@@ -67,6 +70,7 @@ assert.strictEqual(panel.hidden, true);
 assert.strictEqual(boton.atributos['aria-expanded'], 'false');
 assert.strictEqual(boton.foco, 1);
 api.abrir();
+assert.strictEqual(aperturas, 2);
 cerrar.eventos.click();
 assert.strictEqual(panel.hidden, true);
 assert.strictEqual(boton.foco, 2);
@@ -133,13 +137,14 @@ const ids = ['formUsuario','mensaje','id_rol','id_area','tablaUsuarios',
   'btnNuevoUsuario','panelNuevoUsuario','nombres','btnCerrarNuevoUsuario','email','password'];
 const elementos = Object.fromEntries(ids.map(id => [id, new Element(id.startsWith('filtro') || id === 'ordenUsuarios' || id.startsWith('id_') ? 'select' : 'div')]));
 elementos.botonRegistrar = new Element('button');
+let configuracionPanel;
 const contexto = {
   window: { API_CONFIG: { API_URL: 'http://local', credentials: 'include' } },
   document: {
     getElementById: id => elementos[id] || null,
     createElement: tag => new Element(tag)
   },
-  configurarPanelAlta() {},
+  configurarPanelAlta: configuracion => { configuracionPanel = configuracion; },
   nombreRolNatural: value => value,
   fetch: async () => ({ ok: true, json: async () => [] }),
   URLSearchParams,
@@ -147,6 +152,9 @@ const contexto = {
 };
 vm.createContext(contexto);
 vm.runInContext(fs.readFileSync(process.argv[1], 'utf8'), contexto);
+elementos.mensaje.textContent = 'Usuario registrado correctamente';
+elementos.mensaje.className = 'mensaje success';
+configuracionPanel.alAbrir();
 contexto.mostrarUsuarios([{
   id_usuario: 14, nombres: 'Prueba Móvil', email: 'persona@nahan.local',
   nombre_rol: 'USUARIO_AREA_JURIDICA', nombre_area: 'Jurídica',
@@ -155,18 +163,23 @@ contexto.mostrarUsuarios([{
 const celdas = elementos.tablaUsuarios.children[0].children;
 console.log(JSON.stringify(celdas.map(celda => ({
   label: celda.dataset.label, text: celda.textContent, children: celda.children.length
-}))));
+})).concat([{
+  label: 'mensaje',
+  text: elementos.mensaje.textContent,
+  className: elementos.mensaje.className
+}])));
 """
     resultado = subprocess.run(
         [NODE, "-e", guion, ruta], capture_output=True, text=True, timeout=30
     )
     assert resultado.returncode == 0, resultado.stderr
     celdas = json.loads(resultado.stdout)
-    assert [celda["label"] for celda in celdas] == [
+    assert [celda["label"] for celda in celdas[:7]] == [
         "Nombre", "Correo electrónico", "Rol", "Área", "Estado", "Fecha de registro", "Acciones"
     ]
     assert celdas[5]["text"] == "05-11-2026 10:30"
     assert celdas[6]["children"] == 1
+    assert celdas[7] == {"label": "mensaje", "text": "", "className": "mensaje"}
 
 
 def test_usuarios_adapta_tabla_a_columnas_y_tarjetas_por_ancho():
