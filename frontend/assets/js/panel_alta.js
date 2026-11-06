@@ -26,7 +26,10 @@ function configurarPanelAlta({ botonId, panelId, primerCampoId, botonCerrarId, a
   const cerrar = () => {
     panel.hidden = true;
     boton.setAttribute("aria-expanded", "false");
-    boton.focus();
+    boton.focus({ preventScroll: true });
+    if (typeof boton.scrollIntoView === "function") {
+      boton.scrollIntoView({ block: "nearest" });
+    }
   };
 
   boton.addEventListener("click", () => {

@@ -25,6 +25,7 @@ body {
 }
 
 #panelNuevoUsuario { scroll-margin-top: 168px; }
+#btnNuevoUsuario { scroll-margin-top: 168px; }
 .usuarios-header {
     display: flex;
     justify-content: space-between;

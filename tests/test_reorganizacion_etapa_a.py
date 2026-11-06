@@ -78,11 +78,15 @@ boton.eventos.click();
 assert.strictEqual(panel.hidden, true);
 assert.strictEqual(boton.atributos['aria-expanded'], 'false');
 assert.strictEqual(boton.foco, 1);
+assert.strictEqual(JSON.stringify(boton.ultimoFoco), '{"preventScroll":true}');
+assert.strictEqual(JSON.stringify(boton.desplazamientos), '[{"block":"nearest"}]');
+assert.deepStrictEqual(boton.eventosOrden.slice(-2), ['focus', 'scroll']);
 api.abrir();
 assert.strictEqual(aperturas, 2);
 cerrar.eventos.click();
 assert.strictEqual(panel.hidden, true);
 assert.strictEqual(boton.foco, 2);
+assert.strictEqual(JSON.stringify(boton.desplazamientos), '[{"block":"nearest"},{"block":"nearest"}]');
 assert.strictEqual(api.estaAbierto(), false);
 assert.strictEqual(contexto.configurarPanelAlta({ botonId: 'ausente', panelId: 'panel' }), null);
 console.log('ok');
@@ -97,10 +101,11 @@ console.log('ok');
 
 def test_paneles_de_alta_reservan_espacio_para_la_barra_superior():
     for ruta, selector in (
-        (("frontend", "tareas", "tareas.css"), "#panelNuevaTarea"),
-        (("frontend", "usuarios", "usuarios.css"), "#panelNuevoUsuario")
+        (("frontend", "tareas", "tareas.css"), "#btnNuevaTarea"),
+        (("frontend", "usuarios", "usuarios.css"), "#btnNuevoUsuario")
     ):
         css = leer(*ruta)
+        assert css.count(selector) == 1, ruta
         regla = re.search(
             rf"{re.escape(selector)}\s*\{{\s*scroll-margin-top:\s*(\d+)px;\s*\}}",
             css
