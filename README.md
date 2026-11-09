@@ -25,7 +25,9 @@ con acceso según el rol de cada persona.
   tarifa y exportación (RF75). El registro manual guarda su origen y una
   observación, se limita a los últimos 30 días, no admite horas futuras ni
   solapes con otras horas del mismo usuario y entra solo a los totales,
-  al informe de horas y al cobro; requiere la migración 012.
+  al informe de horas y al cobro; requiere la migración 012. El detalle de cada
+  tarea incluye la sección «Horas trabajadas» (totales, historial y los botones
+  para iniciar el temporizador o registrar horas, RF71, RF73, CU-14 y CU-29).
 - **Dashboard y reportes**: indicadores de tareas pendientes, vencidas y
   finalizadas, carga por usuario, distribución por área, reportes por cliente,
   responsable y área, exportación a PDF y Excel.

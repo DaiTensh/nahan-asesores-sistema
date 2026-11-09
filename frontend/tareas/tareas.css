@@ -376,3 +376,48 @@
   padding-left: 8px;
   padding-right: 8px;
 }
+
+/* Horas trabajadas en el detalle de la tarea (RF71, RF73, CU-14 y CU-29) */
+.horas-encabezado {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--spacing-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--spacing-3);
+}
+
+.horas-encabezado h2 {
+  margin-bottom: var(--spacing-1);
+}
+
+.horas-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+}
+
+.horas-resumen {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--spacing-4);
+  margin: var(--spacing-4) 0;
+}
+
+.horas-resumen .metric-card h3 {
+  overflow-wrap: anywhere;
+}
+
+.horas-origen-observacion {
+  display: block;
+  margin-top: var(--spacing-1);
+  max-width: 260px;
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .horas-resumen {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

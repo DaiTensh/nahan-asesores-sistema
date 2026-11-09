@@ -71,6 +71,7 @@ async function cargarDetalle(idTarea) {
     await configurarAccionesRevision(tarea);
     renderizarHistorial(tarea.historial || []);
     await cargarAdjuntos(idTarea);
+    await cargarHoras(tarea);
 
   } catch (error) {
     console.error(error);
@@ -328,4 +329,199 @@ function formatearFechaHora(fecha) {
   }
 
   return formatearFechaHora24(fecha, { utc: true });
+}
+
+// ---------------------------------------------------------------------------
+// Horas trabajadas en la tarea (RF71 «iniciar el temporizador desde la vista detalle de la tarea»,
+// RF72/RF73 historial y total por tarea, CU-14 y CU-29 «registrar tiempo desde el detalle»).
+// Solo reutiliza los endpoints de Control de horas: el servidor decide quién puede registrar y
+// qué horas ve cada rol (un usuario de área ve solo las suyas; el administrador, las de todos).
+// ---------------------------------------------------------------------------
+const HORAS_FILAS_MAXIMAS = 10;
+const URL_CONTROL_HORAS = "../control_horas/control_horas.html";
+
+function formatearMinutosTarea(totalMinutos) {
+  const minutos = Math.round(Number(totalMinutos) || 0);
+  const relleno = numero => String(numero).padStart(2, "0");
+  return `${relleno(Math.floor(minutos / 60))}h ${relleno(minutos % 60)}m`;
+}
+
+function formatearMontoTarea(valor) {
+  return new Intl.NumberFormat("es-CL", {
+    style: "currency",
+    currency: "CLP",
+    maximumFractionDigits: 0
+  }).format(Number(valor) || 0);
+}
+
+function mostrarMensajeHoras(texto, tipo = "") {
+  const mensaje = document.getElementById("horasMensaje");
+  mensaje.textContent = texto;
+  mensaje.className = tipo ? `mensaje ${tipo}` : "mensaje";
+}
+
+async function cargarHoras(tarea) {
+  const seccion = document.getElementById("seccionHoras");
+  // La sección es opcional: con un HTML anterior en caché no existe y el resto del detalle sigue igual.
+  if (!seccion) return;
+
+  try {
+    const usuario = await obtenerUsuarioActual();
+    if (!usuario) return;
+
+    const idTarea = Number(tarea.id_tarea);
+    const esAdministrador = usuario.nombre_rol === "ADMINISTRADOR";
+    const opciones = { credentials: window.API_CONFIG.credentials };
+    const [respuestaRegistros, respuestaContexto] = await Promise.all([
+      fetch(`${API_URL}/control-horas/registros?id_tarea=${idTarea}`, opciones),
+      fetch(`${API_URL}/control-horas/contexto`, opciones)
+    ]);
+
+    seccion.hidden = false;
+    document.getElementById("horasAlcance").textContent = esAdministrador
+      ? "Horas registradas por todos los usuarios en esta tarea."
+      : "Sus horas registradas en esta tarea.";
+    document.getElementById("thUsuarioHoras").hidden = !esAdministrador;
+    document.getElementById("enlaceControlHorasTarea").href = `${URL_CONTROL_HORAS}?id_tarea=${idTarea}`;
+
+    if (respuestaRegistros.ok) {
+      const datos = await respuestaRegistros.json();
+      renderizarHoras(datos.registros || [], datos.resumen || {}, esAdministrador);
+    } else {
+      const datos = await respuestaRegistros.json().catch(() => ({}));
+      mostrarMensajeHoras(datos.error || "No se pudieron cargar las horas de la tarea.", "error");
+    }
+
+    const contexto = respuestaContexto.ok ? await respuestaContexto.json().catch(() => null) : null;
+    configurarAccionesHoras(idTarea, contexto);
+  } catch (error) {
+    console.error(error);
+    seccion.hidden = false;
+    mostrarMensajeHoras("No se pudieron cargar las horas de la tarea.", "error");
+  }
+}
+
+function renderizarHoras(registros, resumen, esAdministrador) {
+  document.getElementById("horasTotalTarea").textContent = formatearMinutosTarea(resumen.minutos_acumulados);
+  document.getElementById("horasMontoTarea").textContent = formatearMontoTarea(resumen.monto_acumulado);
+  document.getElementById("horasRegistrosTarea").textContent = String(resumen.total_registros || 0);
+
+  const cuerpo = document.getElementById("tablaHorasTarea");
+  cuerpo.textContent = "";
+
+  if (registros.length === 0) {
+    const fila = document.createElement("tr");
+    const celda = document.createElement("td");
+    celda.colSpan = esAdministrador ? 7 : 6;
+    celda.className = "text-loading";
+    celda.textContent = "Todavía no hay horas registradas en esta tarea.";
+    fila.appendChild(celda);
+    cuerpo.appendChild(fila);
+  }
+
+  registros.slice(0, HORAS_FILAS_MAXIMAS).forEach(registro => {
+    const fila = document.createElement("tr");
+    fila.appendChild(crearCelda(registro.fecha));
+    if (esAdministrador) fila.appendChild(crearCelda(registro.usuario_responsable));
+    fila.appendChild(crearCelda(registro.inicio_hora));
+    fila.appendChild(crearCelda(registro.fin));
+    fila.appendChild(crearCelda(formatearMinutosTarea(registro.duracion_minutos)));
+    fila.appendChild(crearCelda(formatearMontoTarea(registro.monto)));
+
+    const celdaOrigen = document.createElement("td");
+    const manual = registro.origen === "MANUAL";
+    const insignia = document.createElement("span");
+    insignia.className = manual ? "badge badge-info" : "badge badge-pending";
+    insignia.textContent = manual ? "Manual" : "Temporizador";
+    celdaOrigen.appendChild(insignia);
+    if (manual && registro.observacion) {
+      const observacion = document.createElement("small");
+      observacion.className = "horas-origen-observacion";
+      observacion.textContent = registro.observacion;
+      celdaOrigen.appendChild(observacion);
+    }
+    fila.appendChild(celdaOrigen);
+    cuerpo.appendChild(fila);
+  });
+
+  document.getElementById("horasNota").textContent = registros.length > HORAS_FILAS_MAXIMAS
+    ? `Se muestran los ${HORAS_FILAS_MAXIMAS} registros más recientes de ${registros.length}. ` +
+      "El total incluye todos; el historial completo está en Control de horas."
+    : "";
+}
+
+function configurarAccionesHoras(idTarea, contexto) {
+  const botonIniciar = document.getElementById("btnIniciarTemporizadorTarea");
+  const enlaceManual = document.getElementById("enlaceRegistroManualTarea");
+  const estado = document.getElementById("horasEstadoTemporizador");
+  const activo = contexto ? contexto.temporizador_activo : null;
+  const habilitada = Boolean(contexto) &&
+    (contexto.tareas || []).some(t => Number(t.id_tarea) === idTarea);
+
+  botonIniciar.hidden = true;
+  botonIniciar.disabled = false;
+  enlaceManual.hidden = !habilitada;
+  enlaceManual.href = `${URL_CONTROL_HORAS}?id_tarea=${idTarea}&registrar=manual`;
+  estado.textContent = "";
+
+  if (!contexto) {
+    estado.textContent = "No se pudo comprobar si puede registrar horas en esta tarea.";
+    return;
+  }
+
+  if (activo && Number(activo.id_tarea) === idTarea) {
+    estado.textContent =
+      // El inicio llega como hora local sin zona («2026-11-05T13:01:05»): se muestra sin convertir a UTC.
+      `Tiene un temporizador en curso en esta tarea desde ${formatearFechaHora24(activo.inicio)}. ` +
+      "Deténgalo desde Control de horas.";
+    return;
+  }
+
+  if (!habilitada) {
+    estado.textContent =
+      "No se pueden registrar horas en esta tarea: está finalizada, su cliente está inactivo o no está asignada a usted.";
+    return;
+  }
+
+  botonIniciar.hidden = false;
+
+  if (activo) {
+    botonIniciar.disabled = true;
+    estado.textContent =
+      `Ya tiene un temporizador en curso en «${activo.tarea}». Deténgalo en Control de horas para iniciar otro.`;
+    return;
+  }
+
+  botonIniciar.onclick = () => iniciarTemporizadorDesdeDetalle(idTarea, botonIniciar);
+}
+
+async function iniciarTemporizadorDesdeDetalle(idTarea, boton) {
+  boton.disabled = true;
+  boton.textContent = "Iniciando...";
+  mostrarMensajeHoras("");
+
+  try {
+    const response = await fetch(`${API_URL}/control-horas/iniciar`, {
+      method: "POST",
+      credentials: window.API_CONFIG.credentials,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id_tarea: idTarea })
+    });
+    const datos = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      mostrarMensajeHoras(datos.error || "No se pudo iniciar el temporizador.", "error");
+      boton.disabled = false;
+      boton.textContent = "Iniciar temporizador";
+      return;
+    }
+
+    // El temporizador queda corriendo en Control de horas, donde también se detiene.
+    window.location.href = URL_CONTROL_HORAS;
+  } catch (error) {
+    console.error(error);
+    mostrarMensajeHoras("No se pudo conectar con el servidor.", "error");
+    boton.disabled = false;
+    boton.textContent = "Iniciar temporizador";
+  }
 }
