@@ -100,17 +100,191 @@ console.log('ok');
 
 
 def test_paneles_de_alta_reservan_espacio_para_la_barra_superior():
-    for ruta, selector in (
-        (("frontend", "tareas", "tareas.css"), "#btnNuevaTarea"),
-        (("frontend", "usuarios", "usuarios.css"), "#btnNuevoUsuario")
+    for ruta, selectores in (
+        (("frontend", "tareas", "tareas.css"), ("#panelNuevaTarea", "#btnNuevaTarea")),
+        (("frontend", "usuarios", "usuarios.css"), ("#panelNuevoUsuario", "#btnNuevoUsuario"))
     ):
         css = leer(*ruta)
-        assert css.count(selector) == 1, ruta
-        regla = re.search(
-            rf"{re.escape(selector)}\s*\{{\s*scroll-margin-top:\s*(\d+)px;\s*\}}",
-            css
-        )
-        assert regla and int(regla.group(1)) >= 152, ruta
+        for selector in selectores:
+            assert css.count(selector) == 1, (ruta, selector)
+            regla = re.search(
+                rf"{re.escape(selector)}\s*\{{\s*scroll-margin-top:\s*(\d+)px;\s*\}}",
+                css
+            )
+            assert regla and int(regla.group(1)) >= 152, (ruta, selector)
+
+
+@pytest.mark.skipif(NODE is None, reason="requiere Node.js")
+def test_listado_espera_el_rol_antes_de_renderizar_acciones_administrativas():
+    ruta = os.path.join(RAIZ, "frontend", "usuarios", "usuarios.js")
+    guion = r"""
+const fs = require('fs'), vm = require('vm'), assert = require('assert');
+class Element {
+  constructor(tag) {
+    this.tagName = tag;
+    this.children = [];
+    this.dataset = {};
+    this.attributes = {};
+    this.options = [];
+    this.value = '';
+    this.classList = { add() {} };
+  }
+  appendChild(child) { this.children.push(child); return child; }
+  append(...children) { this.children.push(...children); }
+  replaceChildren(...children) { this.children = children; this.options = children; }
+  add(child) { this.children.push(child); this.options = this.children; }
+  addEventListener() {}
+  setAttribute(name, value) { this.attributes[name] = value; }
+  getAttribute(name) { return this.attributes[name] || null; }
+  querySelector() { return new Element('button'); }
+}
+const ids = ['formUsuario','mensaje','id_rol','id_area','tablaUsuarios',
+  'mensajeListadoUsuarios','filtroRol','filtroArea','filtroEstado','ordenUsuarios'];
+const elementos = Object.fromEntries(ids.map(id => [id, new Element(
+  id.startsWith('filtro') || id === 'ordenUsuarios' || id.startsWith('id_') ? 'select' : 'div'
+)]));
+elementos.formUsuario = new Element('form');
+let alCargarDOM;
+const contexto = {
+  window: { API_CONFIG: { API_URL: 'http://local', credentials: 'include' } },
+  document: {
+    getElementById: id => elementos[id] || null,
+    createElement: tag => new Element(tag),
+    addEventListener: (evento, callback) => { if (evento === 'DOMContentLoaded') alCargarDOM = callback; }
+  },
+  configurarPanelAlta() {},
+  obtenerUsuarioActual: async () => ({ nombre_rol: 'ADMINISTRADOR' }),
+  nombreRolNatural: value => value,
+  fetch: async () => ({
+    ok: true,
+    json: async () => [{
+      id_usuario: 9, nombres: 'Administradora Prueba', email: 'admin@example.invalid',
+      nombre_rol: 'ADMINISTRADOR', nombre_area: 'Administración',
+      estado: 'ACTIVO', fecha_creacion: '2026-11-06 10:30:00'
+    }]
+  }),
+  URLSearchParams,
+  Option: function(text, value) { this.text = text; this.value = value; }
+};
+vm.createContext(contexto);
+let codigo = fs.readFileSync(process.argv[1], 'utf8');
+if (process.argv[2] === 'sin-await') {
+  codigo = codigo.replace(
+    'usuarioActual = await obtenerUsuarioActual();',
+    'usuarioActual = obtenerUsuarioActual();'
+  );
+}
+vm.runInContext(codigo, contexto);
+(async () => {
+  await alCargarDOM();
+  const celdas = elementos.tablaUsuarios.children[0].children;
+  assert.strictEqual(celdas[6].children[0].children.length, 3);
+  console.log('ok');
+})().catch(error => { console.error(error); process.exitCode = 1; });
+"""
+    resultado = subprocess.run(
+        [NODE, "-e", guion, ruta], capture_output=True, text=True, timeout=30
+    )
+    assert resultado.returncode == 0, resultado.stderr
+    assert resultado.stdout.strip() == "ok"
+    mutacion = subprocess.run(
+        [NODE, "-e", guion, ruta, "sin-await"], capture_output=True, text=True, timeout=30
+    )
+    assert mutacion.returncode != 0
+
+
+@pytest.mark.skipif(NODE is None, reason="requiere Node.js")
+def test_confirmacion_devuelve_el_foco_a_una_accion_vigente_si_se_elimina_el_origen():
+    ruta = os.path.join(RAIZ, "frontend", "assets", "js", "confirmar.js")
+    guion = r"""
+const fs = require('fs'), vm = require('vm'), assert = require('assert');
+function fijarConexion(elemento, conectada) {
+  elemento.isConnected = conectada;
+  elemento.children.forEach(hijo => fijarConexion(hijo, conectada));
+}
+class Element {
+  constructor(tag, doc, focusable = false) {
+    this.tagName = tag;
+    this.doc = doc;
+    this.focusable = focusable;
+    this.children = [];
+    this.attributes = {};
+    this.handlers = {};
+    this.isConnected = false;
+    this.disabled = false;
+  }
+  appendChild(child) {
+    child.parentElement = this;
+    fijarConexion(child, this.isConnected);
+    this.children.push(child);
+    return child;
+  }
+  append(...children) { children.forEach(child => this.appendChild(child)); }
+  addEventListener(name, callback) { this.handlers[name] = callback; }
+  setAttribute(name, value) { this.attributes[name] = value; }
+  getAttribute(name) { return this.attributes[name] || null; }
+  hasAttribute(name) { return Object.prototype.hasOwnProperty.call(this.attributes, name); }
+  querySelector() {
+    for (const child of this.children) {
+      if (child.focusable && !child.disabled && child.isConnected) return child;
+      const nested = child.querySelector();
+      if (nested) return nested;
+    }
+    return null;
+  }
+  focus(options) {
+    if (!this.isConnected || this.disabled) return;
+    this.doc.activeElement = this;
+    this.lastFocus = options;
+  }
+  remove() {
+    if (this.parentElement) {
+      this.parentElement.children = this.parentElement.children.filter(child => child !== this);
+    }
+    this.parentElement = null;
+    fijarConexion(this, false);
+  }
+  click() { this.handlers.click(); }
+}
+const document = {
+  activeElement: null,
+  listeners: {},
+  createElement: tag => new Element(tag, document),
+  addEventListener: (name, callback) => { document.listeners[name] = callback; },
+  removeEventListener: name => { delete document.listeners[name]; },
+  querySelector: () => heading
+};
+document.body = new Element('body', document);
+document.body.isConnected = true;
+const main = new Element('main', document);
+const heading = new Element('h1', document);
+const row = new Element('tr', document);
+const opener = new Element('button', document, true);
+const sibling = new Element('button', document, true);
+row.append(opener, sibling);
+main.append(heading, row);
+document.body.appendChild(main);
+document.activeElement = opener;
+const contexto = { document, window: {}, console };
+vm.createContext(contexto);
+vm.runInContext(fs.readFileSync(process.argv[1], 'utf8'), contexto);
+(async () => {
+  const pendiente = contexto.window.confirmarAccion('Confirmar', 'normal');
+  opener.remove();
+  const fondo = document.body.children.find(elemento => elemento.className === 'confirmacion-fondo');
+  const aceptar = fondo.children[0].children[2].children[1];
+  aceptar.click();
+  await pendiente;
+  assert.strictEqual(document.activeElement, sibling);
+  assert.strictEqual(sibling.lastFocus.preventScroll, true);
+  console.log('ok');
+})().catch(error => { console.error(error); process.exitCode = 1; });
+"""
+    resultado = subprocess.run(
+        [NODE, "-e", guion, ruta], capture_output=True, text=True, timeout=30
+    )
+    assert resultado.returncode == 0, resultado.stderr
+    assert resultado.stdout.strip() == "ok"
 
 
 def test_datos_de_usuario_permiten_dividir_correos_largos_en_movil():
@@ -528,7 +702,13 @@ def test_tarifas_se_inserta_solo_para_administradores_en_control_de_horas():
     assert 'enlaceTarifas.href = "../tarifas/tarifas.html"' in bloque
     assert 'enlaceTarifas.textContent = "Tarifas"' in bloque
     assert "accionesControlHoras.appendChild(enlaceTarifas)" in bloque
-    assert "accionesControlHoras.hidden = false" in bloque
+    # El contenedor se muestra para todos los roles: además de los enlaces de administración
+    # aloja el botón de registro manual, que pueden usar los tres roles.
+    assert "accionesControlHoras.hidden = false" not in bloque
+    assert "accionesControlHoras.hidden = false" in js
+    assert js.index('botonRegistroManual.id = "btnRegistroManual"') < js.index(
+        'if (usuarioActual.nombre_rol === "ADMINISTRADOR") {'
+    )
 
 
 def test_tareas_abre_el_formulario_existente_desde_el_encabezado():

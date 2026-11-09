@@ -64,6 +64,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let idReporteActual = null;
   let catalogosHorasCargados = false;
+  let cargaCatalogosHorasPromise = null;
   let tareasHoras = [];
 
   cargarClientes();
@@ -88,7 +89,8 @@ document.addEventListener("DOMContentLoaded", () => {
     inputFechaFin.required = !esCobro && !esHoras;
     document.getElementById("ayudaPeriodoCobro").hidden = !esCobro;
     document.getElementById("ayudaPeriodoHoras").hidden = !esHoras;
-    if (esHoras) cargarCatalogosHoras();
+    // El aviso de error ya lo muestra cargarCatalogosHoras; aquí solo se evita el rechazo sin atender.
+    if (esHoras) cargarCatalogosHoras().catch(() => {});
   }
   selectTipoReporte.addEventListener("change", actualizarCriterios);
   selectAgruparHoras.addEventListener("change", actualizarCriterios);
@@ -166,37 +168,49 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function cargarCatalogosHoras() {
     if (catalogosHorasCargados) return;
-    catalogosHorasCargados = true;
-    try {
-      const response = await fetch(`${API_URL}/control-horas/filtros`, {
-        credentials: window.API_CONFIG.credentials
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "No fue posible cargar los filtros de horas.");
+    if (cargaCatalogosHorasPromise) return cargaCatalogosHorasPromise;
+
+    cargaCatalogosHorasPromise = (async () => {
+      try {
+        const response = await fetch(`${API_URL}/control-horas/filtros`, {
+          credentials: window.API_CONFIG.credentials
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || "No fue posible cargar los filtros de horas.");
+        }
+
+        selectHorasCliente.textContent = "";
+        selectHorasCliente.appendChild(crearOpcion("", "Todos los clientes"));
+        (data.clientes || []).forEach(cliente => {
+          selectHorasCliente.appendChild(crearOpcion(
+            cliente.id_cliente,
+            `${cliente.razon_social} (${cliente.rut})`
+          ));
+        });
+
+        tareasHoras = Array.isArray(data.tareas) ? data.tareas : [];
+        actualizarTareasHoras();
+
+        selectHorasUsuario.textContent = "";
+        selectHorasUsuario.appendChild(crearOpcion("", "Todos los usuarios"));
+        (data.usuarios || []).forEach(usuario => {
+          selectHorasUsuario.appendChild(crearOpcion(usuario.id_usuario, usuario.nombres));
+        });
+
+        catalogosHorasCargados = true;
+        return true;
+      } catch (error) {
+        catalogosHorasCargados = false;
+        console.error(error);
+        mostrarMensaje(error.message || "No fue posible cargar los filtros de horas.", "error");
+        throw error;
+      } finally {
+        cargaCatalogosHorasPromise = null;
       }
+    })();
 
-      selectHorasCliente.textContent = "";
-      selectHorasCliente.appendChild(crearOpcion("", "Todos los clientes"));
-      (data.clientes || []).forEach(cliente => {
-        selectHorasCliente.appendChild(crearOpcion(
-          cliente.id_cliente,
-          `${cliente.razon_social} (${cliente.rut})`
-        ));
-      });
-
-      tareasHoras = Array.isArray(data.tareas) ? data.tareas : [];
-      actualizarTareasHoras();
-
-      selectHorasUsuario.textContent = "";
-      selectHorasUsuario.appendChild(crearOpcion("", "Todos los usuarios"));
-      (data.usuarios || []).forEach(usuario => {
-        selectHorasUsuario.appendChild(crearOpcion(usuario.id_usuario, usuario.nombres));
-      });
-    } catch (error) {
-      console.error(error);
-      mostrarMensaje(error.message || "No fue posible cargar los filtros de horas.", "error");
-    }
+    return cargaCatalogosHorasPromise;
   }
 
   function actualizarTareasHoras() {

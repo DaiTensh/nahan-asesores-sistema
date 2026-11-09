@@ -12,6 +12,42 @@
     advertencia: { titulo: "Confirmar cambio", confirmar: "Confirmar", icono: "?" },
     normal: { titulo: "Confirmar acción", confirmar: "Aceptar", icono: "?" }
   };
+  const SELECTOR_FOCO =
+    'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+  function antecesoresDe(elemento) {
+    const antecesores = [];
+    let actual = elemento && elemento !== document.body ? elemento.parentElement : null;
+    while (actual && actual !== document.body) {
+      antecesores.push(actual);
+      actual = actual.parentElement;
+    }
+    return antecesores;
+  }
+
+  function restaurarFoco(elementoPrevio, antecesoresPrevios) {
+    if (elementoPrevio && elementoPrevio !== document.body
+        && elementoPrevio.isConnected !== false && !elementoPrevio.disabled) {
+      elementoPrevio.focus({ preventScroll: true });
+      return;
+    }
+
+    for (const antecesor of antecesoresPrevios) {
+      if (antecesor.isConnected === false) continue;
+      const alternativa = antecesor.querySelector(SELECTOR_FOCO);
+      if (alternativa && alternativa !== elementoPrevio
+          && alternativa.isConnected !== false && !alternativa.disabled) {
+        alternativa.focus({ preventScroll: true });
+        return;
+      }
+    }
+
+    const encabezado = document.querySelector("main h1");
+    if (encabezado && encabezado.isConnected !== false) {
+      if (!encabezado.hasAttribute("tabindex")) encabezado.setAttribute("tabindex", "-1");
+      encabezado.focus({ preventScroll: true });
+    }
+  }
 
   // La hoja de estilos se pide sola, junto a este archivo, para no editar cada página.
   const origen = document.currentScript && document.currentScript.src;
@@ -27,6 +63,7 @@
     const config = NIVELES[nivel] || NIVELES.normal;
     const nivelUsado = NIVELES[nivel] ? nivel : "normal";
     const elementoPrevio = document.activeElement;
+    const antecesoresPrevios = antecesoresDe(elementoPrevio);
 
     return new Promise(resolve => {
       const fondo = document.createElement("div");
@@ -76,7 +113,7 @@
       function cerrar(resultado) {
         document.removeEventListener("keydown", alTeclear, true);
         fondo.remove();
-        if (elementoPrevio && typeof elementoPrevio.focus === "function") elementoPrevio.focus();
+        restaurarFoco(elementoPrevio, antecesoresPrevios);
         resolve(resultado);
       }
 
@@ -119,6 +156,7 @@
   window.avisarAccion = function (mensaje, tipo = "info") {
     const config = AVISOS[tipo] || AVISOS.info;
     const elementoPrevio = document.activeElement;
+    const antecesoresPrevios = antecesoresDe(elementoPrevio);
 
     return new Promise(resolve => {
       const fondo = document.createElement("div");
@@ -164,7 +202,7 @@
       function cerrar() {
         document.removeEventListener("keydown", alTeclear, true);
         fondo.remove();
-        if (elementoPrevio && typeof elementoPrevio.focus === "function") elementoPrevio.focus();
+        restaurarFoco(elementoPrevio, antecesoresPrevios);
         resolve();
       }
 

@@ -33,7 +33,7 @@ esquema completo):
 
 | Tabla | Origen probable | Qué la reemplazó |
 |---|---|---|
-| `tiempo_trabajado` | Modelo inicial del registro de horas | `registro_tiempo` (RF71–RF73, con la tarifa congelada y el monto calculado) |
+| `tiempo_trabajado` | Modelo inicial del registro de horas | `registro_tiempo` (RF71–RF73, con la tarifa congelada y el monto calculado; desde la migración 012 guarda también `origen` —temporizador o manual— y la `observacion` del registro manual) |
 | `comentario_tarea` | Modelo inicial de la tarea | Las observaciones de la tarea y de la revisión (`revision_tarea`) |
 | `area_reporte` | Modelo inicial de reportes | El reporte se arma por consulta; `reporte` guarda solo la generación |
 

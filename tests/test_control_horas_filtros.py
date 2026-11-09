@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 import pytest
 
@@ -229,16 +230,28 @@ def test_interfaz_control_horas_expone_filtros_y_resumen_por_alcance():
     ):
         assert elemento in html
 
-    assert "Mostrando: mis registros." in js
-    assert 'Mostrando: registros de ${nombreUsuario || "todos los usuarios"}.' in js
+    assert 'Mostrando: mis registros"' in js
+    assert 'Mostrando: registros de ${nombreUsuario || "todos los usuarios"}' in js
     assert '· ${nombreUsuario || "todos los usuarios"}' in js
+    assert '· Filtros: ${filtros.length ? `${filtros.join(" · ")}.` : "ninguno."}' in js
     assert 'parametros.set("fecha_inicio", desde)' in js
     assert 'parametros.set("fecha_fin", hasta)' in js
     assert 'parametros.set("id_cliente", filtroCliente.value)' in js
     assert 'parametros.set("id_tarea", filtroTarea.value)' in js
     assert 'usuarioActual.nombre_rol === "ADMINISTRADOR" && filtroUsuario.value' in js
     assert "No hay registros para los filtros elegidos." in js
-    assert "Mostrando ${registros.length} registros." in js
+    assert 'registros.length === 1 ? "registro" : "registros"' in js
+    assert '`Mostrando ${registros.length} ${registros.length === 1 ? "registro" : "registros"}.`' in js
+
+
+def test_resumen_de_control_de_horas_envuelve_totales_en_pantallas_estrechas():
+    css = (ROOT / "frontend/control_horas/control_horas.css").read_text(encoding="utf-8")
+    assert "@media (max-width: 540px)" in css
+    movil = css.split("@media (max-width: 540px)", 1)[1]
+
+    assert re.search(r"\.resumen-cards,\s*\.resumen-detalle\s*\{\s*grid-template-columns: minmax\(0, 1fr\);", movil)
+    assert re.search(r"\.resumen-card h3,\s*\.total-fila span\s*\{[^}]*overflow-wrap: anywhere;", movil)
+    assert re.search(r"\.total-fila span:not\(:first-child\)\s*\{[^}]*white-space: normal;", movil)
 
 
 def test_acciones_control_horas_son_solo_administrativas_y_detener_respeta_filtros():

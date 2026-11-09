@@ -1,5 +1,7 @@
 import io
 import json
+import shutil
+import subprocess
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -14,6 +16,7 @@ from tests.conftest import normalize_sql
 
 URL = "/api/reportes/horas-trabajadas"
 ROOT = Path(__file__).resolve().parents[1]
+NODE = shutil.which("node")
 PARAMETROS = {
     "agrupar_por": "cliente",
     "granularidad": None,
@@ -211,6 +214,10 @@ def test_agrupaciones_devuelven_filas_y_totales(nombre, query, fila_esperada, ge
     assert datos["granularidad"] == (nombre if nombre in {"dia", "mes"} else None)
     assert datos["periodo"]["todos_los_registros"] is True
     assert datos["totales"] == {"horas": 0.03 if nombre == "cliente" else 1.5, "monto": 1.0 if nombre == "cliente" else 45000.0, "registros": 2}
+    if nombre == "cliente":
+        assert [fila["horas"] for fila in datos["filas"]] == [0.02, 0.02]
+        assert sum(fila["horas"] for fila in datos["filas"]) == 0.04
+        assert datos["totales"]["horas"] == 0.03
     assert datos["id_reporte"] == 25
     assert capturado["insercion"][1] == "HORAS_TRABAJADAS"
     assert json.loads(capturado["insercion"][2])["agrupar_por"] == datos["agrupar_por"]
@@ -271,6 +278,59 @@ def test_sin_resultados_no_registra_generacion(generar):
     assert "id_reporte" not in datos
     assert "insercion" not in capturado
     assert conexion.commits == 0
+
+
+def test_pdf_sin_horas_muestra_el_mensaje_especifico_y_es_valido(
+    client, iniciar_sesion, monkeypatch, fake_connection_factory
+):
+    iniciar_sesion(usuario_id=1, rol_id=1)
+    parametros = {**PARAMETROS, "agrupar_por": "cliente"}
+    conexion = fake_connection_factory(_handler(
+        {},
+        filas=[],
+        reporte_guardado=_reporte_guardado(parametros),
+    ))
+    monkeypatch.setattr(reportes_routes, "get_connection", lambda: conexion)
+
+    respuesta = client.get("/api/reportes/25/pdf")
+
+    assert respuesta.status_code == 200
+    texto_pdf = "\n".join(
+        pagina.extract_text() or ""
+        for pagina in PdfReader(io.BytesIO(respuesta.data)).pages
+    )
+    assert "No se registran horas trabajadas para los criterios seleccionados" in texto_pdf
+    assert "No se registran tareas" not in texto_pdf
+
+
+def test_pdf_preserva_caracteres_fuera_de_winansi_sin_nueva_dependencia(
+    client, iniciar_sesion, monkeypatch, fake_connection_factory
+):
+    iniciar_sesion(usuario_id=1, rol_id=1)
+    parametros = {**PARAMETROS, "agrupar_por": "cliente"}
+    filas = [{
+        "clave": 7,
+        "etiqueta": "Cliente 日本 😀",
+        "detalle": None,
+        "minutos": Decimal("60"),
+        "monto": Decimal("30000"),
+        "registros": 1,
+    }]
+    conexion = fake_connection_factory(_handler(
+        {},
+        valores_fila=filas,
+        reporte_guardado=_reporte_guardado(parametros),
+    ))
+    monkeypatch.setattr(reportes_routes, "get_connection", lambda: conexion)
+
+    respuesta = client.get("/api/reportes/25/pdf")
+
+    assert respuesta.status_code == 200
+    lector = PdfReader(io.BytesIO(respuesta.data))
+    assert lector.is_encrypted is False
+    texto_pdf = "\n".join(pagina.extract_text() or "" for pagina in lector.pages)
+    assert "Cliente 日本" in texto_pdf
+    assert b"HeiseiMin-W3" in respuesta.data or b"EmojiFallback" in respuesta.data
 
 
 @pytest.mark.parametrize(
@@ -407,3 +467,102 @@ def test_frontend_de_horas_conserva_tipos_y_renderiza_sin_html_inyectado():
 
     control_horas = (ROOT / "frontend/control_horas/control_horas.js").read_text(encoding="utf-8")
     assert "innerHTML" not in control_horas
+
+
+@pytest.mark.skipif(NODE is None, reason="requiere Node.js")
+def test_frontend_carga_catalogos_horas_reintenta_despues_de_error_sin_doblar_fechas():
+    ruta = ROOT / "frontend/reportes/reportes.js"
+    guion = r"""
+(async () => {
+  const fs = require('fs'), vm = require('vm'), assert = require('assert');
+  process.on('unhandledRejection', () => {});
+  function crearElemento() {
+    return {
+      hidden: false,
+      required: false,
+      value: '',
+      textContent: '',
+      children: [],
+      attributes: {},
+      listeners: {},
+      appendChild(hijo) { this.children.push(hijo); return hijo; },
+      addEventListener(nombre, callback) { this.listeners[nombre] = callback; },
+      dispatch(nombre, detalle = {}) {
+        if (!this.listeners[nombre]) return;
+        const evento = { target: this, ...detalle };
+        this.listeners[nombre](evento);
+      },
+      append(...hijos) { this.children.push(...hijos); }
+    };
+  }
+  const ids = [
+    'formReporte','selectTipoReporte','grupoCliente','grupoResponsable','grupoAgruparHoras','grupoGranularidad',
+    'grupoHorasCliente','grupoHorasTarea','grupoHorasUsuario','selectCliente','selectResponsable','selectAgruparHoras',
+    'selectGranularidad','selectHorasCliente','selectHorasTarea','selectHorasUsuario','inputFechaInicio','inputFechaFin',
+    'resultadoDetalle','resultadoAreas','resultadoCobro','resultadoHoras','tablaAreas','tablaComparacionAreas',
+    'distribucionTareas','atajoPeriodo','ayudaPeriodoCobro','ayudaPeriodoHoras','mensajeReporte','resultadoReporte',
+    'resultadoEntidadLabel','resultadoEntidad','resultadoPeriodo','resultadoFechaGeneracion','resumenEstadoCards',
+    'tablaTareasReporte','btnExportarExcel','btnExportarPdf','btnExportarExcelCsv','resultadoFiltrosHoras','resumenHoras',
+    'encabezadoTablaHoras','cuerpoTablaHoras','tituloTablaHoras','tablaDesgloseCobro','tablaRegistrosCobro','resumenCobro',
+    'mensajeComparacionAreas','comparacionAreas','resultadoFiltrosCobro'
+  ];
+  const elementos = Object.fromEntries(ids.map(id => [id, crearElemento()]));
+  const contexto = {
+    window: { API_CONFIG: { API_URL: 'http://local/api', credentials: 'include' }, location: { search: '' } },
+    document: {
+      getElementById: id => elementos[id] || null,
+      addEventListener(evento, callback) {
+        if (evento === 'DOMContentLoaded') this._domContentLoaded = callback;
+    },
+    createElement(tag) {
+      return { tagName: tag.toUpperCase(), value: '', textContent: '', children: [], attributes: {},
+        appendChild(hijo) { this.children.push(hijo); return hijo; },
+        addEventListener() {},
+        setAttribute(nombre, valor) { this.attributes[nombre] = valor; },
+        getAttribute(nombre) { return this.attributes[nombre] || null; }
+      };
+    }
+  },
+  console: { error() {} },
+  URLSearchParams,
+  fetch: null,
+  mostrarMensaje() {}
+  };
+  let llamadasFetch = 0;
+  let resolverFallo;
+  contexto.fetch = async () => {
+    llamadasFetch += 1;
+    if (llamadasFetch === 1) {
+      await new Promise(resolve => { resolverFallo = resolve; });
+      return { ok: false, json: async () => ({ error: 'Fallo de prueba' }) };
+    }
+    return { ok: true, json: async () => ({ clientes: [], tareas: [], usuarios: [] }) };
+  };
+  vm.createContext(contexto);
+  vm.runInContext(fs.readFileSync(process.argv[1], 'utf8'), contexto);
+  contexto.document._domContentLoaded();
+  llamadasFetch = 0;
+  const selectTipoReporte = elementos.selectTipoReporte;
+  selectTipoReporte.value = 'horas';
+  selectTipoReporte.dispatch('change', { target: selectTipoReporte });
+  assert.strictEqual(llamadasFetch, 1);
+  selectTipoReporte.dispatch('change', { target: selectTipoReporte });
+  assert.strictEqual(llamadasFetch, 1);
+  resolverFallo();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  selectTipoReporte.dispatch('change', { target: selectTipoReporte });
+  assert.strictEqual(llamadasFetch, 2);
+  console.log('ok');
+})().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});
+"""
+    resultado = subprocess.run([
+        NODE,
+        '-e',
+        guion,
+        str(ruta),
+    ], capture_output=True, text=True, timeout=30)
+    assert resultado.returncode == 0, resultado.stderr
+    assert resultado.stdout.strip() == 'ok'

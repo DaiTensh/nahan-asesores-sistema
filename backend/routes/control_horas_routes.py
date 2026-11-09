@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from flask import Blueprint, jsonify, request
 from backend.config.db import get_connection
@@ -17,6 +18,12 @@ ROLES_PERMITIDOS = {
     "USUARIO_AREA_CONTABLE",
 }
 TARIFA_GLOBAL_DEFAULT = Decimal("30000.00")
+
+# Registro manual de horas (CU-14 y CU-29). Valores técnicos conservadores: el
+# cliente todavía no definió el plazo ni los demás límites, así que se mantienen
+# juntos aquí para ajustarlos en un solo lugar cuando los confirme.
+DIAS_MAXIMOS_RETROACTIVO = 30
+LARGO_MAXIMO_OBSERVACION = 255
 
 
 def _obtener_id_usuario(origen):
@@ -586,6 +593,294 @@ def detener_temporizador():
             connection.close()
 
 
+def _leer_fecha_manual(valor):
+    if not isinstance(valor, str):
+        return None
+    try:
+        return datetime.strptime(valor.strip(), "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def _leer_hora_manual(valor):
+    """«HH:MM» (lo que envía un campo de hora) o «HH:MM:SS»; None si no es válida."""
+    if not isinstance(valor, str):
+        return None
+    for formato in ("%H:%M", "%H:%M:%S"):
+        try:
+            return datetime.strptime(valor.strip(), formato).time()
+        except ValueError:
+            continue
+    return None
+
+
+def _validar_datos_registro_manual(datos):
+    """Valida la forma de los datos, sin consultar la base.
+
+    Devuelve (campos, None) o (None, mensaje). Las reglas que dependen del reloj
+    del servidor (no futuro, plazo) se aplican después, con la hora de MySQL.
+    """
+    if not isinstance(datos, dict):
+        return None, "Debe enviar los datos del registro en formato JSON."
+
+    try:
+        id_tarea = int(datos.get("id_tarea"))
+    except (TypeError, ValueError):
+        id_tarea = None
+    if not id_tarea or id_tarea < 1:
+        return None, "Debe seleccionar una tarea válida."
+
+    fecha = _leer_fecha_manual(datos.get("fecha"))
+    if fecha is None:
+        return None, "La fecha no es válida. Use el formato AAAA-MM-DD."
+
+    hora_inicio = _leer_hora_manual(datos.get("hora_inicio"))
+    hora_fin = _leer_hora_manual(datos.get("hora_fin"))
+    if hora_inicio is None or hora_fin is None:
+        return None, "Las horas de inicio y de término no son válidas. Use el formato HH:MM."
+    if hora_fin <= hora_inicio:
+        return None, "La hora de término debe ser posterior a la hora de inicio."
+
+    observacion = datos.get("observacion")
+    if not isinstance(observacion, str) or not observacion.strip():
+        return None, "Debe indicar una observación con el trabajo realizado."
+    # Se guarda como texto de una sola línea: se muestra tal cual en la tabla.
+    observacion = " ".join(observacion.split())
+    if len(observacion) > LARGO_MAXIMO_OBSERVACION:
+        return None, f"La observación no puede superar los {LARGO_MAXIMO_OBSERVACION} caracteres."
+
+    return {
+        "id_tarea": id_tarea,
+        "fecha": fecha,
+        "hora_inicio": hora_inicio,
+        "hora_fin": hora_fin,
+        "observacion": observacion,
+    }, None
+
+
+@control_horas_bp.route("/control-horas/registros-manuales", methods=["POST"])
+@login_required
+def registrar_horas_manualmente():
+    """CU-14 / CU-29: ingresar horas ya trabajadas cuando no se usó el temporizador.
+
+    Duración, tarifa y monto los calcula el servidor; nada de eso se acepta del
+    cliente. El registro queda cerrado, con origen MANUAL, y entra solo a los
+    totales, al informe de horas y al cobro por cliente.
+    """
+    campos, error_datos = _validar_datos_registro_manual(request.get_json(silent=True))
+    if error_datos:
+        return jsonify({"error": error_datos}), 400
+
+    id_usuario = obtener_usuario_actual()["id_usuario"]
+    inicio = datetime.combine(campos["fecha"], campos["hora_inicio"])
+    fin = datetime.combine(campos["fecha"], campos["hora_fin"])
+    duracion_minutos = (Decimal((fin - inicio).total_seconds()) / 60).quantize(Decimal("0.01"))
+
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_connection()
+        if connection is None:
+            return jsonify({"error": "No se pudo conectar con la base de datos."}), 500
+
+        connection.start_transaction()
+        cursor = connection.cursor(dictionary=True)
+
+        usuario = _obtener_usuario(cursor, id_usuario, bloquear=True)
+        error_usuario = _validar_usuario(usuario)
+        if error_usuario:
+            connection.rollback()
+            return jsonify({"error": error_usuario}), 403
+
+        # La fecha y la hora de «ahora» son las de MySQL, igual que en el temporizador.
+        cursor.execute("SELECT CURRENT_TIMESTAMP AS ahora")
+        ahora = cursor.fetchone()["ahora"]
+        if fin > ahora:
+            connection.rollback()
+            return jsonify({
+                "error": "No se pueden registrar horas que todavía no ocurrieron."
+            }), 400
+        if campos["fecha"] < ahora.date() - timedelta(days=DIAS_MAXIMOS_RETROACTIVO):
+            connection.rollback()
+            return jsonify({
+                "error": (
+                    "Solo se pueden registrar horas de los últimos "
+                    f"{DIAS_MAXIMOS_RETROACTIVO} días."
+                )
+            }), 400
+
+        condiciones = [
+            "t.id_tarea = %s",
+            f"t.estado IN {SQL_ESTADOS_ACTIVOS}",
+            "c.estado = 'ACTIVO'",
+        ]
+        parametros = [campos["id_tarea"]]
+        if usuario["nombre_rol"] != "ADMINISTRADOR":
+            condiciones.append("t.id_responsable = %s")
+            parametros.append(id_usuario)
+
+        cursor.execute(
+            f"""
+            SELECT t.id_tarea, t.id_cliente, t.id_area
+            FROM tarea t
+            INNER JOIN cliente c ON t.id_cliente = c.id_cliente
+            WHERE {" AND ".join(condiciones)}
+            LIMIT 1
+            """,
+            tuple(parametros),
+        )
+        tarea = cursor.fetchone()
+        if not tarea:
+            connection.rollback()
+            return jsonify({
+                "error": "La tarea no existe o no está disponible para este usuario."
+            }), 404
+
+        # Un registro cerrado ocupa [inicio, inicio + duración); uno abierto (el
+        # temporizador en curso) llega hasta ahora. Se compara con marcas de tiempo
+        # completas para que también cuenten los que cruzaron la medianoche.
+        cursor.execute(
+            """
+            SELECT
+                rt.hora_fin IS NULL AS en_curso,
+                DATE_FORMAT(TIMESTAMP(rt.fecha, rt.hora_inicio), '%d-%m-%Y %H:%i') AS desde,
+                DATE_FORMAT(
+                    TIMESTAMPADD(
+                        SECOND,
+                        ROUND(COALESCE(rt.duracion_minutos, 0) * 60),
+                        TIMESTAMP(rt.fecha, rt.hora_inicio)
+                    ),
+                    '%d-%m-%Y %H:%i'
+                ) AS hasta
+            FROM registro_tiempo rt
+            WHERE rt.id_usuario = %s
+              AND TIMESTAMP(rt.fecha, rt.hora_inicio) < %s
+              AND (
+                  rt.hora_fin IS NULL
+                  OR TIMESTAMPADD(
+                      SECOND,
+                      ROUND(rt.duracion_minutos * 60),
+                      TIMESTAMP(rt.fecha, rt.hora_inicio)
+                  ) > %s
+              )
+            ORDER BY rt.hora_fin IS NULL DESC, rt.fecha DESC, rt.hora_inicio DESC
+            LIMIT 1
+            """,
+            (id_usuario, fin, inicio),
+        )
+        solapado = cursor.fetchone()
+        if solapado:
+            connection.rollback()
+            if solapado["en_curso"]:
+                mensaje = (
+                    "Ese horario se superpone con el temporizador que tiene en curso. "
+                    "Deténgalo o elija otro horario."
+                )
+            else:
+                mensaje = (
+                    "Ese horario se superpone con horas que ya registró "
+                    f"({solapado['desde']} a {solapado['hasta']})."
+                )
+            return jsonify({"error": mensaje}), 409
+
+        tarifa_hora = _obtener_tarifa_vigente(cursor, tarea["id_area"])
+
+        cursor.execute(
+            """
+            INSERT INTO registro_tiempo (
+                id_usuario,
+                id_cliente,
+                id_tarea,
+                fecha,
+                hora_inicio,
+                hora_fin,
+                duracion_minutos,
+                tarifa_hora,
+                origen,
+                observacion
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'MANUAL', %s)
+            """,
+            (
+                id_usuario,
+                tarea["id_cliente"],
+                tarea["id_tarea"],
+                campos["fecha"],
+                campos["hora_inicio"],
+                campos["hora_fin"],
+                duracion_minutos,
+                tarifa_hora,
+                campos["observacion"],
+            ),
+        )
+        id_registro = cursor.lastrowid
+
+        cursor.execute(
+            """
+            SELECT
+                rt.id_registro,
+                rt.duracion_minutos,
+                rt.tarifa_hora,
+                rt.monto,
+                rt.origen,
+                rt.observacion,
+                t.titulo AS tarea,
+                t.descripcion AS descripcion,
+                c.razon_social AS cliente,
+                DATE_FORMAT(rt.fecha, '%d-%m-%Y') AS fecha,
+                DATE_FORMAT(rt.hora_inicio, '%H:%i:%S') AS inicio,
+                DATE_FORMAT(rt.hora_fin, '%H:%i:%S') AS fin
+            FROM registro_tiempo rt
+            INNER JOIN tarea t ON rt.id_tarea = t.id_tarea
+            INNER JOIN cliente c ON rt.id_cliente = c.id_cliente
+            WHERE rt.id_registro = %s
+            """,
+            (id_registro,),
+        )
+        registro = _serializar_registro(cursor.fetchone())
+        if not registro:
+            connection.rollback()
+            return jsonify({"error": "No se pudo obtener el registro ingresado."}), 500
+
+        resumen = _consultar_resumen(
+            cursor, ["rt.hora_fin IS NOT NULL", "rt.id_usuario = %s"], [id_usuario]
+        )
+
+        # La observación no se copia a la auditoría: el texto puede traer datos
+        # del cliente y ya queda en el propio registro.
+        registrar_auditoria(
+            cursor, id_usuario, "registro_tiempo", "REGISTRO_MANUAL_CREADO",
+            id_registro=id_registro,
+            datos_nuevos=(
+                f"id_registro={id_registro}, id_tarea={tarea['id_tarea']}, "
+                f"id_cliente={tarea['id_cliente']}, fecha={campos['fecha'].isoformat()}, "
+                f"hora_inicio={campos['hora_inicio'].strftime('%H:%M')}, "
+                f"hora_fin={campos['hora_fin'].strftime('%H:%M')}, "
+                f"duracion_minutos={registro['duracion_minutos']}"
+            ),
+        )
+        connection.commit()
+
+        return jsonify({
+            "message": "Horas registradas manualmente correctamente.",
+            "registro": registro,
+            "resumen": resumen,
+        }), 201
+
+    except Exception:
+        if connection:
+            connection.rollback()
+        logger.exception("Error al registrar horas manualmente")
+        return jsonify({"error": "Error interno al registrar las horas."}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
 @control_horas_bp.route("/control-horas/registros", methods=["GET"])
 @login_required
 def listar_registros():
@@ -650,6 +945,8 @@ def listar_registros():
                 rt.duracion_minutos,
                 rt.tarifa_hora,
                 rt.monto,
+                rt.origen,
+                rt.observacion,
                 u.nombres AS usuario_responsable
             FROM registro_tiempo rt
             INNER JOIN tarea t ON rt.id_tarea = t.id_tarea

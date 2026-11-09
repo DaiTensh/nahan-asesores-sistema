@@ -87,6 +87,8 @@ MARCADORES = {
             (_PARAMETRO, ("CLIENTES_RECIENTES_LIMITE",))],
     "010": [(_TABLA, ("respaldo",))],
     "011": [(_VALOR_ENUM, ("tarea", "estado", "PAUSADA"))],
+    "012": [(_COLUMNA, ("registro_tiempo", "origen")),
+            (_COLUMNA, ("registro_tiempo", "observacion"))],
 }
 
 

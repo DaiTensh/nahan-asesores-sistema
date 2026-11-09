@@ -1,6 +1,8 @@
+import glob
 import io
 import json
 import logging
+import os
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 from xml.sax.saxutils import escape
@@ -8,6 +10,9 @@ from xml.sax.saxutils import escape
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, LongTable, TableStyle
 
 from flask import Blueprint, request, jsonify, send_file
@@ -25,6 +30,7 @@ logger = logging.getLogger(__name__)
 MENSAJE_SIN_TAREAS = "No se registran tareas para los criterios seleccionados"
 MENSAJE_SIN_COMPLETADAS = "No se registran tareas completadas en el período seleccionado"
 MENSAJE_SIN_HORAS_COBRABLES = "No se registran horas trabajadas para este cliente en el período seleccionado"
+MENSAJE_SIN_HORAS = "No se registran horas trabajadas para los criterios seleccionados"
 
 # ==========================================================================
 # Contrato de respuesta del módulo de reportes (RF31 / RF32).
@@ -1725,6 +1731,84 @@ def _texto_fecha_generacion(valor):
     return str(valor) if valor else None
 
 
+_FUENTE_CJK_PDF = "HeiseiMin-W3"
+_FUENTE_EMOJI_PDF = "EmojiFallback"
+
+
+def _ruta_fuente_emoji_pdf():
+    patrones = [
+        "/System/Library/Fonts/Apple Color Emoji.ttc",
+        "/System/Library/Fonts/Supplemental/Apple Color Emoji.ttc",
+        "/Library/Fonts/*.ttc",
+        "/usr/share/fonts/**/*.ttf",
+        "/usr/share/fonts/**/*.otf",
+        "/usr/local/share/fonts/**/*.ttf",
+        "/usr/local/share/fonts/**/*.otf",
+    ]
+    for patron in patrones:
+        for ruta in glob.glob(patron, recursive=True):
+            if not os.path.isfile(ruta):
+                continue
+            nombre = os.path.basename(ruta).lower()
+            if "emoji" in nombre or "symbol" in nombre or "noto" in nombre:
+                return ruta
+    return None
+
+
+def _es_caracter_emoji(caracter):
+    codigo = ord(caracter)
+    rangos_emoji = (
+        (0x1F300, 0x1FAFF),
+        (0x2600, 0x27BF),
+        (0xFE00, 0xFE0F),
+        (0x1F1E6, 0x1F1FF),
+    )
+    return any(inicio <= codigo <= fin for inicio, fin in rangos_emoji)
+
+
+def _texto_pdf_con_fuentes(texto):
+    if texto is None:
+        return ""
+    texto = str(texto)
+    if not texto:
+        return ""
+    segmentos = []
+    for caracter in texto:
+        if _es_caracter_emoji(caracter) and _FUENTE_EMOJI_PDF in pdfmetrics.getRegisteredFontNames():
+            segmentos.append(f'<font name="{_FUENTE_EMOJI_PDF}">{escape(caracter)}</font>')
+        else:
+            segmentos.append(escape(caracter))
+    return "".join(segmentos)
+
+
+def _registrar_fuente_pdf_unicode(estilos):
+    if _FUENTE_CJK_PDF not in pdfmetrics.getRegisteredFontNames():
+        try:
+            pdfmetrics.registerFont(UnicodeCIDFont(_FUENTE_CJK_PDF))
+        except Exception:
+            pass
+    ruta_emoji = _ruta_fuente_emoji_pdf()
+    if ruta_emoji and _FUENTE_EMOJI_PDF not in pdfmetrics.getRegisteredFontNames():
+        try:
+            pdfmetrics.registerFont(TTFont(_FUENTE_EMOJI_PDF, ruta_emoji))
+        except Exception:
+            pass
+    for nombre_estilo in ("Title", "Normal", "BodyText"):
+        estilos[nombre_estilo].fontName = _FUENTE_CJK_PDF
+
+
+def _requiere_fuente_pdf_unicode(textos):
+    for texto in textos:
+        texto = str(texto)
+        if any(_es_caracter_emoji(caracter) for caracter in texto):
+            return True
+        try:
+            texto.encode("cp1252")
+        except UnicodeEncodeError:
+            return True
+    return False
+
+
 @reportes_blueprint.route('/reportes/<int:id_reporte>/pdf', methods=['GET'], defaults={'formato': 'pdf'})
 @reportes_blueprint.route('/reportes/<int:id_reporte>/excel', methods=['GET'])
 @roles_required(ROL_ADMINISTRADOR)
@@ -1778,14 +1862,32 @@ def exportar_reporte_excel(id_reporte, formato="excel"):
             estilos = getSampleStyleSheet()
             estilos["BodyText"].fontSize = 8
             estilos["BodyText"].leading = 10
+            sin_datos = None
+            if not filas:
+                sin_datos = {
+                    "HISTORIAL_CONSOLIDADO": MENSAJE_SIN_ACTIVIDADES,
+                    "HORAS_TRABAJADAS": MENSAJE_SIN_HORAS,
+                }.get(reporte["tipo_reporte"], MENSAJE_SIN_TAREAS)
+            textos_pdf = [
+                titulo,
+                _texto_periodo(parametros),
+                fecha_generacion,
+                fecha_exportacion,
+                *(f"{etiqueta}: {valor}" for etiqueta, valor in filtros),
+                *(str(valor) for fila in [encabezados, *filas] for valor in fila),
+            ]
+            if sin_datos:
+                textos_pdf.append(sin_datos)
+            if _requiere_fuente_pdf_unicode(textos_pdf):
+                _registrar_fuente_pdf_unicode(estilos)
             documento = SimpleDocTemplate(buffer, pagesize=landscape(A4),
                                           rightMargin=24, leftMargin=24,
                                           topMargin=24, bottomMargin=24, title=titulo)
             contenido = [
-                Paragraph(escape(titulo), estilos["Title"]),
-                Paragraph(escape(f"Período: {_texto_periodo(parametros)}"), estilos["Normal"]),
-                *[Paragraph(escape(f"{etiqueta}: {valor}"), estilos["Normal"]) for etiqueta, valor in filtros],
-                Paragraph(escape(f"Fecha de generación: {fecha_generacion} · Exportado: {fecha_exportacion}"),
+                Paragraph(_texto_pdf_con_fuentes(titulo), estilos["Title"]),
+                Paragraph(_texto_pdf_con_fuentes(f"Período: {_texto_periodo(parametros)}"), estilos["Normal"]),
+                *[Paragraph(_texto_pdf_con_fuentes(f"{etiqueta}: {valor}"), estilos["Normal"]) for etiqueta, valor in filtros],
+                Paragraph(_texto_pdf_con_fuentes(f"Fecha de generación: {fecha_generacion} · Exportado: {fecha_exportacion}"),
                           estilos["Normal"]),
                 Spacer(1, 12),
             ]
@@ -1793,17 +1895,17 @@ def exportar_reporte_excel(id_reporte, formato="excel"):
                 resumen = {}
                 for fila in filas:
                     resumen[fila[3]] = resumen.get(fila[3], 0) + 1
-                contenido.append(Paragraph(escape("Resumen por estado: " + ", ".join(
+                contenido.append(Paragraph(_texto_pdf_con_fuentes("Resumen por estado: " + ", ".join(
                     f"{estado}: {total}" for estado, total in resumen.items()
                 )), estilos["Normal"]))
             if reporte["tipo_reporte"] == "HISTORIAL_CONSOLIDADO":
                 resumen = {}
                 for fila in filas:
                     resumen[fila[2]] = resumen.get(fila[2], 0) + 1
-                contenido.append(Paragraph(escape("Actividades por módulo: " + ", ".join(
+                contenido.append(Paragraph(_texto_pdf_con_fuentes("Actividades por módulo: " + ", ".join(
                     f"{modulo}: {total}" for modulo, total in sorted(resumen.items())
                 )), estilos["Normal"]))
-            datos = [[Paragraph(escape(str(valor)), estilos["BodyText"])
+            datos = [[Paragraph(_texto_pdf_con_fuentes(valor), estilos["BodyText"])
                       for valor in fila] for fila in [encabezados, *filas]]
             tabla = LongTable(datos, colWidths=[documento.width / len(encabezados)] * len(encabezados),
                               repeatRows=1, splitInRow=1)
@@ -1814,9 +1916,7 @@ def exportar_reporte_excel(id_reporte, formato="excel"):
             ]))
             contenido.append(tabla)
             if not filas:
-                sin_datos = (MENSAJE_SIN_ACTIVIDADES if reporte["tipo_reporte"] == "HISTORIAL_CONSOLIDADO"
-                             else MENSAJE_SIN_TAREAS)
-                contenido.append(Paragraph(sin_datos, estilos["Normal"]))
+                contenido.append(Paragraph(_texto_pdf_con_fuentes(sin_datos), estilos["Normal"]))
             documento.build(contenido)
             buffer.seek(0)
             return send_file(buffer, mimetype="application/pdf", as_attachment=True,

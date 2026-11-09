@@ -249,6 +249,8 @@ CREATE TABLE IF NOT EXISTS registro_tiempo (
             ROUND((duracion_minutos / 60) * tarifa_hora, 2)
         ) STORED,
     fecha_creacion DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    origen ENUM('TEMPORIZADOR','MANUAL') NOT NULL DEFAULT 'TEMPORIZADOR',
+    observacion VARCHAR(255) NULL,
 
     CONSTRAINT fk_registro_tiempo_usuario
         FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario),

@@ -1,8 +1,10 @@
 """C1/C2 contra MySQL desechable: agregados, límites y separación por usuario."""
+import io
 import os
 from decimal import Decimal
 
 import pytest
+from openpyxl import load_workbook
 
 from tests.mysql_desechable import BASE_APP, herramientas_disponibles
 from tests.test_rf74_mysql_real import mundo, servidor  # noqa: F401
@@ -124,6 +126,53 @@ def test_fechas_inclusivas_registro_abierto_y_tarea_completada(
         "SELECT COUNT(*) AS total FROM registro_tiempo WHERE hora_fin IS NULL"
     )
     assert abiertos[0]["total"] == 1
+
+
+def test_etiquetas_diarias_y_mensuales_tienen_el_formato_publicado(
+    client, iniciar_sesion, con_registros
+):
+    iniciar_sesion(usuario_id=1, rol_id=1)
+
+    diario = client.get(
+        "/api/reportes/horas-trabajadas",
+        query_string={"agrupar_por": "periodo", "granularidad": "dia"},
+    )
+    mensual = client.get(
+        "/api/reportes/horas-trabajadas",
+        query_string={"agrupar_por": "periodo", "granularidad": "mes"},
+    )
+
+    assert diario.status_code == mensual.status_code == 200
+    assert diario.get_json()["filas"][0]["etiqueta"] == "30-09-2026"
+    assert mensual.get_json()["filas"][0]["etiqueta"] == "09-2026"
+
+
+def test_parametros_excel_muestran_razon_social_y_rut_del_cliente(
+    client, iniciar_sesion, con_registros
+):
+    iniciar_sesion(usuario_id=1, rol_id=1)
+    cliente = con_registros.consulta(
+        "SELECT razon_social, rut FROM cliente WHERE id_cliente = 1"
+    )[0]
+
+    respuesta = client.get(
+        "/api/reportes/horas-trabajadas",
+        query_string={"agrupar_por": "cliente", "id_cliente": 1},
+    )
+    assert respuesta.status_code == 200
+    id_reporte = respuesta.get_json()["id_reporte"]
+
+    exportacion = client.get(f"/api/reportes/{id_reporte}/excel")
+    assert exportacion.status_code == 200
+    parametros = load_workbook(io.BytesIO(exportacion.data), data_only=True)["Parámetros"]
+    fila_cliente = next(
+        parametros.cell(fila, 1).row
+        for fila in range(1, parametros.max_row + 1)
+        if parametros.cell(fila, 1).value == "Cliente"
+    )
+    assert parametros.cell(fila_cliente, 2).value == (
+        f"{cliente['razon_social']} ({cliente['rut']})"
+    )
 
 
 @pytest.mark.parametrize(

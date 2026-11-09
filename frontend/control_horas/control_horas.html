@@ -33,6 +33,66 @@
         <div class="control-header-actions" id="accionesControlHoras" hidden></div>
       </section>
 
+      <section class="control-section" id="panelRegistroManual" hidden aria-labelledby="tituloRegistroManual">
+        <div class="section-heading">
+          <div>
+            <h2 id="tituloRegistroManual">Registrar horas manualmente</h2>
+            <p>Úselo cuando no pudo iniciar el temporizador. Indique el horario real del trabajo: solo se aceptan horas que ya ocurrieron, de los últimos 30 días.</p>
+          </div>
+        </div>
+
+        <form id="formRegistroManual" class="registro-manual-form" novalidate>
+          <div class="registro-manual-grid">
+            <div class="form-group">
+              <label class="form-label" for="rmCliente">Cliente</label>
+              <select id="rmCliente" class="form-input" required>
+                <option value="">Seleccione un cliente</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="rmTarea">Tarea</label>
+              <select id="rmTarea" class="form-input" required disabled>
+                <option value="">Seleccione primero un cliente</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="rmFecha">Fecha</label>
+              <input id="rmFecha" class="form-input" type="date" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="rmHoraInicio">Hora de inicio</label>
+              <input id="rmHoraInicio" class="form-input" type="time" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="rmHoraFin">Hora de término</label>
+              <input id="rmHoraFin" class="form-input" type="time" required>
+            </div>
+
+            <div class="form-group">
+              <span class="form-label">Duración</span>
+              <p id="rmDuracion" class="registro-manual-duracion" aria-live="polite">Indique la hora de inicio y la de término.</p>
+              <p class="form-help">El monto lo calcula el servidor con la tarifa vigente al registrar.</p>
+            </div>
+
+            <div class="form-group registro-manual-completo">
+              <label class="form-label" for="rmObservacion">Observación</label>
+              <textarea id="rmObservacion" class="form-input" rows="3" maxlength="255" required aria-describedby="rmObservacionAyuda"></textarea>
+              <p id="rmObservacionAyuda" class="form-help">Describa el trabajo realizado (máximo 255 caracteres). Es obligatoria.</p>
+            </div>
+          </div>
+
+          <div class="registro-manual-acciones">
+            <button type="submit" id="btnGuardarRegistroManual" class="btn btn-primary">Registrar horas</button>
+            <button type="button" id="btnCancelarRegistroManual" class="btn btn-secondary">Cancelar</button>
+          </div>
+          <p id="mensajeRegistroManual" class="mensaje" aria-live="polite"></p>
+        </form>
+      </section>
+
       <section class="time-shell" aria-labelledby="timerTitle">
         <div class="time-main-card" id="timerPanel">
           <div class="timer-heading">
@@ -115,7 +175,7 @@
           <div>
             <h2>Resumen</h2>
             <p>Totales calculados con registros cerrados.</p>
-            <p id="alcanceResumen" class="form-help">Mostrando: mis registros. Filtros: ninguno.</p>
+            <p id="alcanceResumen" class="form-help">Mostrando: mis registros · Filtros: ninguno.</p>
           </div>
         </div>
 
@@ -218,11 +278,12 @@
                 <th>Duración</th>
                 <th>Tarifa</th>
                 <th>Monto</th>
+                <th>Origen</th>
               </tr>
             </thead>
             <tbody id="tablaRegistros">
               <tr>
-                <td colspan="8" class="text-loading">Cargando registros...</td>
+                <td colspan="9" class="text-loading">Cargando registros...</td>
               </tr>
             </tbody>
           </table>
@@ -235,6 +296,7 @@
 <script src="../assets/js/api_config.js"></script>
 <script src="../assets/js/confirmar.js"></script>
 <script src="../assets/js/fechas.js"></script>
+<script src="../assets/js/panel_alta.js"></script>
 <script src="../auth/logout.js"></script>
 <script src="../assets/js/navigation.js"></script>
 <script src="../assets/js/topbar.js"></script>
