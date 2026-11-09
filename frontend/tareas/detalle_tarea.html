@@ -85,6 +85,56 @@
         </div>
       </section>
 
+      <section class="tareas-section" id="seccionHoras" hidden aria-labelledby="tituloHoras">
+        <div class="horas-encabezado">
+          <div>
+            <h2 id="tituloHoras">Horas trabajadas</h2>
+            <p id="horasAlcance" class="form-help"></p>
+          </div>
+          <div class="horas-acciones">
+            <button type="button" id="btnIniciarTemporizadorTarea" class="btn btn-primary" hidden>Iniciar temporizador</button>
+            <a id="enlaceRegistroManualTarea" class="btn btn-secondary" href="#" hidden>Registrar horas manualmente</a>
+            <a id="enlaceControlHorasTarea" class="btn btn-secondary" href="#">Ver en Control de horas</a>
+          </div>
+        </div>
+
+        <p id="horasEstadoTemporizador" class="form-help" aria-live="polite"></p>
+        <p id="horasMensaje" class="mensaje" aria-live="polite"></p>
+
+        <div class="horas-resumen">
+          <div class="metric-card">
+            <p>Horas en esta tarea</p>
+            <h3 id="horasTotalTarea">00h 00m</h3>
+          </div>
+          <div class="metric-card">
+            <p>Monto acumulado</p>
+            <h3 id="horasMontoTarea">$0</h3>
+          </div>
+          <div class="metric-card">
+            <p>Registros</p>
+            <h3 id="horasRegistrosTarea">0</h3>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="tareas-table">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th id="thUsuarioHoras" hidden>Usuario</th>
+                <th>Inicio</th>
+                <th>Término</th>
+                <th>Duración</th>
+                <th>Monto</th>
+                <th>Origen</th>
+              </tr>
+            </thead>
+            <tbody id="tablaHorasTarea"></tbody>
+          </table>
+        </div>
+        <p id="horasNota" class="form-help"></p>
+      </section>
+
       <section class="tareas-section" id="seccionHistorial" hidden>
         <h2>Historial de cambios</h2>
 

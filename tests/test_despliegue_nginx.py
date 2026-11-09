@@ -10,10 +10,11 @@ def _conf():
         return archivo.read()
 
 
-def test_las_cabeceras_de_seguridad_estan_en_el_servidor_y_en_los_recursos_estaticos():
+def test_las_cabeceras_de_seguridad_estan_en_el_servidor_las_paginas_y_los_recursos_estaticos():
     conf = _conf()
     for cabecera in ("X-Content-Type-Options", "X-Frame-Options", "Referrer-Policy"):
-        assert len(re.findall(rf'add_header {cabecera} ', conf)) == 2, cabecera
+        # Una en «server», otra en el location de las páginas HTML y otra en el de los recursos estáticos.
+        assert len(re.findall(rf'add_header {cabecera} ', conf)) == 3, cabecera
     assert "server_tokens off;" in conf
     assert "Strict-Transport-Security" not in conf, "sin HTTPS no se debe enviar HSTS"
 
@@ -72,3 +73,44 @@ def test_la_plantilla_https_tiene_las_mismas_rutas_que_la_vigente():
     assert "return 301 https://$host$request_uri;" in https
     assert "Strict-Transport-Security" in https and "ssl_protocols TLSv1.2 TLSv1.3;" in https
     assert "DOMINIO" in https, "es una plantilla: el dominio se reemplaza al activarla"
+
+
+def _bloque(conf, inicio):
+    """Texto de un bloque `{ ... }` que empieza en `inicio` (contando llaves)."""
+    i = conf.index(inicio)
+    abre = conf.index("{", i)
+    nivel, j = 0, abre
+    while True:
+        nivel += 1 if conf[j] == "{" else -1 if conf[j] == "}" else 0
+        if nivel == 0:
+            return conf[i:j + 1]
+        j += 1
+
+
+def test_las_paginas_html_se_revalidan_para_no_mezclarse_con_un_javascript_mas_nuevo():
+    """Sin Cache-Control el navegador reutiliza un HTML viejo (caché heurística) con el .js ya actualizado."""
+    conf = re.sub(r"^\s*#.*$", "", _conf(), flags=re.MULTILINE)
+    servidor = conf[conf.index("server {"):]
+    bloque = _bloque(servidor, r"location ~* \.html$")
+
+    assert 'add_header Cache-Control "no-cache";' in bloque
+    assert "try_files $uri @login;" in bloque, "una página inexistente sigue llevando al login"
+    for cabecera in ("X-Content-Type-Options", "X-Frame-Options", "Referrer-Policy"):
+        assert f"add_header {cabecera} " in bloque, f"el location define sus propios add_header: repite {cabecera}"
+    antes = servidor[:servidor.index(r"location ~* \.html$")]
+    assert antes.count("{") - antes.count("}") == 1, "va a nivel de «server»"
+
+
+def test_todo_location_con_add_header_repite_las_cabeceras_de_seguridad():
+    """Nginx no hereda add_header en un location que define los suyos: olvidar una las pierde en silencio."""
+    conf = re.sub(r"^\s*#.*$", "", _conf(), flags=re.MULTILINE)
+    servidor = conf[conf.index("server {"):]
+    locations = re.findall(r"location\s+[^{]+\{", servidor)
+    revisados = 0
+    for encabezado in locations:
+        bloque = _bloque(servidor, encabezado)
+        if "add_header" in bloque:
+            revisados += 1
+            for cabecera in ("X-Content-Type-Options", "X-Frame-Options", "Referrer-Policy"):
+                assert f"add_header {cabecera} " in bloque, (encabezado.strip(), cabecera)
+    assert revisados == 2, "el location de las páginas HTML y el de los recursos estáticos"

@@ -43,11 +43,46 @@ const thUsuarioRegistro = document.getElementById("thUsuarioRegistro");
 let tareasFiltroHoras = [];
 let falloCargaFiltrosHoras = false;
 
+// Elementos que esta versión del script necesita. Si faltan, el navegador conserva el HTML de una versión
+// anterior (los .js se revalidan en cada visita y los .html pueden quedar en caché): se avisa y se pide
+// recargar en lugar de dejar la pantalla a medias, con el historial en «Cargando…» y sin filtros.
+const ELEMENTOS_REQUERIDOS = [
+  "accionesControlHoras", "formFiltrosHoras", "panelRegistroManual",
+  "formRegistroManual", "tablaRegistros", "alcanceResumen"
+];
+
+function mostrarAvisoVersionAnterior() {
+  const contenedor = document.createElement("div");
+  contenedor.className = "mensaje error";
+  contenedor.setAttribute("role", "alert");
+
+  const texto = document.createElement("p");
+  texto.textContent =
+    "Su navegador conserva una versión anterior de esta pantalla y no puede mostrarla completa. " +
+    "Recargue la página para obtener la versión actual.";
+  contenedor.appendChild(texto);
+
+  const boton = document.createElement("button");
+  boton.type = "button";
+  boton.className = "btn btn-primary";
+  boton.textContent = "Recargar página";
+  boton.addEventListener("click", () => window.location.reload());
+  contenedor.appendChild(boton);
+
+  const principal = document.querySelector("main") || document.body;
+  principal.insertBefore(contenedor, principal.firstChild);
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   usuarioActual = await obtenerUsuarioActual();
 
   if (!usuarioActual) {
     window.location.href = "../auth/login.html";
+    return;
+  }
+
+  if (ELEMENTOS_REQUERIDOS.some(id => !document.getElementById(id))) {
+    mostrarAvisoVersionAnterior();
     return;
   }
 
@@ -105,8 +140,58 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   await cargarContexto();
   await cargarFiltrosRegistros();
+  const solicitud = leerSolicitudDeTarea();
+  if (solicitud) filtrarHistorialPorTarea(solicitud.idTarea);
   await cargarRegistros();
+  if (solicitud) aplicarSolicitudDeTarea(solicitud);
 });
+
+// El detalle de la tarea enlaza aquí con ?id_tarea=<id> (y &registrar=manual para abrir el registro
+// manual). Solo se aceptan identificadores numéricos: cualquier otra cosa se ignora.
+function leerSolicitudDeTarea() {
+  const parametros = new URLSearchParams(window.location.search);
+  const id = parametros.get("id_tarea");
+  if (!id || !/^[1-9][0-9]{0,9}$/.test(id)) return null;
+  return { idTarea: Number(id), registrarManual: parametros.get("registrar") === "manual" };
+}
+
+function filtrarHistorialPorTarea(idTarea) {
+  const tarea = tareasFiltroHoras.find(t => Number(t.id_tarea) === idTarea);
+  if (!tarea) return;
+  filtroCliente.value = String(tarea.id_cliente);
+  actualizarTareasFiltro();
+  filtroTarea.value = String(tarea.id_tarea);
+}
+
+function aplicarSolicitudDeTarea({ idTarea, registrarManual }) {
+  const tarea = tareasDisponibles.find(t => Number(t.id_tarea) === idTarea);
+
+  if (!tarea) {
+    if (!temporizadorActivo || Number(temporizadorActivo.id_tarea) !== idTarea) {
+      mostrarMensaje(
+        "La tarea indicada no está disponible para registrar horas: está finalizada, su cliente " +
+          "está inactivo o no está asignada a usted.",
+        "info"
+      );
+    }
+    return;
+  }
+
+  if (!temporizadorActivo) {
+    seleccionarClienteDesdeTarea(tarea);
+    tareaBusqueda.value = obtenerTextoTarea(tarea);
+    idTareaSeleccionada.value = tarea.id_tarea;
+    actualizarVistaSeleccion();
+  }
+
+  if (registrarManual && panelRegistroManual) {
+    panelRegistroManual.abrir();
+    document.getElementById("rmCliente").value = String(tarea.id_cliente);
+    poblarTareasRegistroManual();
+    document.getElementById("rmTarea").value = String(tarea.id_tarea);
+    document.getElementById("rmHoraInicio").focus({ preventScroll: true });
+  }
+}
 
 async function cargarFiltrosRegistros() {
   try {
