@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 
 from mysql.connector import IntegrityError
 from mysql.connector.errors import DatabaseError
@@ -7,7 +8,7 @@ from flask import Blueprint, request, jsonify
 from backend.config.db import get_connection
 from backend.utils.auditoria import registrar_auditoria
 from backend.utils.auth import ROL_ADMINISTRADOR, login_required, obtener_usuario_actual, roles_required
-from backend.utils.security import hash_password
+from backend.utils.security import LARGO_MINIMO_PASSWORD, hash_password
 
 usuarios_bp = Blueprint("usuarios", __name__)
 logger = logging.getLogger(__name__)
@@ -25,6 +26,18 @@ AREA_POR_ROL = {
     ROL_USUARIO_AREA_JURIDICA: AREA_JURIDICA,
     ROL_USUARIO_AREA_CONTABLE: AREA_CONTABLE,
 }
+
+FORMATO_FECHA_HORA = "%Y-%m-%d %H:%M:%S"
+
+
+def _con_fecha_en_texto(usuario):
+    """Flask serializa un datetime como «Thu, 05 Nov 2026 00:57:12 GMT»: en inglés y con una
+    zona que MySQL no guardó. La fecha de registro sale con el mismo formato del historial."""
+    fecha = usuario.get("fecha_creacion")
+    if isinstance(fecha, datetime):
+        usuario["fecha_creacion"] = fecha.strftime(FORMATO_FECHA_HORA)
+    return usuario
+
 
 NOMBRE_AREA_POR_ROL = {
     ROL_ID_ADMINISTRADOR: "Ambas áreas",
@@ -157,6 +170,9 @@ def create_usuario():
 
     if not id_rol or not id_area or not nombres or not email or not password:
         return jsonify({"error": "Todos los campos son obligatorios"}), 400
+
+    if len(password) < LARGO_MINIMO_PASSWORD:
+        return jsonify({"error": f"La contraseña debe tener al menos {LARGO_MINIMO_PASSWORD} caracteres"}), 400
 
     id_rol, id_area, error = resolver_area_para_rol(id_rol, id_area)
 
@@ -308,7 +324,7 @@ def listar_usuarios():
             sql += " ORDER BY u.nombres ASC, u.id_usuario ASC"
 
         cursor.execute(sql, tuple(parametros))
-        usuarios = cursor.fetchall()
+        usuarios = [_con_fecha_en_texto(usuario) for usuario in cursor.fetchall()]
 
         return jsonify(usuarios), 200
 
@@ -358,7 +374,7 @@ def obtener_usuario(id_usuario):
         if not usuario:
             return jsonify({"error": "Usuario no encontrado"}), 404
 
-        return jsonify(usuario), 200
+        return jsonify(_con_fecha_en_texto(usuario)), 200
 
     except Exception:
         if connection:

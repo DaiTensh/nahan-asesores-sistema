@@ -1,5 +1,13 @@
 const API_URL = window.API_CONFIG.API_URL;
 
+// La API entrega la fecha de creación como «AAAA-MM-DD HH:MM:SS»; se muestra como en el historial.
+function formatearFechaRegistro(valor) {
+  if (!valor) return "-";
+  const [fecha, hora = ""] = String(valor).split(" ");
+  const [anio, mes, dia] = fecha.split("-");
+  return `${dia}-${mes}-${anio} ${hora.substring(0, 5)}`.trim();
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   const selectAreaFiltro = document.getElementById("selectAreaFiltro");
   const inputBuscarTexto = document.getElementById("inputBuscarTexto");
@@ -286,7 +294,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       fila.appendChild(crearCeldaTexto(cliente.areas_nombres || "Sin área"));
       fila.appendChild(crearCeldaTexto(cliente.responsables_nombres || "Sin responsable"));
       fila.appendChild(crearCeldaEstado(cliente.estado));
-      fila.appendChild(crearCeldaTexto(cliente.fecha_creacion));
+      fila.appendChild(crearCeldaTexto(formatearFechaRegistro(cliente.fecha_creacion)));
       fila.appendChild(crearCeldaAcciones(cliente));
 
       tbody.appendChild(fila);
@@ -354,7 +362,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (esAdmin) {
       contenedor.appendChild(crearEnlaceAccion("Estado", `cambiar_estado.html?id=${cliente.id_cliente}`, "btn btn-warning btn-small"));
-      contenedor.appendChild(crearEnlaceAccion("Quitar", `eliminar_cliente.html?id=${cliente.id_cliente}`, "btn btn-danger btn-small"));
+      contenedor.appendChild(crearEnlaceAccion("Eliminar", `eliminar_cliente.html?id=${cliente.id_cliente}`, "btn btn-danger btn-small"));
     }
 
     celda.appendChild(contenedor);

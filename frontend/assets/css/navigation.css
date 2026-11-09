@@ -69,6 +69,20 @@
   background: rgba(255, 255, 255, .16);
 }
 
+.sidebar-header,
+.sidebar-user {
+  flex-shrink: 0;
+}
+
+.sidebar-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, .35) transparent;
+}
+
 .sidebar-nav {
   display: flex;
   flex-direction: column;
@@ -101,7 +115,7 @@
   height: 28px;
   border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, .12);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .sidebar-text,
@@ -283,4 +297,39 @@ body.sidebar-collapsed .sidebar-session-panel {
   .main-content {
     padding: var(--spacing-5);
   }
+}
+
+/* Con el menú contraído a 84 px el contenido mide ~306 px a 390 px de pantalla: 16 px de margen en vez de 24. */
+@media (max-width: 640px) {
+  .main-content {
+    padding: var(--spacing-4);
+  }
+}
+
+/* H-17 — «Saltar al contenido»: queda fuera de la pantalla hasta que recibe el foco del teclado. */
+.saltar-contenido {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 1000;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+  transform: translateY(-200%);
+}
+
+.saltar-contenido:focus {
+  transform: translateY(0);
+}
+
+main[tabindex="-1"]:focus {
+  outline: none;
+}
+
+/* El menú es azul oscuro: sobre él el anillo de foco debe ser claro (el color del resto no llega a 3:1). */
+.sidebar :focus-visible {
+  outline-color: #fff;
 }

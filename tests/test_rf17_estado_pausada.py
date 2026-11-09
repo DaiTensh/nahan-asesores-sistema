@@ -82,7 +82,7 @@ def test_el_administrador_que_pausa_avisa_al_responsable(client, iniciar_sesion,
     assert _cambiar(client, id_tarea, "PAUSADA").status_code == 200
 
     aviso = mundo.consulta("SELECT mensaje, id_usuario FROM notificacion WHERE tipo = 'CAMBIO_ESTADO_TAREA'")[0]
-    assert aviso["id_usuario"] == ID_AREA_JURIDICA and "de EN_PROCESO a PAUSADA" in aviso["mensaje"]
+    assert aviso["id_usuario"] == ID_AREA_JURIDICA and "de «En proceso» a «Pausada»" in aviso["mensaje"]
 
 
 def test_nadie_pausa_la_tarea_de_otra_persona(client, iniciar_sesion, mundo, nueva_tarea):  # noqa: F811

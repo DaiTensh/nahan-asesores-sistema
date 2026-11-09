@@ -58,8 +58,7 @@
   // La fecha llega como hora local del servidor rotulada "GMT": se muestra
   // en UTC para no desplazarla (mismo criterio que detalle_tarea.js).
   function formatearFecha(valor) {
-    const fecha = new Date(valor);
-    return Number.isNaN(fecha.getTime()) ? String(valor ?? "") : fecha.toLocaleString("es-CL", { timeZone: "UTC" });
+    return formatearFechaHora24(valor, { utc: true });
   }
 
   function actualizarInsignia(noLeidas) {

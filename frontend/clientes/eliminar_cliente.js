@@ -38,7 +38,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (data.tiene_vinculos) {
         puedeEliminarDefinitivo = false;
-        textoVerificacion.textContent = `Este cliente posee ${data.tareas_activas} tareas activas o documentos vigentes. Se aplicará deshabilitación lógica para conservar el historial.`;
+        textoVerificacion.textContent = `Este cliente posee ${data.tareas_activas} tareas activas y ${data.documentos_activos} documentos vigentes. Se aplicará deshabilitación lógica para conservar el historial.`;
         btnConfirmarAccion.textContent = "Deshabilitar cliente";
       } else {
         puedeEliminarDefinitivo = true;

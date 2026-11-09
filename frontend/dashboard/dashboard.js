@@ -90,6 +90,42 @@ function formatearArea(area) {
   return areas[area] || area;
 }
 
+// H-11 — Si una petición fallaba, los contadores se quedaban en 0 y las listas vacías, igual que si no
+// hubiera datos. Cada cargador llama a marcarErrorPanel al fallar y a limpiarErrorPanel al recibir datos.
+const PANELES = {
+  usuarios: { nombre: "Resumen de usuarios", contadores: ["totalUsuarios", "usuariosActivos", "usuariosInactivos", "totalAdmins"], listas: ["tablaUsuarios"] },
+  cargaTrabajo: { nombre: "Carga de trabajo por usuario", contadores: [], listas: ["tablaCargaTrabajoUsuarios"] },
+  clientes: { nombre: "Resumen de clientes", contadores: ["totalClientes", "clientesActivos", "clientesInactivos"], listas: ["tablaClientes"] },
+  vencidas: { nombre: "Tareas vencidas", contadores: [], listas: ["tablaTareasVencidas"] },
+  pendientes: { nombre: "Tareas pendientes", contadores: ["totalTareasPendientes", "diferenciaPendientes"], listas: ["tareasPendientesPorArea", "tareasPendientesPorCliente", "tareasPendientesPorResponsable"] },
+  finalizadas: { nombre: "Tareas finalizadas", contadores: ["totalTareasFinalizadas", "totalTareasAsignadas", "cumplimientoTareasFinalizadas", "diferenciaFinalizadas"], listas: ["tareasFinalizadasPorArea", "tareasFinalizadasPorCliente", "tareasFinalizadasPorUsuario"] },
+  distribucion: { nombre: "Distribución por área", contadores: ["totalClientesDistribucionArea", "totalRelacionesClientesArea", "totalTareasDistribucionArea"], listas: ["distribucionClientesPorArea", "distribucionTareasPorArea"] },
+  estadoTareas: { nombre: "Tareas por estado", contadores: ["resumenPendiente", "resumenEnProceso", "resumenPausada", "resumenEnRevision", "resumenCompletada", "resumenCancelada"], listas: [] },
+  prioritarias: { nombre: "Mis tareas prioritarias", contadores: [], listas: ["tablaTareasPrioritarias"] },
+  porVencer: { nombre: "Tareas próximas a vencer", contadores: [], listas: ["tablaTareasPorVencer"] }
+};
+
+function marcarErrorPanel(clave) {
+  const panel = PANELES[clave];
+  const primero = document.getElementById(panel.contadores[0] || panel.listas[0]);
+
+  panel.contadores.forEach(id => { document.getElementById(id).textContent = "—"; });
+  panel.listas.forEach(id => { document.getElementById(id).innerHTML = ""; });
+
+  if (!primero || document.querySelector(`[data-error-panel="${clave}"]`)) return;
+  const aviso = document.createElement("p");
+  aviso.className = "mensaje error";
+  aviso.setAttribute("role", "alert");
+  aviso.dataset.errorPanel = clave;
+  aviso.textContent = `No se pudo cargar «${panel.nombre}». Recargue la página o intente nuevamente.`;
+  const destino = primero.closest(".dashboard-cards") || primero.closest("table") || primero.closest("ul, div") || primero;
+  destino.parentNode.insertBefore(aviso, destino);
+}
+
+function limpiarErrorPanel(clave) {
+  document.querySelectorAll(`[data-error-panel="${clave}"]`).forEach(aviso => aviso.remove());
+}
+
 async function cargarDatosUsuario() {
   const usuario = await obtenerUsuarioActual();
 
@@ -112,9 +148,11 @@ async function cargarResumenUsuarios() {
 
     if (!response.ok) {
       console.error("Error al cargar usuarios");
+      marcarErrorPanel("usuarios");
       return;
     }
 
+    limpiarErrorPanel("usuarios");
     document.getElementById("totalUsuarios").textContent = usuarios.length;
     document.getElementById("usuariosActivos").textContent =
       usuarios.filter(usuario => usuario.estado === "ACTIVO").length;
@@ -144,6 +182,7 @@ async function cargarResumenUsuarios() {
 
   } catch (error) {
     console.error(error);
+    marcarErrorPanel("usuarios");
   }
 }
 
@@ -162,9 +201,11 @@ async function cargarCargaTrabajoPorUsuario() {
 
     if (!response.ok) {
       console.error(data.error || "Error al cargar la carga de trabajo por usuario");
+      marcarErrorPanel("cargaTrabajo");
       return;
     }
 
+    limpiarErrorPanel("cargaTrabajo");
     const tabla = document.getElementById("tablaCargaTrabajoUsuarios");
     tabla.innerHTML = "";
 
@@ -190,6 +231,7 @@ async function cargarCargaTrabajoPorUsuario() {
     });
   } catch (error) {
     console.error(error);
+    marcarErrorPanel("cargaTrabajo");
   }
 }
 
@@ -229,6 +271,7 @@ async function cargarResumenClientes() {
       return;
     }
 
+    limpiarErrorPanel("clientes");
     document.getElementById("totalClientes").textContent = data.total_clientes;
     document.getElementById("clientesActivos").textContent = data.clientes_activos;
     document.getElementById("clientesInactivos").textContent = data.clientes_inactivos;
@@ -249,20 +292,19 @@ async function cargarClientesDesdeListado() {
 
     if (!response.ok) {
       console.error(data.error || "Error al cargar clientes");
+      marcarErrorPanel("clientes");
       return;
     }
 
     const clientes = Array.isArray(data) ? data : data.clientes || [];
 
-    document.getElementById("totalClientes").textContent = clientes.length;
-    document.getElementById("clientesActivos").textContent =
-      clientes.filter(cliente => normalizarEstado(cliente.estado) === "ACTIVO").length;
-    document.getElementById("clientesInactivos").textContent =
-      clientes.filter(cliente => normalizarEstado(cliente.estado) === "INACTIVO").length;
-
+    // Este respaldo solo trae la primera página (5 clientes): sirve para la lista de últimos clientes, pero
+    // contarlos daría totales parciales presentados como reales. Los contadores quedan en «—» con su aviso.
+    marcarErrorPanel("clientes");
     cargarTablaClientes(clientes);
   } catch (error) {
     console.error(error);
+    marcarErrorPanel("clientes");
   }
 }
 
@@ -350,12 +392,15 @@ async function cargarTareasVencidas() {
 
     if (!response.ok) {
       console.error(tareas.error || "Error al cargar tareas vencidas");
+      marcarErrorPanel("vencidas");
       return;
     }
 
+    limpiarErrorPanel("vencidas");
     cargarTablaTareasVencidas(tareas);
   } catch (error) {
     console.error(error);
+    marcarErrorPanel("vencidas");
   }
 }
 
@@ -368,9 +413,11 @@ async function cargarResumenTareasPendientes() {
 
     if (!response.ok) {
       console.error(data.error || "Error al cargar tareas pendientes");
+      marcarErrorPanel("pendientes");
       return;
     }
 
+    limpiarErrorPanel("pendientes");
     document.getElementById("totalTareasPendientes").textContent = data.total_pendientes ?? 0;
 
     const diferenciaElemento = document.getElementById("diferenciaPendientes");
@@ -386,6 +433,7 @@ async function cargarResumenTareasPendientes() {
     renderizarListaResumen("tareasPendientesPorResponsable", data.por_responsable || [], "responsable", "total");
   } catch (error) {
     console.error(error);
+    marcarErrorPanel("pendientes");
   }
 }
 
@@ -431,12 +479,15 @@ async function cargarTareasPorVencer(dias) {
 
     if (!response.ok) {
       console.error(tareas.error || "Error al cargar tareas próximas a vencer");
+      marcarErrorPanel("porVencer");
       return;
     }
 
+    limpiarErrorPanel("porVencer");
     cargarTablaTareasPorVencer(tareas);
   } catch (error) {
     console.error(error);
+    marcarErrorPanel("porVencer");
   }
 }
 
@@ -482,12 +533,15 @@ async function cargarTareasPrioritarias() {
 
     if (!response.ok) {
       console.error(tareas.error || "Error al cargar tareas prioritarias");
+      marcarErrorPanel("prioritarias");
       return;
     }
 
+    limpiarErrorPanel("prioritarias");
     cargarTablaTareasPrioritarias(tareas);
   } catch (error) {
     console.error(error);
+    marcarErrorPanel("prioritarias");
   }
 }
 
@@ -536,9 +590,11 @@ async function cargarResumenTareas() {
 
     if (!response.ok) {
       console.error(resumen.error || "Error al cargar el resumen de tareas");
+      marcarErrorPanel("estadoTareas");
       return;
     }
 
+    limpiarErrorPanel("estadoTareas");
     document.getElementById("resumenPendiente").textContent = resumen.PENDIENTE ?? 0;
     document.getElementById("resumenEnProceso").textContent = resumen.EN_PROCESO ?? 0;
     document.getElementById("resumenPausada").textContent = resumen.PAUSADA ?? 0;
@@ -547,6 +603,7 @@ async function cargarResumenTareas() {
     document.getElementById("resumenCancelada").textContent = resumen.CANCELADA ?? 0;
   } catch (error) {
     console.error(error);
+    marcarErrorPanel("estadoTareas");
   }
 }
 
@@ -559,9 +616,11 @@ async function cargarResumenTareasFinalizadas() {
 
     if (!response.ok) {
       console.error(data.error || "Error al cargar tareas finalizadas");
+      marcarErrorPanel("finalizadas");
       return;
     }
 
+    limpiarErrorPanel("finalizadas");
     document.getElementById("totalTareasFinalizadas").textContent = data.total_finalizadas ?? 0;
     document.getElementById("totalTareasAsignadas").textContent = data.total_asignadas ?? 0;
     const porcentaje = Number(data.porcentaje_cumplimiento ?? 0);
@@ -575,11 +634,12 @@ async function cargarResumenTareasFinalizadas() {
       diferenciaElemento.textContent = "N/A";
     }
 
-    renderizarListaResumen("tareasFinalizadasPorArea", data.por_area || [], "area", "total");
-    renderizarListaResumen("tareasFinalizadasPorCliente", data.por_cliente || [], "cliente", "total");
-    renderizarListaResumen("tareasFinalizadasPorUsuario", data.por_usuario || [], "usuario", "total");
+    renderizarListaResumen("tareasFinalizadasPorArea", data.por_area || [], "area", "total", "Sin tareas finalizadas en el período.");
+    renderizarListaResumen("tareasFinalizadasPorCliente", data.por_cliente || [], "cliente", "total", "Sin tareas finalizadas en el período.");
+    renderizarListaResumen("tareasFinalizadasPorUsuario", data.por_usuario || [], "usuario", "total", "Sin tareas finalizadas en el período.");
   } catch (error) {
     console.error(error);
+    marcarErrorPanel("finalizadas");
   }
 }
 
@@ -592,9 +652,11 @@ async function cargarDistribucionPorArea() {
 
     if (!response.ok) {
       console.error(data.error || "Error al cargar la distribución por área");
+      marcarErrorPanel("distribucion");
       return;
     }
 
+    limpiarErrorPanel("distribucion");
     document.getElementById("totalClientesDistribucionArea").textContent = data.total_clientes ?? 0;
     document.getElementById("totalRelacionesClientesArea").textContent = data.total_asignaciones_cliente_area ?? 0;
     document.getElementById("totalTareasDistribucionArea").textContent = data.total_tareas ?? 0;
@@ -613,6 +675,7 @@ async function cargarDistribucionPorArea() {
     );
   } catch (error) {
     console.error(error);
+    marcarErrorPanel("distribucion");
   }
 }
 
@@ -658,13 +721,13 @@ function renderizarDistribucionArea(idContenedor, areas, claveCantidad, clavePor
   });
 }
 
-function renderizarListaResumen(idLista, elementos, etiquetaClave, etiquetaValor) {
+function renderizarListaResumen(idLista, elementos, etiquetaClave, etiquetaValor, mensajeVacio = "Sin tareas pendientes.") {
   const lista = document.getElementById(idLista);
   lista.innerHTML = "";
 
   if (!elementos.length) {
     const item = document.createElement("li");
-    item.textContent = "Sin tareas pendientes.";
+    item.textContent = mensajeVacio;
     lista.appendChild(item);
     return;
   }

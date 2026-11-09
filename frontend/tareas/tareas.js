@@ -31,6 +31,12 @@ let ultimaCargaTareas = 0;
 let agrupacionActual = "";
 
 document.addEventListener("DOMContentLoaded", () => {
+  configurarPanelAlta({
+    botonId: "btnNuevaTarea",
+    panelId: "panelNuevaTarea",
+    primerCampoId: "cliente_busqueda"
+  });
+
   ClientesAutocomplete.configurarSelectorCliente({
     inputId: "cliente_busqueda",
     hiddenId: "id_cliente",
@@ -190,6 +196,7 @@ async function cargarTareasPendientes() {
 
     if (!response.ok) {
       console.error(tareas.error || "Error al cargar tareas");
+      mostrarErrorListado(tareas.error);
       return;
     }
 
@@ -212,7 +219,21 @@ async function cargarTareasPendientes() {
 
   } catch (error) {
     console.error(error);
+    mostrarErrorListado();
   }
+}
+
+// Sin esto una falla del servidor o de la red dejaba el listado vacío y los contadores en 0,
+// como si no existieran tareas.
+function mostrarErrorListado(detalle) {
+  tablaTareas.textContent = "";
+  const fila = document.createElement("tr");
+  const celda = document.createElement("td");
+  celda.colSpan = 10;
+  celda.className = "mensaje error";
+  celda.textContent = `No se pudieron cargar las tareas. ${detalle || "Revise la conexión e intente nuevamente."}`;
+  fila.appendChild(celda);
+  tablaTareas.appendChild(fila);
 }
 
 // --- RF68 — Visualizando Tareas Asignadas a un Usuario Específico --------
@@ -501,7 +522,7 @@ async function asignarTarea(idTarea) {
   );
 
   if (!responsable) {
-    alert("Seleccione un responsable de la lista");
+    avisarAccion("Seleccione un responsable de la lista", "advertencia");
     return;
   }
 
@@ -524,16 +545,16 @@ async function asignarTarea(idTarea) {
     const data = await response.json();
 
     if (!response.ok) {
-      alert(data.error || "No se pudo asignar la tarea");
+      avisarAccion(data.error || "No se pudo asignar la tarea", "error");
       return;
     }
 
-    alert(data.message);
+    avisarAccion(data.message, "exito");
     cargarTareasPendientes();
 
   } catch (error) {
     console.error(error);
-    alert("Error al conectar con el servidor");
+    avisarAccion("Error al conectar con el servidor", "error");
   }
 }
 
@@ -550,7 +571,7 @@ async function actualizarEstado(idTarea) {
     ESTADOS_FINALES.some(([valor]) => valor === estado)
     && usuario.nombre_rol !== "ADMINISTRADOR"
   ) {
-    alert("Solo un administrador puede marcar una tarea como final o cancelada");
+    avisarAccion("Solo un administrador puede marcar una tarea como final o cancelada", "advertencia");
     return;
   }
 
@@ -571,16 +592,16 @@ async function actualizarEstado(idTarea) {
     const data = await response.json();
 
     if (!response.ok) {
-      alert(data.error || "No se pudo actualizar el estado");
+      avisarAccion(data.error || "No se pudo actualizar el estado", "error");
       return;
     }
 
-    alert(data.message);
+    avisarAccion(data.message, "exito");
     cargarTareasPendientes();
 
   } catch (error) {
     console.error(error);
-    alert("Error al conectar con el servidor");
+    avisarAccion("Error al conectar con el servidor", "error");
   }
 }
 
@@ -604,16 +625,16 @@ async function actualizarPrioridad(idTarea) {
     const data = await response.json();
 
     if (!response.ok) {
-      alert(data.error || "No se pudo actualizar la prioridad");
+      avisarAccion(data.error || "No se pudo actualizar la prioridad", "error");
       return;
     }
 
-    alert(data.message);
+    avisarAccion(data.message, "exito");
     cargarTareasPendientes();
 
   } catch (error) {
     console.error(error);
-    alert("Error al conectar con el servidor");
+    avisarAccion("Error al conectar con el servidor", "error");
   }
 }
 
@@ -837,7 +858,7 @@ async function descargarAdjunto(idDocumento, nombreDocumento) {
 
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      alert(data.error || "No se pudo descargar el archivo");
+      avisarAccion(data.error || "No se pudo descargar el archivo", "error");
       return;
     }
 
@@ -853,7 +874,7 @@ async function descargarAdjunto(idDocumento, nombreDocumento) {
 
   } catch (error) {
     console.error(error);
-    alert("Error al conectar con el servidor");
+    avisarAccion("Error al conectar con el servidor", "error");
   }
 }
 
@@ -919,14 +940,14 @@ async function mostrarCargaTrabajo() {
 
 async function redistribuirSeleccionadas() {
   if (tareasSeleccionadas.size === 0) {
-    alert("Seleccione al menos una tarea");
+    avisarAccion("Seleccione al menos una tarea", "advertencia");
     return;
   }
 
   const idResponsable = await obtenerDestinoSeleccionado();
 
   if (!idResponsable) {
-    alert("Seleccione un responsable de destino de la lista");
+    avisarAccion("Seleccione un responsable de destino de la lista", "advertencia");
     return;
   }
 
@@ -953,16 +974,16 @@ async function redistribuirSeleccionadas() {
     const data = await response.json();
 
     if (!response.ok) {
-      alert(data.error || "No se pudieron reasignar las tareas");
+      avisarAccion(data.error || "No se pudieron reasignar las tareas", "error");
       return;
     }
 
-    alert(data.message);
+    avisarAccion(data.message, "exito");
     tareasSeleccionadas.clear();
     cargarTareasPendientes();
 
   } catch (error) {
     console.error(error);
-    alert("Error al conectar con el servidor");
+    avisarAccion("Error al conectar con el servidor", "error");
   }
 }

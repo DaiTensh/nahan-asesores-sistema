@@ -25,6 +25,9 @@
 
     <main class="main-content">
       <section class="usuarios-card">
+        <div class="volver-usuarios">
+          <a href="usuarios.html" class="btn btn-secondary">Volver a Usuarios</a>
+        </div>
         <h1>Asignar Rol a Usuario</h1>
         <p class="subtitle">Asignación de roles específicos.</p>
 
@@ -59,7 +62,7 @@
           </button>
         </div>
 
-        <p id="mensaje" class="mensaje"></p>
+        <p id="mensaje" class="mensaje" aria-live="polite"></p>
       </section>
     </main>
   </div>
@@ -77,7 +80,7 @@
 
 <script>
   protegerPagina(["ADMINISTRADOR"]);
-  cargarNavegacion("rol");
+  cargarNavegacion("usuarios");
   cargarTopbar();
 </script>
 

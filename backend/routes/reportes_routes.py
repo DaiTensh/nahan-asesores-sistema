@@ -1,6 +1,8 @@
+import glob
 import io
 import json
 import logging
+import os
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 from xml.sax.saxutils import escape
@@ -8,6 +10,9 @@ from xml.sax.saxutils import escape
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, LongTable, TableStyle
 
 from flask import Blueprint, request, jsonify, send_file
@@ -25,6 +30,7 @@ logger = logging.getLogger(__name__)
 MENSAJE_SIN_TAREAS = "No se registran tareas para los criterios seleccionados"
 MENSAJE_SIN_COMPLETADAS = "No se registran tareas completadas en el período seleccionado"
 MENSAJE_SIN_HORAS_COBRABLES = "No se registran horas trabajadas para este cliente en el período seleccionado"
+MENSAJE_SIN_HORAS = "No se registran horas trabajadas para los criterios seleccionados"
 
 # ==========================================================================
 # Contrato de respuesta del módulo de reportes (RF31 / RF32).
@@ -229,6 +235,172 @@ def _consultar_cobro_cliente(cursor, id_cliente, fecha_inicio=None, fecha_fin=No
     return registros, desglose, totales
 
 
+def _id_opcional_positivo(args, nombre):
+    valor = args.get(nombre, "").strip()
+    if not valor:
+        return None, None
+    if not valor.isdecimal() or int(valor) < 1:
+        return None, f"{nombre} debe ser un ID entero positivo"
+    return int(valor), None
+
+
+def _consultar_horas_trabajadas(
+    cursor,
+    agrupar_por,
+    granularidad,
+    fecha_inicio,
+    fecha_fin,
+    id_cliente,
+    id_tarea,
+    id_usuario,
+):
+    """Consulta agrupaciones, filas y totales sobre los mismos registros cerrados."""
+    agrupaciones = {
+        "cliente": (
+            "rt.id_cliente",
+            "c.razon_social",
+            "NULL",
+            "rt.id_cliente, c.razon_social",
+            "c.razon_social ASC",
+        ),
+        "tarea": (
+            "rt.id_tarea",
+            "t.titulo",
+            "c.razon_social",
+            "rt.id_tarea, t.titulo, c.razon_social",
+            "c.razon_social ASC, t.titulo ASC",
+        ),
+        "usuario": (
+            "rt.id_usuario",
+            "u.nombres",
+            "NULL",
+            "rt.id_usuario, u.nombres",
+            "u.nombres ASC",
+        ),
+    }
+
+    if agrupar_por == "periodo" and granularidad == "mes":
+        clave_sql = "DATE_FORMAT(rt.fecha, '%Y-%m')"
+        etiqueta_sql = "DATE_FORMAT(rt.fecha, '%m-%Y')"
+        detalle_sql = "NULL"
+        grupo_sql = "DATE_FORMAT(rt.fecha, '%Y-%m'), DATE_FORMAT(rt.fecha, '%m-%Y')"
+        orden_sql = "DATE_FORMAT(rt.fecha, '%Y-%m') ASC"
+    elif agrupar_por == "periodo" and granularidad == "dia":
+        clave_sql = "rt.fecha"
+        etiqueta_sql = "DATE_FORMAT(rt.fecha, '%d-%m-%Y')"
+        detalle_sql = "NULL"
+        grupo_sql = "rt.fecha, DATE_FORMAT(rt.fecha, '%d-%m-%Y')"
+        orden_sql = "rt.fecha ASC"
+    elif agrupar_por in agrupaciones:
+        (
+            clave_sql,
+            etiqueta_sql,
+            detalle_sql,
+            grupo_sql,
+            orden_sql,
+        ) = agrupaciones[agrupar_por]
+    else:
+        raise ValueError("Agrupación de horas no válida.")
+
+    condiciones = ["rt.hora_fin IS NOT NULL"]
+    parametros = []
+    if fecha_inicio and fecha_fin:
+        condiciones.append("rt.fecha BETWEEN %s AND %s")
+        parametros.extend([fecha_inicio, fecha_fin])
+    for columna, valor in (
+        ("rt.id_cliente", id_cliente),
+        ("rt.id_tarea", id_tarea),
+        ("rt.id_usuario", id_usuario),
+    ):
+        if valor is not None:
+            condiciones.append(f"{columna} = %s")
+            parametros.append(valor)
+
+    cursor.execute(
+        f"""
+        SELECT
+            {clave_sql} AS clave,
+            {etiqueta_sql} AS etiqueta,
+            {detalle_sql} AS detalle,
+            COALESCE(SUM(rt.duracion_minutos), 0) AS minutos,
+            COALESCE(SUM(rt.monto), 0) AS monto,
+            COUNT(*) AS registros
+        FROM registro_tiempo rt
+        INNER JOIN cliente c ON rt.id_cliente = c.id_cliente
+        INNER JOIN tarea t ON rt.id_tarea = t.id_tarea
+        INNER JOIN usuario u ON rt.id_usuario = u.id_usuario
+        WHERE {" AND ".join(condiciones)}
+        GROUP BY {grupo_sql}
+        ORDER BY {orden_sql}
+        """,
+        tuple(parametros),
+    )
+    filas = []
+    minutos_totales = Decimal(0)
+    monto_total = Decimal(0)
+    registros_totales = 0
+    centesimas = Decimal("0.01")
+
+    for fila in cursor.fetchall():
+        minutos = Decimal(str(fila["minutos"] or 0))
+        monto = Decimal(str(fila["monto"] or 0))
+        clave = fila["clave"]
+        if agrupar_por == "periodo" and granularidad == "dia":
+            clave = clave.isoformat() if hasattr(clave, "isoformat") else str(clave)
+        else:
+            clave = str(clave)
+
+        filas.append({
+            "clave": clave,
+            "etiqueta": str(fila["etiqueta"]),
+            "detalle": fila.get("detalle"),
+            "horas": (minutos / 60).quantize(centesimas, rounding=ROUND_HALF_UP),
+            "registros": int(fila["registros"]),
+            "monto": monto,
+        })
+        minutos_totales += minutos
+        monto_total += monto
+        registros_totales += int(fila["registros"])
+
+    totales = {
+        "horas": (minutos_totales / 60).quantize(centesimas, rounding=ROUND_HALF_UP),
+        "monto": monto_total,
+        "registros": registros_totales,
+    }
+    return filas, totales
+
+
+def _consultar_entidades_filtro_horas(cursor, id_cliente, id_tarea, id_usuario):
+    filtros = {"cliente": None, "tarea": None, "usuario": None}
+    consultas = (
+        (
+            "cliente",
+            id_cliente,
+            "SELECT id_cliente, razon_social, rut FROM cliente WHERE id_cliente = %s",
+        ),
+        (
+            "tarea",
+            id_tarea,
+            """
+            SELECT t.id_tarea, t.titulo, t.id_cliente, c.razon_social AS cliente
+            FROM tarea t
+            INNER JOIN cliente c ON t.id_cliente = c.id_cliente
+            WHERE t.id_tarea = %s
+            """,
+        ),
+        (
+            "usuario",
+            id_usuario,
+            "SELECT id_usuario, nombres FROM usuario WHERE id_usuario = %s",
+        ),
+    )
+    for nombre, identificador, consulta in consultas:
+        if identificador is not None:
+            cursor.execute(consulta, (identificador,))
+            filtros[nombre] = cursor.fetchone()
+    return filtros
+
+
 def _moneda_de_cobro(cursor):
     cursor.execute("SELECT valor_parametro FROM parametros_sistema WHERE nombre_parametro = 'MONEDA_DEFAULT'")
     fila = cursor.fetchone()
@@ -337,6 +509,136 @@ def _registrar_generacion(cursor, id_usuario, tipo_reporte, parametros):
         "FROM reporte WHERE id_reporte = LAST_INSERT_ID()"
     )
     return cursor.fetchone()
+
+
+@reportes_blueprint.route('/reportes/horas-trabajadas', methods=['GET'])
+@roles_required(ROL_ADMINISTRADOR)
+def reporte_horas_trabajadas():
+    agrupaciones_validas = {"cliente", "tarea", "usuario", "periodo"}
+    agrupar_por = (request.args.get("agrupar_por") or "").strip()
+    if agrupar_por not in agrupaciones_validas:
+        return jsonify({
+            "error": "Debe indicar agrupar_por: cliente, tarea, usuario o periodo."
+        }), 400
+
+    granularidad = None
+    if agrupar_por == "periodo":
+        granularidad = (request.args.get("granularidad") or "dia").strip()
+        if granularidad not in {"dia", "mes"}:
+            return jsonify({"error": "granularidad debe ser dia o mes."}), 400
+
+    fecha_inicio, fecha_fin, error_periodo = _periodo_opcional(request.args)
+    if error_periodo:
+        return jsonify({"error": error_periodo}), 400
+    periodo_etiqueta, error_etiqueta = _etiqueta_periodo(request.args)
+    if error_etiqueta:
+        return jsonify({"error": error_etiqueta}), 400
+    if periodo_etiqueta and not fecha_inicio:
+        return jsonify({"error": "periodo_etiqueta requiere fecha_inicio y fecha_fin."}), 400
+
+    ids = {}
+    for nombre in ("id_cliente", "id_tarea", "id_usuario"):
+        ids[nombre], error_id = _id_opcional_positivo(request.args, nombre)
+        if error_id:
+            return jsonify({"error": error_id}), 400
+
+    conexion = None
+    try:
+        conexion = get_connection()
+        if conexion is None:
+            return jsonify({"error": "Fallo de conexión con MySQL."}), 500
+
+        with conexion.cursor(dictionary=True) as cursor:
+            filtros = _consultar_entidades_filtro_horas(
+                cursor,
+                ids["id_cliente"],
+                ids["id_tarea"],
+                ids["id_usuario"],
+            )
+            for nombre, entidad in filtros.items():
+                if ids[f"id_{nombre}"] is not None and not entidad:
+                    return jsonify({
+                        "error": {
+                            "cliente": "Cliente inexistente.",
+                            "tarea": "Tarea inexistente.",
+                            "usuario": "Usuario inexistente.",
+                        }[nombre]
+                    }), 404
+
+            filas, totales = _consultar_horas_trabajadas(
+                cursor,
+                agrupar_por,
+                granularidad,
+                fecha_inicio,
+                fecha_fin,
+                ids["id_cliente"],
+                ids["id_tarea"],
+                ids["id_usuario"],
+            )
+            periodo = _periodo_respuesta(fecha_inicio, fecha_fin, periodo_etiqueta)
+            periodo["todos_los_registros"] = fecha_inicio is None
+            moneda = _moneda_de_cobro(cursor)
+            respuesta = {
+                "agrupar_por": agrupar_por,
+                "granularidad": granularidad,
+                "periodo": periodo,
+                "filtros": filtros,
+                "moneda": moneda,
+                "fecha_generacion": None,
+                "filas": [
+                    {
+                        **fila,
+                        "horas": float(fila["horas"]),
+                        "monto": float(fila["monto"]),
+                    }
+                    for fila in filas
+                ],
+                "totales": {
+                    "horas": float(totales["horas"]),
+                    "monto": float(totales["monto"]),
+                    "registros": totales["registros"],
+                },
+            }
+
+            if not filas:
+                respuesta["mensaje"] = (
+                    "No se registran horas trabajadas para los criterios seleccionados"
+                )
+                return jsonify(respuesta), 200
+
+            usuario_actual = obtener_usuario_actual()
+            generacion = _registrar_generacion(
+                cursor,
+                usuario_actual["id_usuario"],
+                "HORAS_TRABAJADAS",
+                _parametros_con_etiqueta(
+                    {
+                        "agrupar_por": agrupar_por,
+                        "granularidad": granularidad,
+                        "fecha_inicio": fecha_inicio,
+                        "fecha_fin": fecha_fin,
+                        "id_cliente": ids["id_cliente"],
+                        "id_tarea": ids["id_tarea"],
+                        "id_usuario": ids["id_usuario"],
+                    },
+                    periodo_etiqueta,
+                ),
+            )
+            respuesta["id_reporte"] = generacion["id_reporte"]
+            respuesta["fecha_generacion"] = generacion["fecha_generacion"]
+            conexion.commit()
+
+        return jsonify(respuesta), 200
+
+    except Exception:
+        if conexion:
+            conexion.rollback()
+        logger.exception("Error al generar reporte de horas trabajadas")
+        return jsonify({"error": "Ocurrió un error al generar el reporte."}), 500
+
+    finally:
+        if conexion:
+            conexion.close()
 
 
 @reportes_blueprint.route('/reportes/tareas-por-cliente', methods=['GET'])
@@ -1225,6 +1527,54 @@ def _datos_para_exportar(cursor, tipo_reporte, parametros):
         nombre = f"{_nombre_archivo_seguro('reporte_cobro_por_cliente_' + etiqueta)}_{sufijo}.xlsx"
         return nombre, encabezados, filas
 
+    if tipo_reporte == "HORAS_TRABAJADAS":
+        agrupar_por = parametros.get("agrupar_por")
+        granularidad = parametros.get("granularidad")
+        if agrupar_por not in {"cliente", "tarea", "usuario", "periodo"}:
+            return None
+        if agrupar_por == "periodo" and granularidad not in {"dia", "mes"}:
+            return None
+        agrupacion, _ = _consultar_horas_trabajadas(
+            cursor,
+            agrupar_por,
+            granularidad,
+            fecha_inicio,
+            fecha_fin,
+            parametros.get("id_cliente"),
+            parametros.get("id_tarea"),
+            parametros.get("id_usuario"),
+        )
+        moneda = _moneda_de_cobro(cursor)
+        nombre_grupo = {"cliente": "Cliente", "tarea": "Tarea", "usuario": "Usuario"}.get(
+            agrupar_por,
+            "Día" if granularidad == "dia" else "Mes",
+        )
+        encabezados = [nombre_grupo]
+        if agrupar_por == "tarea":
+            encabezados.append("Cliente")
+        encabezados.extend(["Horas", "Registros", f"Monto ({moneda})"])
+        filas = []
+        for fila in agrupacion:
+            valores = [fila["etiqueta"]]
+            if agrupar_por == "tarea":
+                valores.append(fila["detalle"])
+            valores.extend([
+                float(fila["horas"]),
+                fila["registros"],
+                float(fila["monto"]),
+            ])
+            filas.append(valores)
+        sufijo = (
+            f"{fecha_inicio}_a_{fecha_fin}"
+            if fecha_inicio
+            else "todos_los_registros"
+        )
+        nombre = (
+            f"reporte_horas_trabajadas_{_nombre_archivo_seguro(agrupar_por)}_"
+            f"{sufijo}.xlsx"
+        )
+        return nombre, encabezados, filas
+
     if tipo_reporte == "PRODUCTIVIDAD_POR_USUARIO":
         id_area = parametros.get("id_area")
         resultado = _calcular_productividad(cursor, fecha_inicio, fecha_fin, id_area)
@@ -1302,6 +1652,54 @@ def _filtros_para_exportar(cursor, tipo_reporte, parametros):
             ))
         filtros.append(("Total de horas", f"{_formato_cl(totales['horas'], 2)} h"))
         filtros.append(("Monto total a cobrar", f"{_formato_cl(totales['monto'])} {moneda}"))
+    elif tipo_reporte == "HORAS_TRABAJADAS":
+        agrupar_por = parametros.get("agrupar_por")
+        granularidad = parametros.get("granularidad")
+        filtros_horas = _consultar_entidades_filtro_horas(
+            cursor,
+            parametros.get("id_cliente"),
+            parametros.get("id_tarea"),
+            parametros.get("id_usuario"),
+        )
+        filas, totales = _consultar_horas_trabajadas(
+            cursor,
+            agrupar_por,
+            granularidad,
+            parametros.get("fecha_inicio"),
+            parametros.get("fecha_fin"),
+            parametros.get("id_cliente"),
+            parametros.get("id_tarea"),
+            parametros.get("id_usuario"),
+        )
+        etiqueta_agrupacion = {
+            "cliente": "Cliente",
+            "tarea": "Tarea",
+            "usuario": "Usuario",
+            "periodo": "Día" if granularidad == "dia" else "Mes",
+        }.get(agrupar_por, "Cliente")
+        filtros.append(("Agrupado por", etiqueta_agrupacion))
+        if agrupar_por == "periodo":
+            filtros.append(("Granularidad", "Día" if granularidad == "dia" else "Mes"))
+        filtros.append((
+            "Cliente",
+            (
+                f"{filtros_horas['cliente']['razon_social']} "
+                f"({filtros_horas['cliente']['rut']})"
+                if filtros_horas["cliente"]
+                else "Todos los clientes"
+            ),
+        ))
+        filtros.append((
+            "Tarea",
+            filtros_horas["tarea"]["titulo"] if filtros_horas["tarea"] else "Todas las tareas",
+        ))
+        filtros.append((
+            "Usuario",
+            filtros_horas["usuario"]["nombres"] if filtros_horas["usuario"] else "Todos los usuarios",
+        ))
+        moneda = _moneda_de_cobro(cursor)
+        filtros.append(("Total de horas", f"{_formato_cl(totales['horas'], 2)} h"))
+        filtros.append(("Monto total", f"{_formato_cl(totales['monto'])} {moneda}"))
     elif tipo_reporte == "TAREAS_POR_RESPONSABLE":
         cursor.execute("SELECT nombres FROM usuario WHERE id_usuario = %s", (parametros.get("id_responsable"),))
         entidad = cursor.fetchone()
@@ -1331,6 +1729,84 @@ def _texto_fecha_generacion(valor):
     if isinstance(valor, datetime):
         return f"{valor:%d-%m-%Y %H:%M}"
     return str(valor) if valor else None
+
+
+_FUENTE_CJK_PDF = "HeiseiMin-W3"
+_FUENTE_EMOJI_PDF = "EmojiFallback"
+
+
+def _ruta_fuente_emoji_pdf():
+    patrones = [
+        "/System/Library/Fonts/Apple Color Emoji.ttc",
+        "/System/Library/Fonts/Supplemental/Apple Color Emoji.ttc",
+        "/Library/Fonts/*.ttc",
+        "/usr/share/fonts/**/*.ttf",
+        "/usr/share/fonts/**/*.otf",
+        "/usr/local/share/fonts/**/*.ttf",
+        "/usr/local/share/fonts/**/*.otf",
+    ]
+    for patron in patrones:
+        for ruta in glob.glob(patron, recursive=True):
+            if not os.path.isfile(ruta):
+                continue
+            nombre = os.path.basename(ruta).lower()
+            if "emoji" in nombre or "symbol" in nombre or "noto" in nombre:
+                return ruta
+    return None
+
+
+def _es_caracter_emoji(caracter):
+    codigo = ord(caracter)
+    rangos_emoji = (
+        (0x1F300, 0x1FAFF),
+        (0x2600, 0x27BF),
+        (0xFE00, 0xFE0F),
+        (0x1F1E6, 0x1F1FF),
+    )
+    return any(inicio <= codigo <= fin for inicio, fin in rangos_emoji)
+
+
+def _texto_pdf_con_fuentes(texto):
+    if texto is None:
+        return ""
+    texto = str(texto)
+    if not texto:
+        return ""
+    segmentos = []
+    for caracter in texto:
+        if _es_caracter_emoji(caracter) and _FUENTE_EMOJI_PDF in pdfmetrics.getRegisteredFontNames():
+            segmentos.append(f'<font name="{_FUENTE_EMOJI_PDF}">{escape(caracter)}</font>')
+        else:
+            segmentos.append(escape(caracter))
+    return "".join(segmentos)
+
+
+def _registrar_fuente_pdf_unicode(estilos):
+    if _FUENTE_CJK_PDF not in pdfmetrics.getRegisteredFontNames():
+        try:
+            pdfmetrics.registerFont(UnicodeCIDFont(_FUENTE_CJK_PDF))
+        except Exception:
+            pass
+    ruta_emoji = _ruta_fuente_emoji_pdf()
+    if ruta_emoji and _FUENTE_EMOJI_PDF not in pdfmetrics.getRegisteredFontNames():
+        try:
+            pdfmetrics.registerFont(TTFont(_FUENTE_EMOJI_PDF, ruta_emoji))
+        except Exception:
+            pass
+    for nombre_estilo in ("Title", "Normal", "BodyText"):
+        estilos[nombre_estilo].fontName = _FUENTE_CJK_PDF
+
+
+def _requiere_fuente_pdf_unicode(textos):
+    for texto in textos:
+        texto = str(texto)
+        if any(_es_caracter_emoji(caracter) for caracter in texto):
+            return True
+        try:
+            texto.encode("cp1252")
+        except UnicodeEncodeError:
+            return True
+    return False
 
 
 @reportes_blueprint.route('/reportes/<int:id_reporte>/pdf', methods=['GET'], defaults={'formato': 'pdf'})
@@ -1376,6 +1852,7 @@ def exportar_reporte_excel(id_reporte, formato="excel"):
             "ACTIVIDAD_POR_AREA": "Actividad por área de trabajo",
             "HISTORIAL_CONSOLIDADO": "Historial consolidado de actividades",
             "COBRO_POR_CLIENTE": "Cobro por cliente (horas y monto)",
+            "HORAS_TRABAJADAS": "Horas trabajadas",
         }.get(reporte["tipo_reporte"], "Reporte")
         fecha_exportacion = f"{datetime.now():%d-%m-%Y %H:%M}"
         fecha_generacion = _texto_fecha_generacion(reporte.get("fecha_generacion")) or fecha_exportacion
@@ -1385,14 +1862,32 @@ def exportar_reporte_excel(id_reporte, formato="excel"):
             estilos = getSampleStyleSheet()
             estilos["BodyText"].fontSize = 8
             estilos["BodyText"].leading = 10
+            sin_datos = None
+            if not filas:
+                sin_datos = {
+                    "HISTORIAL_CONSOLIDADO": MENSAJE_SIN_ACTIVIDADES,
+                    "HORAS_TRABAJADAS": MENSAJE_SIN_HORAS,
+                }.get(reporte["tipo_reporte"], MENSAJE_SIN_TAREAS)
+            textos_pdf = [
+                titulo,
+                _texto_periodo(parametros),
+                fecha_generacion,
+                fecha_exportacion,
+                *(f"{etiqueta}: {valor}" for etiqueta, valor in filtros),
+                *(str(valor) for fila in [encabezados, *filas] for valor in fila),
+            ]
+            if sin_datos:
+                textos_pdf.append(sin_datos)
+            if _requiere_fuente_pdf_unicode(textos_pdf):
+                _registrar_fuente_pdf_unicode(estilos)
             documento = SimpleDocTemplate(buffer, pagesize=landscape(A4),
                                           rightMargin=24, leftMargin=24,
                                           topMargin=24, bottomMargin=24, title=titulo)
             contenido = [
-                Paragraph(escape(titulo), estilos["Title"]),
-                Paragraph(escape(f"Período: {_texto_periodo(parametros)}"), estilos["Normal"]),
-                *[Paragraph(escape(f"{etiqueta}: {valor}"), estilos["Normal"]) for etiqueta, valor in filtros],
-                Paragraph(escape(f"Fecha de generación: {fecha_generacion} · Exportado: {fecha_exportacion}"),
+                Paragraph(_texto_pdf_con_fuentes(titulo), estilos["Title"]),
+                Paragraph(_texto_pdf_con_fuentes(f"Período: {_texto_periodo(parametros)}"), estilos["Normal"]),
+                *[Paragraph(_texto_pdf_con_fuentes(f"{etiqueta}: {valor}"), estilos["Normal"]) for etiqueta, valor in filtros],
+                Paragraph(_texto_pdf_con_fuentes(f"Fecha de generación: {fecha_generacion} · Exportado: {fecha_exportacion}"),
                           estilos["Normal"]),
                 Spacer(1, 12),
             ]
@@ -1400,17 +1895,17 @@ def exportar_reporte_excel(id_reporte, formato="excel"):
                 resumen = {}
                 for fila in filas:
                     resumen[fila[3]] = resumen.get(fila[3], 0) + 1
-                contenido.append(Paragraph(escape("Resumen por estado: " + ", ".join(
+                contenido.append(Paragraph(_texto_pdf_con_fuentes("Resumen por estado: " + ", ".join(
                     f"{estado}: {total}" for estado, total in resumen.items()
                 )), estilos["Normal"]))
             if reporte["tipo_reporte"] == "HISTORIAL_CONSOLIDADO":
                 resumen = {}
                 for fila in filas:
                     resumen[fila[2]] = resumen.get(fila[2], 0) + 1
-                contenido.append(Paragraph(escape("Actividades por módulo: " + ", ".join(
+                contenido.append(Paragraph(_texto_pdf_con_fuentes("Actividades por módulo: " + ", ".join(
                     f"{modulo}: {total}" for modulo, total in sorted(resumen.items())
                 )), estilos["Normal"]))
-            datos = [[Paragraph(escape(str(valor)), estilos["BodyText"])
+            datos = [[Paragraph(_texto_pdf_con_fuentes(valor), estilos["BodyText"])
                       for valor in fila] for fila in [encabezados, *filas]]
             tabla = LongTable(datos, colWidths=[documento.width / len(encabezados)] * len(encabezados),
                               repeatRows=1, splitInRow=1)
@@ -1421,9 +1916,7 @@ def exportar_reporte_excel(id_reporte, formato="excel"):
             ]))
             contenido.append(tabla)
             if not filas:
-                sin_datos = (MENSAJE_SIN_ACTIVIDADES if reporte["tipo_reporte"] == "HISTORIAL_CONSOLIDADO"
-                             else MENSAJE_SIN_TAREAS)
-                contenido.append(Paragraph(sin_datos, estilos["Normal"]))
+                contenido.append(Paragraph(_texto_pdf_con_fuentes(sin_datos), estilos["Normal"]))
             documento.build(contenido)
             buffer.seek(0)
             return send_file(buffer, mimetype="application/pdf", as_attachment=True,

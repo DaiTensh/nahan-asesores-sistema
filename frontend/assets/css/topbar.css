@@ -235,3 +235,26 @@
     order: 3;
   }
 }
+
+/* H-12 — Bajo 900 px la barra apilada mide 200 px o más (233 px a 390 px) y, al ser pegajosa, tapaba hasta el
+   30 % de la pantalla: se desplaza con la página. A 1366 px (mínimo de RNF10) mide como máximo 116 px y sigue fija. */
+@media (max-width: 900px) {
+  .topbar {
+    position: static;
+  }
+}
+
+/* En móvil queda solo con las acciones (notificaciones, sesión y búsqueda): el título, el subtítulo y la fecha
+   ya los muestra el contenido justo debajo. */
+@media (max-width: 640px) {
+  .topbar {
+    min-height: 0;
+    padding: var(--spacing-3) var(--spacing-4);
+    gap: var(--spacing-3);
+  }
+
+  .topbar-context,
+  .topbar-date {
+    display: none;
+  }
+}

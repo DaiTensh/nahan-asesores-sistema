@@ -12,6 +12,11 @@ document.addEventListener("DOMContentLoaded", () => {
     datalistId: "usuarios_datalist",
     onSelect: (usuario) => cargarUsuarioPorId(usuario.id_usuario)
   });
+
+  const idUsuario = new URLSearchParams(window.location.search).get("id");
+  if (idUsuario && /^\d+$/.test(idUsuario) && Number(idUsuario) > 0) {
+    cargarUsuarioPorId(idUsuario);
+  }
 });
 
 function mostrarMensaje(texto, tipo) {
@@ -53,7 +58,7 @@ async function cargarUsuarioPorId(idUsuario) {
 
     document.getElementById("nombres").textContent = data.nombres;
     document.getElementById("email").textContent = data.email;
-    document.getElementById("rol").textContent = data.nombre_rol;
+    document.getElementById("rol").textContent = nombreRolNatural(data.nombre_rol);
     document.getElementById("area").textContent = data.nombre_area;
     document.getElementById("estado").textContent = data.estado;
 
@@ -102,14 +107,4 @@ async function desactivarUsuario() {
     console.error(error);
     mostrarMensaje("Error al conectar con el servidor", "error");
   }
-}
-
-async function eliminarUsuario() {
-  const confirmar = await confirmarAccion("¿Está seguro de intentar eliminar este usuario?", "critica");
-
-  if (!confirmar) {
-    return;
-  }
-
-  alert("Por trazabilidad, el sistema no elimina usuarios físicamente. Se recomienda deshabilitarlos.");
 }

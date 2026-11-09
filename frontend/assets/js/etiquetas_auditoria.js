@@ -34,6 +34,7 @@
     DESCARGA: "Documento descargado",
     TEMPORIZADOR_INICIADO: "Temporizador iniciado",
     TEMPORIZADOR_DETENIDO: "Temporizador detenido",
+    REGISTRO_MANUAL_CREADO: "Horas registradas manualmente",
     CONFIGURAR_TARIFA_GENERAL: "Tarifa general modificada",
     TARIFA_AREA_DEFINIDA: "Tarifa de área definida",
     TARIFA_AREA_ELIMINADA: "Tarifa de área eliminada",

@@ -28,6 +28,20 @@ const horasHoy = document.getElementById("horasHoy");
 const horasAcumuladas = document.getElementById("horasAcumuladas");
 const montoAcumulado = document.getElementById("montoAcumulado");
 const totalRegistros = document.getElementById("totalRegistros");
+const formFiltrosHoras = document.getElementById("formFiltrosHoras");
+const filtroPeriodoRapido = document.getElementById("filtroPeriodoRapido");
+const filtroDesde = document.getElementById("filtroDesde");
+const filtroHasta = document.getElementById("filtroHasta");
+const filtroCliente = document.getElementById("filtroCliente");
+const filtroTarea = document.getElementById("filtroTarea");
+const grupoFiltroUsuario = document.getElementById("grupoFiltroUsuario");
+const filtroUsuario = document.getElementById("filtroUsuario");
+const estadoFiltrosHoras = document.getElementById("estadoFiltrosHoras");
+const alcanceResumen = document.getElementById("alcanceResumen");
+const thUsuarioRegistro = document.getElementById("thUsuarioRegistro");
+
+let tareasFiltroHoras = [];
+let falloCargaFiltrosHoras = false;
 
 document.addEventListener("DOMContentLoaded", async () => {
   usuarioActual = await obtenerUsuarioActual();
@@ -37,14 +51,181 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
+  const accionesControlHoras = document.getElementById("accionesControlHoras");
+  const botonRegistroManual = document.createElement("button");
+  botonRegistroManual.type = "button";
+  botonRegistroManual.id = "btnRegistroManual";
+  botonRegistroManual.className = "btn btn-primary";
+  botonRegistroManual.textContent = "Registrar horas manualmente";
+  accionesControlHoras.appendChild(botonRegistroManual);
+
+  if (usuarioActual.nombre_rol === "ADMINISTRADOR") {
+    const enlaceInformesHoras = document.createElement("a");
+    enlaceInformesHoras.className = "btn btn-secondary";
+    enlaceInformesHoras.href = "../reportes/reportes.html?tipo=horas";
+    enlaceInformesHoras.textContent = "Informes de horas";
+    accionesControlHoras.appendChild(enlaceInformesHoras);
+
+    const enlaceTarifas = document.createElement("a");
+    enlaceTarifas.className = "btn btn-secondary";
+    enlaceTarifas.href = "../tarifas/tarifas.html";
+    enlaceTarifas.textContent = "Tarifas";
+    accionesControlHoras.appendChild(enlaceTarifas);
+  }
+  accionesControlHoras.hidden = false;
+  configurarRegistroManual();
+
+  const esAdministrador = usuarioActual.nombre_rol === "ADMINISTRADOR";
+  grupoFiltroUsuario.hidden = !esAdministrador;
+  thUsuarioRegistro.hidden = !esAdministrador;
+  document.querySelector("#tablaRegistros td").colSpan = esAdministrador ? 10 : 9;
+  actualizarRotulosResumen();
+
   clienteBusqueda.addEventListener("input", manejarCambioCliente);
   tareaBusqueda.addEventListener("input", manejarCambioTarea);
   btnIniciar.addEventListener("click", iniciarTemporizador);
   btnDetener.addEventListener("click", detenerTemporizador);
+  formFiltrosHoras.addEventListener("submit", async evento => {
+    evento.preventDefault();
+    await cargarRegistros();
+  });
+  filtroPeriodoRapido.addEventListener("change", actualizarFechasFiltro);
+  [filtroDesde, filtroHasta].forEach(input => {
+    ["input", "change"].forEach(evento => input.addEventListener(evento, () => {
+      filtroPeriodoRapido.value = "";
+    }));
+  });
+  filtroCliente.addEventListener("change", actualizarTareasFiltro);
+  document.getElementById("btnLimpiarFiltrosHoras").addEventListener("click", async () => {
+    formFiltrosHoras.reset();
+    filtroPeriodoRapido.value = "";
+    actualizarTareasFiltro();
+    await cargarRegistros();
+  });
 
   await cargarContexto();
+  await cargarFiltrosRegistros();
   await cargarRegistros();
 });
+
+async function cargarFiltrosRegistros() {
+  try {
+    const response = await fetch(`${API_URL}/control-horas/filtros`, {
+      credentials: window.API_CONFIG.credentials
+    });
+    const data = await leerRespuestaJson(response);
+
+    if (!response.ok) {
+      falloCargaFiltrosHoras = true;
+      manejarAccesoDenegado(response.status, data.error);
+      estadoFiltrosHoras.textContent = data.error || "No se pudieron cargar los filtros.";
+      return;
+    }
+
+    falloCargaFiltrosHoras = false;
+    tareasFiltroHoras = data.tareas || [];
+    poblarFiltro(
+      filtroCliente,
+      data.clientes || [],
+      "Todos los clientes",
+      cliente => [cliente.id_cliente, obtenerTextoCliente(cliente)]
+    );
+    poblarFiltro(
+      filtroUsuario,
+      data.usuarios || [],
+      "Todos los usuarios",
+      usuario => [usuario.id_usuario, usuario.nombres]
+    );
+    actualizarTareasFiltro();
+  } catch (error) {
+    console.error(error);
+    falloCargaFiltrosHoras = true;
+    estadoFiltrosHoras.textContent = "No se pudieron cargar los filtros.";
+    mostrarMensaje("No se pudieron cargar los filtros.", "error");
+  }
+}
+
+function poblarFiltro(select, opciones, textoInicial, obtenerOpcion) {
+  select.textContent = "";
+  const opcionInicial = document.createElement("option");
+  opcionInicial.value = "";
+  opcionInicial.textContent = textoInicial;
+  select.appendChild(opcionInicial);
+
+  opciones.forEach(opcion => {
+    const [valor, texto] = obtenerOpcion(opcion);
+    const elemento = document.createElement("option");
+    elemento.value = valor;
+    elemento.textContent = texto || "";
+    select.appendChild(elemento);
+  });
+}
+
+function actualizarTareasFiltro() {
+  const idCliente = filtroCliente.value;
+  const tareas = idCliente
+    ? tareasFiltroHoras.filter(tarea => Number(tarea.id_cliente) === Number(idCliente))
+    : tareasFiltroHoras;
+
+  poblarFiltro(
+    filtroTarea,
+    tareas,
+    "Todas las tareas",
+    tarea => [
+      tarea.id_tarea,
+      `${tarea.titulo}${tarea.cliente ? ` — ${tarea.cliente}` : ""}`
+    ]
+  );
+}
+
+function actualizarFechasFiltro() {
+  const valor = filtroPeriodoRapido.value;
+  if (!valor) return;
+
+  const fin = new Date();
+  const inicio = new Date(fin);
+  if (valor === "anio") inicio.setMonth(0, 1);
+  else if (valor === "mes") inicio.setMonth(inicio.getMonth() - 1);
+  else inicio.setDate(inicio.getDate() - 6);
+
+  filtroDesde.value = fechaLocal(inicio);
+  filtroHasta.value = fechaLocal(fin);
+}
+
+function fechaLocal(fecha) {
+  return `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, "0")}-${String(fecha.getDate()).padStart(2, "0")}`;
+}
+
+function crearParametrosFiltrosHoras() {
+  const desde = filtroDesde.value;
+  const hasta = filtroHasta.value;
+
+  if (Boolean(desde) !== Boolean(hasta)) {
+    const error = "Debe indicar ambas fechas o dejar las dos vacías.";
+    estadoFiltrosHoras.textContent = error;
+    mostrarMensaje(error, "error");
+    return null;
+  }
+
+  if (desde && desde > hasta) {
+    const error = "La fecha desde no puede ser posterior a la fecha hasta.";
+    estadoFiltrosHoras.textContent = error;
+    mostrarMensaje(error, "error");
+    return null;
+  }
+
+  const parametros = new URLSearchParams();
+  if (desde) {
+    parametros.set("fecha_inicio", desde);
+    parametros.set("fecha_fin", hasta);
+  }
+  if (filtroCliente.value) parametros.set("id_cliente", filtroCliente.value);
+  if (filtroTarea.value) parametros.set("id_tarea", filtroTarea.value);
+  if (usuarioActual.nombre_rol === "ADMINISTRADOR" && filtroUsuario.value) {
+    parametros.set("id_usuario", filtroUsuario.value);
+  }
+  return parametros;
+}
 
 async function cargarContexto() {
   try {
@@ -371,15 +552,17 @@ async function detenerTemporizador() {
       return;
     }
 
+    const textoExito = data.message || "Horas registradas correctamente.";
     desactivarTemporizador({ limpiarMensaje: false });
-    mostrarMensaje(data.message || "Horas registradas correctamente.", "success");
-
-    if (data.resumen) {
-      renderizarResumen(data.resumen);
-    }
+    mostrarMensaje(textoExito, "success");
 
     await cargarRegistros();
     await cargarContexto();
+    // H-18 — cargarContexto reescribe el aviso («Cargando…» y luego nada): se repone el de éxito
+    // salvo que la recarga haya fallado y dejado un error.
+    if (!mensajeControl.classList.contains("error")) {
+      mostrarMensaje(textoExito, "success");
+    }
   } catch (error) {
     console.error(error);
     mostrarMensaje("No se pudo conectar con el servidor.", "error");
@@ -458,24 +641,38 @@ function actualizarTemporizador() {
 }
 
 async function cargarRegistros() {
+  const parametros = crearParametrosFiltrosHoras();
+  if (!parametros) return;
+
   try {
     mostrarFilaTabla("Cargando registros...");
 
-    const response = await fetch(`${API_URL}/control-horas/registros`, {
+    const query = parametros.toString();
+    const url = `${API_URL}/control-horas/registros${query ? `?${query}` : ""}`;
+    const response = await fetch(url, {
       credentials: window.API_CONFIG.credentials
     });
     const data = await leerRespuestaJson(response);
 
     if (!response.ok) {
       manejarAccesoDenegado(response.status, data.error);
+      estadoFiltrosHoras.textContent = data.error || "No se pudieron cargar los registros.";
       return;
     }
 
-    renderizarRegistros(data.registros || []);
+    const registros = data.registros || [];
+    renderizarRegistros(registros);
     renderizarResumen(data.resumen || {});
+    estadoFiltrosHoras.textContent = registros.length
+      ? `Mostrando ${registros.length} ${registros.length === 1 ? "registro" : "registros"}.`
+      : "No hay registros para los filtros elegidos.";
+    if (falloCargaFiltrosHoras) {
+      estadoFiltrosHoras.textContent += " No se pudieron cargar los filtros.";
+    }
   } catch (error) {
     console.error(error);
     mostrarFilaTabla("Error al conectar con el servidor.");
+    estadoFiltrosHoras.textContent = "Error al conectar con el servidor.";
   }
 }
 
@@ -489,8 +686,10 @@ function renderizarRegistros(registros) {
 
   registros.forEach(registro => {
     const fila = document.createElement("tr");
-
     agregarCelda(fila, registro.fecha || extraerFecha(registro.inicio));
+    if (usuarioActual.nombre_rol === "ADMINISTRADOR") {
+      agregarCelda(fila, registro.usuario_responsable);
+    }
     agregarCelda(fila, registro.cliente);
     agregarCelda(fila, registro.tarea);
     agregarCelda(fila, registro.inicio_hora || registro.inicio);
@@ -498,6 +697,7 @@ function renderizarRegistros(registros) {
     agregarCelda(fila, formatearMinutos(registro.duracion_minutos));
     agregarCelda(fila, formatearMoneda(registro.tarifa_hora));
     agregarCelda(fila, formatearMoneda(registro.monto));
+    agregarCeldaOrigen(fila, registro);
 
     tablaRegistros.appendChild(fila);
   });
@@ -507,7 +707,7 @@ function mostrarFilaTabla(mensaje) {
   tablaRegistros.textContent = "";
   const fila = document.createElement("tr");
   const celda = document.createElement("td");
-  celda.colSpan = 8;
+  celda.colSpan = usuarioActual.nombre_rol === "ADMINISTRADOR" ? 10 : 9;
   celda.className = "text-loading";
   celda.textContent = mensaje;
   fila.appendChild(celda);
@@ -520,7 +720,26 @@ function agregarCelda(fila, valor) {
   fila.appendChild(celda);
 }
 
+function agregarCeldaOrigen(fila, registro) {
+  const celda = document.createElement("td");
+  const manual = registro.origen === "MANUAL";
+
+  const insignia = document.createElement("span");
+  insignia.className = manual ? "badge badge-info" : "badge badge-pending";
+  insignia.textContent = manual ? "Manual" : "Temporizador";
+  celda.appendChild(insignia);
+
+  if (manual && registro.observacion) {
+    const observacion = document.createElement("small");
+    observacion.className = "origen-observacion";
+    observacion.textContent = registro.observacion;
+    celda.appendChild(observacion);
+  }
+  fila.appendChild(celda);
+}
+
 function renderizarResumen(resumen) {
+  actualizarRotulosResumen();
   horasHoy.textContent = formatearMinutos(resumen.minutos_hoy || 0);
   horasAcumuladas.textContent = formatearMinutos(resumen.minutos_acumulados || 0);
   montoAcumulado.textContent = formatearMoneda(resumen.monto_acumulado || 0);
@@ -528,6 +747,48 @@ function renderizarResumen(resumen) {
 
   renderizarTotales("totalesCliente", resumen.totales_cliente || []);
   renderizarTotales("totalesTarea", resumen.totales_tarea || []);
+}
+
+function actualizarRotulosResumen() {
+  const esAdministrador = usuarioActual?.nombre_rol === "ADMINISTRADOR";
+  const idUsuario = esAdministrador ? filtroUsuario.value : "";
+  const nombreUsuario = idUsuario
+    ? filtroUsuario.selectedOptions[0]?.textContent
+    : "";
+  const sufijo = esAdministrador
+    ? ` · ${nombreUsuario || "todos los usuarios"}`
+    : "";
+
+  document.getElementById("rotuloHorasHoy").textContent =
+    `${esAdministrador ? "Horas de hoy" : "Mis horas hoy"}${sufijo}`;
+  document.getElementById("rotuloHorasTotal").textContent =
+    `${esAdministrador ? "Horas en total" : "Mis horas en total"}${sufijo}`;
+  document.getElementById("rotuloMontoTotal").textContent =
+    `${esAdministrador ? "Monto acumulado" : "Mi monto acumulado"}${sufijo}`;
+  document.getElementById("rotuloRegistros").textContent =
+    `${esAdministrador ? "Registros cerrados" : "Mis registros cerrados"}${sufijo}`;
+
+  const alcance = esAdministrador
+    ? `Mostrando: registros de ${nombreUsuario || "todos los usuarios"}`
+    : "Mostrando: mis registros";
+  const filtros = [];
+  if (filtroDesde.value && filtroHasta.value) {
+    filtros.push(`período ${formatearFechaFiltro(filtroDesde.value)} a ${formatearFechaFiltro(filtroHasta.value)}`);
+  }
+  if (filtroCliente.value) {
+    filtros.push(`cliente ${filtroCliente.selectedOptions[0]?.textContent || ""}`);
+  }
+  if (filtroTarea.value) {
+    filtros.push(`tarea ${filtroTarea.selectedOptions[0]?.textContent || ""}`);
+  }
+  if (idUsuario) filtros.push(`usuario ${nombreUsuario}`);
+
+  alcanceResumen.textContent = `${alcance} · Filtros: ${filtros.length ? `${filtros.join(" · ")}.` : "ninguno."}`;
+}
+
+function formatearFechaFiltro(fecha) {
+  const [anio, mes, dia] = fecha.split("-");
+  return `${dia}-${mes}-${anio}`;
 }
 
 function renderizarTotales(idContenedor, totales) {
@@ -617,19 +878,7 @@ function formatearMoneda(valor) {
 function formatearFechaHora(valor) {
   if (!valor) return "No disponible";
 
-  const fecha = new Date(valor);
-
-  if (Number.isNaN(fecha.getTime())) {
-    return valor;
-  }
-
-  return fecha.toLocaleString("es-CL", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
+  return formatearFechaHora24(valor);
 }
 
 function extraerFecha(valor) {
@@ -661,12 +910,248 @@ async function leerRespuestaJson(response) {
   }
 }
 
-function manejarAccesoDenegado(estado, mensaje) {
+async function manejarAccesoDenegado(estado, mensaje) {
   if (estado === 401 || estado === 403) {
-    alert(mensaje || "La sesión ya no está activa.");
+    await avisarAccion(mensaje || "La sesión ya no está activa.", "advertencia");
     window.location.href = "../auth/login.html";
     return;
   }
 
   mostrarMensaje(mensaje || "No se pudieron cargar los datos.", "error");
+}
+
+// ---------------------------------------------------------------------------
+// Registro manual de horas (CU-14 y CU-29): para cuando no se pudo usar el temporizador.
+// El navegador solo revisa lo evidente para avisar rápido; el servidor vuelve a validar
+// todo y es quien calcula la duración, la tarifa y el monto.
+// ---------------------------------------------------------------------------
+const DIAS_MAXIMOS_RETROACTIVO = 30;
+let panelRegistroManual = null;
+
+function configurarRegistroManual() {
+  const formulario = document.getElementById("formRegistroManual");
+  if (!formulario) return;
+
+  panelRegistroManual = configurarPanelAlta({
+    botonId: "btnRegistroManual",
+    panelId: "panelRegistroManual",
+    primerCampoId: "rmCliente",
+    botonCerrarId: "btnCancelarRegistroManual",
+    alAbrir: prepararRegistroManual
+  });
+
+  document.getElementById("rmCliente").addEventListener("change", poblarTareasRegistroManual);
+  ["rmHoraInicio", "rmHoraFin"].forEach(id => {
+    document.getElementById(id).addEventListener("input", actualizarDuracionRegistroManual);
+  });
+  formulario.addEventListener("submit", enviarRegistroManual);
+}
+
+function mostrarMensajeRegistroManual(texto, tipo = "") {
+  const mensaje = document.getElementById("mensajeRegistroManual");
+  mensaje.textContent = texto;
+  mensaje.className = tipo ? `mensaje ${tipo}` : "mensaje";
+}
+
+function prepararRegistroManual() {
+  document.getElementById("formRegistroManual").reset();
+  mostrarMensajeRegistroManual("");
+
+  const selectCliente = document.getElementById("rmCliente");
+  selectCliente.textContent = "";
+  const opcionInicial = document.createElement("option");
+  opcionInicial.value = "";
+  opcionInicial.textContent = "Seleccione un cliente";
+  selectCliente.appendChild(opcionInicial);
+  clientesDisponibles.forEach(cliente => {
+    const opcion = document.createElement("option");
+    opcion.value = cliente.id_cliente;
+    opcion.textContent = obtenerTextoCliente(cliente);
+    selectCliente.appendChild(opcion);
+  });
+  poblarTareasRegistroManual();
+
+  const hoy = new Date();
+  const limite = new Date(hoy);
+  limite.setDate(limite.getDate() - DIAS_MAXIMOS_RETROACTIVO);
+  const fecha = document.getElementById("rmFecha");
+  fecha.max = fechaLocal(hoy);
+  fecha.min = fechaLocal(limite);
+  fecha.value = fechaLocal(hoy);
+  actualizarDuracionRegistroManual();
+
+  const sinTareas = tareasDisponibles.length === 0;
+  document.getElementById("btnGuardarRegistroManual").disabled = sinTareas;
+  if (sinTareas) {
+    mostrarMensajeRegistroManual("No tiene tareas habilitadas para registrar horas.", "info");
+  }
+}
+
+function poblarTareasRegistroManual() {
+  const selectTarea = document.getElementById("rmTarea");
+  const idCliente = document.getElementById("rmCliente").value;
+  selectTarea.textContent = "";
+
+  const opcionInicial = document.createElement("option");
+  opcionInicial.value = "";
+  selectTarea.appendChild(opcionInicial);
+
+  if (!idCliente) {
+    opcionInicial.textContent = "Seleccione primero un cliente";
+    selectTarea.disabled = true;
+    return;
+  }
+
+  const tareas = obtenerTareasParaBusqueda(idCliente);
+  opcionInicial.textContent = tareas.length ? "Seleccione una tarea" : "Este cliente no tiene tareas disponibles";
+  tareas.forEach(tarea => {
+    const opcion = document.createElement("option");
+    opcion.value = tarea.id_tarea;
+    opcion.textContent = obtenerTextoTarea(tarea);
+    selectTarea.appendChild(opcion);
+  });
+  selectTarea.disabled = tareas.length === 0;
+}
+
+function minutosDeHora(texto) {
+  const [horas, minutos] = String(texto || "").split(":").map(Number);
+  return Number.isInteger(horas) && Number.isInteger(minutos) ? horas * 60 + minutos : null;
+}
+
+function actualizarDuracionRegistroManual() {
+  const duracion = document.getElementById("rmDuracion");
+  const inicio = minutosDeHora(document.getElementById("rmHoraInicio").value);
+  const fin = minutosDeHora(document.getElementById("rmHoraFin").value);
+
+  if (inicio === null || fin === null) {
+    duracion.textContent = "Indique la hora de inicio y la de término.";
+  } else if (fin <= inicio) {
+    duracion.textContent = "La hora de término debe ser posterior a la de inicio.";
+  } else {
+    const total = fin - inicio;
+    duracion.textContent = `${Math.floor(total / 60)} h ${String(total % 60).padStart(2, "0")} min`;
+  }
+}
+
+function leerRegistroManual() {
+  const cliente = document.getElementById("rmCliente");
+  const tarea = document.getElementById("rmTarea");
+  const fecha = document.getElementById("rmFecha");
+  const horaInicio = document.getElementById("rmHoraInicio");
+  const horaFin = document.getElementById("rmHoraFin");
+  const observacion = document.getElementById("rmObservacion");
+
+  const falla = (campo, error) => ({ campo, error });
+
+  if (!cliente.value) return falla(cliente, "Seleccione un cliente.");
+  if (!tarea.value) return falla(tarea, "Seleccione una tarea.");
+  if (!fecha.value) return falla(fecha, "Indique la fecha del trabajo.");
+
+  const ahora = new Date();
+  const hoy = fechaLocal(ahora);
+  const limite = new Date(ahora);
+  limite.setDate(limite.getDate() - DIAS_MAXIMOS_RETROACTIVO);
+  if (fecha.value > hoy) return falla(fecha, "No se pueden registrar horas que todavía no ocurrieron.");
+  if (fecha.value < fechaLocal(limite)) {
+    return falla(fecha, `Solo se pueden registrar horas de los últimos ${DIAS_MAXIMOS_RETROACTIVO} días.`);
+  }
+
+  const inicio = minutosDeHora(horaInicio.value);
+  const fin = minutosDeHora(horaFin.value);
+  if (inicio === null) return falla(horaInicio, "Indique la hora de inicio.");
+  if (fin === null) return falla(horaFin, "Indique la hora de término.");
+  if (fin <= inicio) return falla(horaFin, "La hora de término debe ser posterior a la hora de inicio.");
+  if (fecha.value === hoy && fin > ahora.getHours() * 60 + ahora.getMinutes()) {
+    return falla(horaFin, "No se pueden registrar horas que todavía no ocurrieron.");
+  }
+
+  const texto = observacion.value.trim();
+  if (!texto) return falla(observacion, "Escriba una observación con el trabajo realizado.");
+
+  return {
+    datos: {
+      id_tarea: Number(tarea.value),
+      fecha: fecha.value,
+      hora_inicio: horaInicio.value,
+      hora_fin: horaFin.value,
+      observacion: texto
+    },
+    minutos: fin - inicio
+  };
+}
+
+async function enviarRegistroManual(evento) {
+  evento.preventDefault();
+  mostrarMensajeRegistroManual("");
+
+  const lectura = leerRegistroManual();
+  if (lectura.error) {
+    mostrarMensajeRegistroManual(lectura.error, "error");
+    lectura.campo.focus();
+    return;
+  }
+
+  const tarea = tareasDisponibles.find(
+    t => Number(t.id_tarea) === lectura.datos.id_tarea
+  );
+  const acepta = await confirmarAccion(
+    `Se registrarán ${formatearMinutos(lectura.minutos)} en «${tarea ? tarea.titulo : "la tarea"}»` +
+      `${tarea ? ` de ${tarea.cliente}` : ""} el ${formatearFechaFiltro(lectura.datos.fecha)}, ` +
+      `de ${lectura.datos.hora_inicio} a ${lectura.datos.hora_fin}. ` +
+      "Una vez registradas no se pueden editar ni anular. ¿Desea continuar?",
+    "advertencia"
+  );
+  if (!acepta) return;
+
+  const boton = document.getElementById("btnGuardarRegistroManual");
+  setBotonCargando(boton, true, "Registrando...");
+
+  try {
+    const response = await fetch(`${API_URL}/control-horas/registros-manuales`, {
+      method: "POST",
+      credentials: window.API_CONFIG.credentials,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(lectura.datos)
+    });
+    const data = await leerRespuestaJson(response);
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        manejarAccesoDenegado(response.status, data.error);
+        return;
+      }
+      mostrarMensajeRegistroManual(data.error || "No se pudieron registrar las horas.", "error");
+      return;
+    }
+
+    if (panelRegistroManual) panelRegistroManual.cerrar();
+    document.getElementById("formRegistroManual").reset();
+    refrescarHistorialTrasRegistro();
+
+    const registro = data.registro || {};
+    await avisarAccion(
+      `${data.message || "Horas registradas manualmente."} ` +
+        `Duración: ${formatearMinutos(registro.duracion_minutos)}. ` +
+        `Monto: ${formatearMoneda(registro.monto)}.`,
+      "exito"
+    );
+  } catch (error) {
+    console.error(error);
+    mostrarMensajeRegistroManual("No se pudo conectar con el servidor.", "error");
+  } finally {
+    setBotonCargando(boton, false, "Registrar horas");
+    boton.disabled = tareasDisponibles.length === 0;
+  }
+}
+
+// Los filtros del historial se vuelven a pedir porque el cliente o la tarea pueden no haber
+// tenido registros antes; se conserva lo que la persona tenía elegido.
+async function refrescarHistorialTrasRegistro() {
+  const [cliente, tarea, usuario] = [filtroCliente.value, filtroTarea.value, filtroUsuario.value];
+  await cargarFiltrosRegistros();
+  filtroCliente.value = cliente;
+  actualizarTareasFiltro();
+  filtroTarea.value = tarea;
+  filtroUsuario.value = usuario;
+  await cargarRegistros();
 }

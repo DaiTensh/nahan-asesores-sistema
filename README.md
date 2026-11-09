@@ -18,10 +18,14 @@ con acceso según el rol de cada persona.
 - **Usuarios y roles**: administrador, usuario del área jurídica y usuario del
   área contable; alta, edición, desactivación, cambio de rol y recuperación de
   contraseña.
-- **Control de horas y cobros**: temporizador por tarea, tarifa general y por
-  área definidas por el administrador (RF74), cálculo de montos y reporte de
-  cobro por cliente con período opcional, desglose por tarifa y exportación
-  (RF75).
+- **Control de horas y cobros**: temporizador por tarea, registro manual de
+  horas ya trabajadas (botón «Registrar horas manualmente»; CU-14 y CU-29),
+  tarifa general y por área definidas por el administrador (RF74), cálculo de
+  montos y reporte de cobro por cliente con período opcional, desglose por
+  tarifa y exportación (RF75). El registro manual guarda su origen y una
+  observación, se limita a los últimos 30 días, no admite horas futuras ni
+  solapes con otras horas del mismo usuario y entra solo a los totales,
+  al informe de horas y al cobro; requiere la migración 012.
 - **Dashboard y reportes**: indicadores de tareas pendientes, vencidas y
   finalizadas, carga por usuario, distribución por área, reportes por cliente,
   responsable y área, exportación a PDF y Excel.
@@ -168,7 +172,7 @@ bash scripts/test.sh tests/test_rf26_restablecimiento.py -v
 bash scripts/test.sh -k historial
 ```
 
-La suite (`tests/`, 1.667 pruebas) no usa tu base de datos real: trabaja con conexiones
+La suite (`tests/`, 1.879 casos en esta revisión) no usa tu base de datos real: trabaja con conexiones
 simuladas, con una base SQLite temporal o, en las pruebas marcadas «MySQL real», con un
 `mysqld` propio y desechable en un puerto efímero que se borra al terminar (necesita
 `mysqld` y `mysqldump` instalados; sin ellos esas pruebas se omiten). Cubre autenticación,
@@ -176,11 +180,16 @@ autorización por rol, auditoría, flujo de revisión de tareas, notificaciones,
 exportaciones, respaldos y las reglas de cada requisito funcional. `pytest` está en
 `requirements-dev.txt`: es una dependencia de desarrollo y el servidor no la instala.
 
+Última ejecución completa, el 8-nov-2026 en macOS con Python 3.9.6: **1.865 aprobadas,
+14 omitidas y 0 fallidas**. Las omitidas requieren un volumen distinto y `mysqldump`
+para RF60, o un puerto de MySQL desechable solicitado expresamente para SEC-02; el mismo
+día se ejecutaron con ambas variables y pasaron las 14.
+
 Por defecto quedan 14 pruebas omitidas, que se activan a propósito: 5 de RF60 con
 `NAHAN_TEST_OTRO_DISPOSITIVO=<carpeta de un volumen distinto del disco de la aplicación>` y 9 del
 límite de inicios de sesión con `NAHAN_TEST_MYSQL_PORT=<puerto de un MySQL local desechable>`.
-Referencia del 3-nov-2026: 1.667 correctas y ninguna omitida con ambas variables y Python 3.12;
-1.653 correctas y 14 omitidas con Python 3.9 y la configuración por defecto.
+Referencia histórica del 5-nov-2026 (Python 3.9, macOS): 1.723 correctas y ninguna
+omitida con ambas variables; 1.709 correctas y 14 omitidas con la configuración por defecto.
 
 ## Estructura del proyecto
 
@@ -199,6 +208,11 @@ tests/              pruebas automáticas con pytest
 
 ## Documentación adicional
 
+- [`docs/GUIA_INSTALACION_LOCAL.md`](docs/GUIA_INSTALACION_LOCAL.md):
+  instalación y ejecución local en Windows y macOS.
+- [`docs/GUIA_DESPLIEGUE_AWS.md`](docs/GUIA_DESPLIEGUE_AWS.md):
+  operación basada en la configuración versionada y puntos que se deben
+  confirmar en AWS.
 - [`docs/architecture.md`](docs/architecture.md): arquitectura general.
 - [`docs/setup/CONFIGURACION_BASE_DATOS.md`](docs/setup/CONFIGURACION_BASE_DATOS.md):
   guía detallada de MySQL y de las migraciones (incluye Windows).

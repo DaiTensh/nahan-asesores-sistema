@@ -180,6 +180,32 @@ def test_pdf_abrible_con_texto_especial_y_varias_paginas(client, monkeypatch, in
     assert conexion.closed
 
 
+def test_pdf_usa_fuente_unicode_en_el_stream_real_y_no_solo_en_extraccion(client, monkeypatch, iniciar_sesion, fake_connection_factory):
+    from pypdf import PdfReader
+    iniciar_sesion()
+    original = _handler_tareas_por_cliente()
+
+    def handler(sql, params, cursor):
+        filas = original(sql, params, cursor)
+        if filas and "titulo" in filas[0]:
+            filas[0]["titulo"] = "日本 😀"
+            return [dict(filas[0], id_tarea=1)]
+        return filas
+
+    conexion = fake_connection_factory(handler)
+    monkeypatch.setattr(reportes_routes, "get_connection", lambda: conexion)
+
+    respuesta = client.get("/api/reportes/1/pdf")
+    assert respuesta.status_code == 200
+
+    pdf = PdfReader(io.BytesIO(respuesta.data), strict=True)
+    texto = " ".join(page.extract_text() or "" for page in pdf.pages)
+    assert "日本" in texto
+
+    assert b"HeiseiMin-W3" in respuesta.data or b"EmojiFallback" in respuesta.data
+    assert conexion.closed
+
+
 def test_pdf_productividad_y_reporte_vacio(client, monkeypatch, iniciar_sesion, fake_connection_factory):
     from pypdf import PdfReader
     iniciar_sesion()

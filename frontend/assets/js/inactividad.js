@@ -20,6 +20,7 @@
   let cuentaRegresiva = null;
   let segundosAviso = 60;
   let modal = null;
+  let ultimaLectura = null;
 
   function cargarEstilos() {
     if (document.querySelector('link[data-modulo="inactividad"]')) return;
@@ -30,8 +31,21 @@
     document.head.appendChild(enlace);
   }
 
-  function irAlLogin() {
-    window.location.href = "../auth/login.html?motivo=inactividad";
+  function irAlLogin(motivo = "inactividad") {
+    window.location.href = `../auth/login.html?motivo=${motivo}`;
+  }
+
+  function registrarLectura(estado) {
+    ultimaLectura = { restantes: estado.segundos_restantes, momento: Date.now() };
+  }
+
+  // H-16 — Un 401 también llega cuando la sesión termina por otra causa (límite absoluto de la sesión o
+  // cambio de la clave del servidor). Solo se avisa de inactividad si, según la última lectura, ya
+  // quedaba poco tiempo (menos de una consulta más un margen); si no, el aviso es el de sesión finalizada.
+  function motivoDeCierre() {
+    if (!ultimaLectura) return "sesion";
+    const restantes = ultimaLectura.restantes - (Date.now() - ultimaLectura.momento) / 1000;
+    return restantes <= INTERVALO_CONSULTA_MS / 1000 + 5 ? "inactividad" : "sesion";
   }
 
   function crearModal() {
@@ -132,10 +146,13 @@
       credentials: CREDENCIALES
     });
     if (response.status === 401) {
-      irAlLogin();
+      irAlLogin(motivoDeCierre());
       return null;
     }
-    return response.ok ? response.json() : null;
+    if (!response.ok) return null;
+    const estado = await response.json();
+    registrarLectura(estado);
+    return estado;
   }
 
   async function seguirConectado() {
@@ -159,12 +176,13 @@
       });
 
       if (response.status === 401) {
-        irAlLogin();
+        irAlLogin(motivoDeCierre());
         return;
       }
       if (!response.ok) return;
 
       const estado = await response.json();
+      registrarLectura(estado);
       segundosAviso = estado.aviso_segundos;
 
       if (estado.segundos_restantes <= segundosAviso) {

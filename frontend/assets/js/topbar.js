@@ -190,11 +190,12 @@ function fechaActualEnEspanol() {
 // Carga un módulo complementario de la barra superior (assets/js/<nombre>.js)
 // una sola vez. Cada funcionalidad que se monta en la barra vive en su propio
 // archivo y aquí solo se agrega la línea que la carga.
-function montarModuloTopbar(nombre) {
+function montarModuloTopbar(nombre, alCargar) {
   if (document.querySelector(`script[data-modulo-topbar="${nombre}"]`)) return;
   const script = document.createElement("script");
   script.src = `../assets/js/${nombre}.js`;
   script.dataset.moduloTopbar = nombre;
+  if (alCargar) script.onload = alCargar;
   document.body.appendChild(script);
 }
 
@@ -304,5 +305,6 @@ async function cargarTopbar() {
 
   renderizarBuscadorGlobal(usuario);
   montarModuloTopbar("inactividad"); // RF59
-  montarModuloTopbar("notificaciones"); // RF51, RF52, RF53
+  // RF51, RF52, RF53: las notificaciones dan formato a sus fechas con fechas.js, que se carga antes.
+  montarModuloTopbar("fechas", () => montarModuloTopbar("notificaciones"));
 }

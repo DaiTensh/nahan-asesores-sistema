@@ -11,7 +11,7 @@ from backend.routes.notificaciones_routes import (
 )
 from backend.utils.auditoria import registrar_auditoria
 from backend.utils.auth import ROL_ADMINISTRADOR, login_required, obtener_usuario_actual, roles_required
-from backend.utils.estados_tarea import SQL_ESTADOS_ACTIVOS
+from backend.utils.estados_tarea import SQL_ESTADOS_ACTIVOS, etiqueta_estado
 
 tareas_bp = Blueprint("tareas", __name__)
 logger = logging.getLogger(__name__)
@@ -1244,7 +1244,7 @@ def actualizar_estado_tarea(id_tarea):
                     cursor,
                     id_admin,
                     "REVISION_TAREA",
-                    f"La tarea \"{tarea['titulo']}\" pasó a revisión administrativa desde {estado_anterior} (En revisión).",
+                    f"La tarea \"{tarea['titulo']}\" pasó de «{etiqueta_estado(estado_anterior)}» a «En revisión» y espera revisión administrativa.",
                     _url_detalle_tarea(id_tarea),
                     id_usuario_actor=usuario["id_usuario"],
                     importancia=IMPORTANCIA_CRITICA,
@@ -1276,7 +1276,7 @@ def actualizar_estado_tarea(id_tarea):
                 cursor,
                 tarea["id_responsable"],
                 "CAMBIO_ESTADO_TAREA",
-                f"La tarea \"{tarea['titulo']}\" cambió de {estado_anterior} a {estado}",
+                f"La tarea \"{tarea['titulo']}\" cambió de «{etiqueta_estado(estado_anterior)}» a «{etiqueta_estado(estado)}»",
                 _url_detalle_tarea(id_tarea),
                 id_usuario_actor=usuario["id_usuario"],
             )

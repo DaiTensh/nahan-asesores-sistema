@@ -35,46 +35,16 @@ const ADMIN_ITEMS = [
     href: "../reportes/reportes.html"
   },
   {
-    id: "productividad",
-    label: "Productividad",
-    icon: "PR",
-    href: "../reportes/productividad.html"
-  },
-  {
     id: "historial",
     label: "Historial de actividad",
     icon: "HA",
     href: "../historial/historial.html"
   },
   {
-    id: "historial-consolidado",
-    label: "Historial consolidado",
-    icon: "HC",
-    href: "../reportes/historial_consolidado.html"
-  },
-  {
     id: "usuarios",
     label: "Usuarios",
     icon: "RU",
     href: "../usuarios/usuarios.html"
-  },
-  {
-    id: "modificar",
-    label: "Modificar usuario",
-    icon: "MU",
-    href: "../usuarios/modificar_usuario.html"
-  },
-  {
-    id: "desactivar",
-    label: "Deshabilitar usuario",
-    icon: "DU",
-    href: "../usuarios/desactivar_usuario.html"
-  },
-  {
-    id: "rol",
-    label: "Asignar rol",
-    icon: "AR",
-    href: "../usuarios/asignar_rol.html"
   },
   {
     id: "configuracion-sesion",
@@ -142,6 +112,21 @@ function aplicarEstadoSidebar(colapsada) {
   document.body.classList.toggle("sidebar-collapsed", colapsada);
 }
 
+// H-17 — Enlace para saltar el menú con el teclado: es el primer elemento enfocable de la pantalla.
+function agregarSaltoAlContenido() {
+  const principal = document.querySelector("main");
+  if (!principal || document.querySelector(".saltar-contenido")) return;
+
+  if (!principal.id) principal.id = "contenido-principal";
+  principal.setAttribute("tabindex", "-1");
+
+  const enlace = document.createElement("a");
+  enlace.className = "saltar-contenido";
+  enlace.href = `#${principal.id}`;
+  enlace.textContent = "Saltar al contenido";
+  document.body.prepend(enlace);
+}
+
 async function cargarNavegacion(rutaActiva = "") {
   const usuario = await obtenerUsuarioActual();
 
@@ -154,6 +139,8 @@ async function cargarNavegacion(rutaActiva = "") {
 
   if (!nav) return;
 
+  agregarSaltoAlContenido();
+
   const esAdmin = usuario.nombre_rol === "ADMINISTRADOR";
   // Sin preferencia guardada, en pantallas estrechas el menú arranca contraído
   // para dejarle espacio al contenido.
@@ -164,7 +151,6 @@ async function cargarNavegacion(rutaActiva = "") {
   aplicarEstadoSidebar(sidebarColapsada);
 
   nav.textContent = "";
-  nav.setAttribute("aria-label", "Navegación principal");
 
   const header = document.createElement("div");
   header.className = "sidebar-header";
@@ -208,10 +194,19 @@ async function cargarNavegacion(rutaActiva = "") {
   header.appendChild(toggle);
   nav.appendChild(header);
 
+  // Los enlaces van en su propio contenedor con scroll: en pantallas de poca altura
+  // el menú de administración es más largo que la ventana y no debe dejar fuera de
+  // alcance sus últimas opciones ni el cierre de sesión. Es el <nav> de la pantalla: el <aside> que lo
+  // contiene solo agrupa la marca, el menú y la sesión, así que el lector de pantalla ve un único
+  // punto de referencia de navegación con nombre.
+  const zonaEnlaces = document.createElement("nav");
+  zonaEnlaces.className = "sidebar-scroll";
+  zonaEnlaces.setAttribute("aria-label", "Navegación principal");
+
   const lista = document.createElement("div");
   lista.className = "sidebar-nav";
   NAV_ITEMS.forEach(item => lista.appendChild(crearLinkNavegacion(item, rutaActiva)));
-  nav.appendChild(lista);
+  zonaEnlaces.appendChild(lista);
 
   if (esAdmin) {
     const detalles = document.createElement("details");
@@ -247,8 +242,10 @@ async function cargarNavegacion(rutaActiva = "") {
       crearLinkNavegacion(item, rutaActiva, "sidebar-sublink")
     ));
     detalles.appendChild(submenu);
-    nav.appendChild(detalles);
+    zonaEnlaces.appendChild(detalles);
   }
+
+  nav.appendChild(zonaEnlaces);
 
   const footer = document.createElement("div");
   footer.className = "sidebar-user";

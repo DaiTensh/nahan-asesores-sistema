@@ -26,6 +26,12 @@ body {
   margin-bottom: 24px;
 }
 
+.volver-usuarios {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--spacing-4);
+}
+
 .datos {
   margin-top: 24px;
   padding: 18px;
@@ -36,6 +42,7 @@ body {
 
 .datos p {
   margin: 8px 0;
+  overflow-wrap: anywhere;
 }
 
 .hidden {
@@ -48,9 +55,9 @@ body {
 }
 
 .mensaje.success {
-  color: var(--color-success);
+  color: var(--color-success-strong);
 }
 
 .mensaje.error {
-  color: var(--color-danger);
+  color: var(--color-danger-strong);
 }

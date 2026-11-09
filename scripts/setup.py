@@ -374,6 +374,8 @@ cur.close(); cn.close()
 
     codigo = f'''
 import sys, re, mysql.connector
+sys.path.insert(0, {os.path.dirname(MIGRAR)!r})
+from migrar import dividir_sentencias
 sql = open({ESQUEMA!r}, encoding="utf-8").read()
 # El SQL distribuido nombra la base predeterminada y comienza con DROP.
 # Una instalación normal nunca debe borrar una base, ni apuntar a otra.
@@ -387,7 +389,8 @@ cn = mysql.connector.connect(host={cfg['DB_HOST']!r}, port={int(cfg['DB_PORT'])}
                              user={cfg['DB_USER']!r}, password={cfg['DB_PASSWORD']!r})
 cur = cn.cursor()
 n = 0
-for sentencia in [s.strip() for s in sql.split(";") if s.strip()]:
+# Un «;» dentro de un comentario del SQL no es el fin de una sentencia.
+for sentencia in dividir_sentencias(sql):
     cur.execute(sentencia)
     while cur.nextset():
         pass

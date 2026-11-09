@@ -100,6 +100,14 @@
   margin-bottom: 24px;
 }
 
+#panelNuevaTarea {
+  scroll-margin-top: 168px;
+}
+
+#btnNuevaTarea {
+  scroll-margin-top: 168px;
+}
+
 .tareas-section h2 {
   margin-bottom: 18px;
 }
@@ -124,11 +132,11 @@
 }
 
 .mensaje.success {
-  color: var(--color-success);
+  color: var(--color-success-strong);
 }
 
 .mensaje.error {
-  color: var(--color-danger);
+  color: var(--color-danger-strong);
 }
 
 .tareas-table {
@@ -163,7 +171,9 @@
 }
 
 .tareas-table input[type="checkbox"] {
-  width: auto;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-primary);
 }
 
 .tareas-actions {
@@ -191,7 +201,7 @@
 
 .badge.estado-en_proceso {
   background: #fef3c7;
-  color: #d97706;
+  color: var(--color-warning-strong);
 }
 
 .badge.estado-pausada {
@@ -201,23 +211,23 @@
 
 .badge.estado-en_revision {
   background: #dbeafe;
-  color: #2563eb;
+  color: var(--color-info-strong);
 }
 
 .badge.prioridad-baja {
   background: #dcfce7;
-  color: #16a34a;
+  color: var(--color-success-strong);
 }
 
 .badge.prioridad-media {
   background: #fef3c7;
-  color: #d97706;
+  color: var(--color-warning-strong);
 }
 
 .badge.prioridad-alta,
 .badge.prioridad-urgente {
   background: #fee2e2;
-  color: #dc2626;
+  color: var(--color-danger-strong);
 }
 
 .tareas-filtros {
@@ -239,6 +249,8 @@
 
 .tareas-filtro-responsable {
   margin-bottom: 0;
+  /* A 320 px el campo de 220 px no cabía y empujaba la página 25 px a la derecha (WCAG 1.4.10). */
+  min-width: 0;
 }
 
 .tareas-filtro-responsable-input {
@@ -355,4 +367,12 @@
   position: sticky;
   left: 14px;
   display: inline-block;
+}
+
+/* A 1366 px (portátil) la tabla pedía 1048 px y la columna Acciones quedaba cortada: «Adjuntos» se veía
+   a medias y los campos de responsable, estado y prioridad exigían desplazar la tabla. */
+.tareas-table th,
+.tareas-table td {
+  padding-left: 8px;
+  padding-right: 8px;
 }

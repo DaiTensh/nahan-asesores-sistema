@@ -1,5 +1,24 @@
 const API_URL = window.API_CONFIG.API_URL;
 
+configurarPanelAlta({
+  botonId: "btnNuevoUsuario",
+  panelId: "panelNuevoUsuario",
+  primerCampoId: "nombres",
+  botonCerrarId: "btnCerrarNuevoUsuario",
+  alAbrir: () => {
+    mensaje.textContent = "";
+    mensaje.className = "mensaje";
+  }
+});
+
+// La API entrega la fecha de registro como «AAAA-MM-DD HH:MM:SS»; se muestra como en el historial.
+function formatearFechaRegistro(valor) {
+  if (!valor) return "Sin fecha";
+  const [fecha, hora = ""] = String(valor).split(" ");
+  const [anio, mes, dia] = fecha.split("-");
+  return `${dia}-${mes}-${anio} ${hora.substring(0, 5)}`.trim();
+}
+
 const formUsuario = document.getElementById("formUsuario");
 const mensaje = document.getElementById("mensaje");
 const selectorRol = document.getElementById("id_rol");
@@ -15,6 +34,7 @@ const ordenUsuarios = document.getElementById("ordenUsuarios");
 let catalogoUsuarios = [];
 let opcionesUsuariosCargadas = false;
 let solicitudListado = 0;
+let usuarioActual = null;
 
 const AREA_POR_ROL = {
   1: 3,
@@ -36,14 +56,14 @@ function sincronizarAreaConRol() {
   selectorArea.disabled = true;
 }
 
-function agregarOpcionesDinamicas(selector, usuarios, campoId, campoNombre, etiquetaTodos) {
+function agregarOpcionesDinamicas(selector, usuarios, campoId, campoNombre, etiquetaTodos, formatear = String) {
   const valorActual = selector.value;
   const opciones = new Map();
 
   usuarios.forEach(usuario => {
     const id = usuario[campoId];
     const nombre = usuario[campoNombre];
-    if (id != null && nombre) opciones.set(String(id), String(nombre));
+    if (id != null && nombre) opciones.set(String(id), formatear(String(nombre)));
   });
 
   selector.replaceChildren(new Option(etiquetaTodos, ""));
@@ -53,9 +73,36 @@ function agregarOpcionesDinamicas(selector, usuarios, campoId, campoNombre, etiq
   if ([...selector.options].some(opcion => opcion.value === valorActual)) selector.value = valorActual;
 }
 
-function crearCelda(texto) {
+function crearCelda(texto, etiqueta) {
   const celda = document.createElement("td");
   celda.textContent = texto || "-";
+  if (etiqueta) celda.dataset.label = etiqueta;
+  return celda;
+}
+
+function crearCeldaAcciones(usuario) {
+  const celda = document.createElement("td");
+  celda.dataset.label = "Acciones";
+  const acciones = document.createElement("div");
+  const id = encodeURIComponent(usuario.id_usuario);
+  acciones.className = "usuarios-acciones";
+
+  const crearEnlace = (texto, destino, clase, ariaLabel) => {
+    const enlace = document.createElement("a");
+    enlace.href = destino;
+    enlace.className = clase;
+    enlace.textContent = texto;
+    enlace.setAttribute("aria-label", ariaLabel);
+    acciones.appendChild(enlace);
+  };
+
+  crearEnlace("Editar", `modificar_usuario.html?id=${id}`, "btn btn-primary btn-small", `Editar a ${usuario.nombres}`);
+  crearEnlace("Asignar rol", `asignar_rol.html?id=${id}`, "btn btn-secondary btn-small", `Asignar rol a ${usuario.nombres}`);
+  if (usuario.estado === "ACTIVO") {
+    crearEnlace("Deshabilitar", `desactivar_usuario.html?id=${id}`, "btn btn-warning btn-small", `Deshabilitar a ${usuario.nombres}`);
+  }
+
+  celda.appendChild(acciones);
   return celda;
 }
 
@@ -75,26 +122,28 @@ function mostrarUsuarios(usuarios) {
     const inactivo = usuario.estado === "INACTIVO";
     if (inactivo) fila.classList.add("usuario-fila-inactiva");
     fila.append(
-      crearCelda(usuario.nombres),
-      crearCelda(usuario.email),
-      crearCelda(usuario.nombre_rol),
-      crearCelda(usuario.nombre_area || "Sin área")
+      crearCelda(usuario.nombres, "Nombre"),
+      crearCelda(usuario.email, "Correo electrónico"),
+      crearCelda(nombreRolNatural(usuario.nombre_rol), "Rol"),
+      crearCelda(usuario.nombre_area || "Sin área", "Área")
     );
 
     const estado = document.createElement("span");
     estado.className = `usuario-estado ${inactivo ? "usuario-estado-inactivo" : "usuario-estado-activo"}`;
     estado.textContent = inactivo ? "Inactivo" : "Activo";
     const celdaEstado = document.createElement("td");
+    celdaEstado.dataset.label = "Estado";
     celdaEstado.appendChild(estado);
-    fila.append(celdaEstado, crearCelda(usuario.fecha_creacion));
+    fila.append(
+      celdaEstado,
+      crearCelda(formatearFechaRegistro(usuario.fecha_creacion), "Fecha de registro")
+    );
 
-    const enlace = document.createElement("a");
-    enlace.className = "btn btn-secondary btn-small";
-    enlace.href = `modificar_usuario.html?id=${encodeURIComponent(usuario.id_usuario)}`;
-    enlace.textContent = "Ver perfil";
-    const celdaPerfil = document.createElement("td");
-    celdaPerfil.appendChild(enlace);
-    fila.appendChild(celdaPerfil);
+    fila.appendChild(
+      usuarioActual && usuarioActual.nombre_rol === "ADMINISTRADOR"
+        ? crearCeldaAcciones(usuario)
+        : crearCelda("", "Acciones")
+    );
     tablaUsuarios.appendChild(fila);
   });
 }
@@ -123,7 +172,7 @@ async function cargarListadoUsuarios() {
 
     if (!opcionesUsuariosCargadas) {
       catalogoUsuarios = usuarios;
-      agregarOpcionesDinamicas(filtroRol, catalogoUsuarios, "id_rol", "nombre_rol", "Todos los roles");
+      agregarOpcionesDinamicas(filtroRol, catalogoUsuarios, "id_rol", "nombre_rol", "Todos los roles", nombreRolNatural);
       agregarOpcionesDinamicas(filtroArea, catalogoUsuarios, "id_area", "nombre_area", "Todas las áreas");
       opcionesUsuariosCargadas = true;
     }
@@ -141,7 +190,10 @@ filtroRol.addEventListener("change", cargarListadoUsuarios);
 filtroArea.addEventListener("change", cargarListadoUsuarios);
 filtroEstado.addEventListener("change", cargarListadoUsuarios);
 ordenUsuarios.addEventListener("change", cargarListadoUsuarios);
-cargarListadoUsuarios();
+document.addEventListener("DOMContentLoaded", async () => {
+  usuarioActual = await obtenerUsuarioActual();
+  await cargarListadoUsuarios();
+});
 
 formUsuario.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -186,6 +238,7 @@ formUsuario.addEventListener("submit", async (event) => {
     mensaje.className = "mensaje success";
     formUsuario.reset();
     sincronizarAreaConRol();
+    await cargarListadoUsuarios();
 
   } catch (error) {
     mensaje.textContent = "No se pudo conectar con el servidor";

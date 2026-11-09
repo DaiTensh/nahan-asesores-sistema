@@ -50,8 +50,19 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 summary:focus-visible{
-  outline:3px solid rgba(47, 195, 199, 0.45);
+  outline:3px solid var(--color-focus);
   outline-offset:2px;
+}
+
+/* Quien pide menos movimiento no recibe transiciones ni desplazamientos animados. */
+@media (prefers-reduced-motion: reduce){
+  *,
+  *::before,
+  *::after{
+    transition-duration:0.01ms !important;
+    animation-duration:0.01ms !important;
+    scroll-behavior:auto !important;
+  }
 }
 
 h1,

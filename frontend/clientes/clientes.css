@@ -85,13 +85,15 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  min-height: 32px;
   color: var(--color-text);
   font-size: 14px;
+  cursor: pointer;
 }
 
 .checkbox-option input {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   accent-color: var(--color-primary);
 }
 
@@ -169,11 +171,11 @@
 }
 
 .mensaje.success {
-  color: var(--color-success);
+  color: var(--color-success-strong);
 }
 
 .mensaje.error {
-  color: var(--color-danger);
+  color: var(--color-danger-strong);
 }
 
 .badge {
@@ -185,12 +187,12 @@
 
 .badge.estado-activo {
   background: #dcfce7;
-  color: #16a34a;
+  color: var(--color-success-strong);
 }
 
 .badge.estado-inactivo {
   background: #fee2e2;
-  color: #dc2626;
+  color: var(--color-danger-strong);
 }
 
 .cliente-detail-grid {

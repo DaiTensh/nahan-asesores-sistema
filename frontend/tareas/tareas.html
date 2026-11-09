@@ -33,6 +33,9 @@
           <h1>Gestión de Tareas</h1>
           <p>Administra y realiza seguimiento de las tareas del sistema.</p>
         </div>
+        <div class="tareas-header-actions">
+          <button type="button" id="btnNuevaTarea" class="btn btn-primary">Nueva tarea</button>
+        </div>
       </section>
 
       <section class="tareas-cards">
@@ -62,7 +65,7 @@
         </div>
       </section>
 
-      <section class="tareas-section">
+      <section class="tareas-section" id="panelNuevaTarea" hidden>
         <h2>Crear nueva tarea</h2>
 
         <form id="formTarea" class="tareas-form">
@@ -129,7 +132,7 @@
             Crear Tarea
           </button>
 
-          <p id="mensajeTarea" class="mensaje"></p>
+          <p id="mensajeTarea" class="mensaje" aria-live="polite"></p>
         </form>
       </section>
 
@@ -218,6 +221,7 @@
 <script src="../assets/js/navigation.js"></script>
 <script src="../assets/js/topbar.js"></script>
 <script src="../assets/js/permissions.js"></script>
+<script src="../assets/js/panel_alta.js"></script>
 <script src="../assets/js/clientes_autocomplete.js"></script>
 <script src="../assets/js/usuarios_autocomplete.js"></script>
 <script src="../assets/js/agrupar_tareas.js"></script>

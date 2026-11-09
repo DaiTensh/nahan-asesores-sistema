@@ -169,11 +169,23 @@ def servir_frontend(puerto_front, puerto_api):
                 self.end_headers()
                 self.wfile.write(contenido)
                 return
+            self.revalidar = True
             super().do_GET()
+
+        def end_headers(self):
+            # Servidor de desarrollo: sin esto el navegador reutiliza un .js o .css antiguo tras un cambio
+            # y se prueba código que ya no existe. «no-cache» revalida cada vez (responde 304 si no cambió).
+            if getattr(self, "revalidar", False):
+                self.send_header("Cache-Control", "no-cache")
+            super().end_headers()
 
         def log_message(self, *a, **k):
             pass
 
+    # La cola de conexiones pendientes mide 5 por omisión. Cada archivo usa una conexión nueva (HTTP/1.0) y
+    # el navegador pide ~15 de golpe al abrir una pantalla: el sistema reseteaba las que no cabían y la
+    # página quedaba sin menú ni barra superior («cargarTopbar is not defined»).
+    http.server.ThreadingHTTPServer.request_queue_size = 128
     return http.server.ThreadingHTTPServer(("127.0.0.1", puerto_front), Handler)
 
 

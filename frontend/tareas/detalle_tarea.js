@@ -200,7 +200,7 @@ function renderizarHistorial(historial) {
 
     fila.appendChild(crearCelda(formatearFechaHora(evento.fecha)));
     fila.appendChild(crearCelda(evento.usuario));
-    fila.appendChild(crearCelda(evento.accion));
+    fila.appendChild(crearCelda(window.etiquetaAccionAuditoria(evento.accion)));
     fila.appendChild(crearCelda(evento.datos_anteriores));
     fila.appendChild(crearCelda(evento.datos_nuevos));
 
@@ -284,7 +284,7 @@ async function descargarAdjunto(idDocumento, nombreDocumento) {
 
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      alert(data.error || "No se pudo descargar el archivo");
+      avisarAccion(data.error || "No se pudo descargar el archivo", "error");
       return;
     }
 
@@ -300,7 +300,7 @@ async function descargarAdjunto(idDocumento, nombreDocumento) {
 
   } catch (error) {
     console.error(error);
-    alert("Error al conectar con el servidor");
+    avisarAccion("Error al conectar con el servidor", "error");
   }
 }
 
@@ -327,5 +327,5 @@ function formatearFechaHora(fecha) {
     return "Sin registrar";
   }
 
-  return new Date(fecha).toLocaleString("es-CL", { timeZone: "UTC" });
+  return formatearFechaHora24(fecha, { utc: true });
 }

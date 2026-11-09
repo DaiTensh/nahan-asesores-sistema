@@ -25,6 +25,16 @@ def test_la_api_y_los_adjuntos_conservan_sus_limites():
     assert "return 302 /auth/login.html;" in conf
 
 
+def test_las_redirecciones_son_relativas_para_conservar_el_puerto_del_tunel_ssh():
+    """La demostración se abre por un túnel (localhost:8080): con una redirección absoluta Nginx omite ese puerto."""
+    conf = _conf()
+    servidor = re.sub(r"^\s*#.*$", "", conf[conf.index("server {"):], flags=re.MULTILINE)
+    assert "absolute_redirect off;" in servidor
+    antes = servidor[:servidor.index("absolute_redirect off;")]
+    assert antes.count("{") - antes.count("}") == 1, \
+        "la directiva va a nivel de «server» para cubrir también las páginas inexistentes"
+
+
 def test_los_recursos_estaticos_se_revalidan_en_lugar_de_cachearse_dias():
     """Con «expires 7d» un usuario conservaba JS y CSS viejos hasta una semana después de un despliegue."""
     conf = _conf()

@@ -25,11 +25,16 @@
     <header class="topbar" id="topbar"></header>
 
     <main class="main-content">
-      <section class="reportes-header">
+      <section class="reportes-header reportes-header--acciones">
         <div>
           <h1>Productividad por usuario</h1>
           <p>Tareas completadas, tiempo promedio de resolución y carga vigente por usuario, dentro de un período.</p>
         </div>
+        <nav class="reportes-header-actions" aria-label="Informes">
+          <a class="btn btn-secondary" href="reportes.html">Reportes</a>
+          <a class="btn btn-secondary" href="productividad.html" aria-current="page">Productividad</a>
+          <a class="btn btn-secondary" href="historial_consolidado.html">Historial consolidado</a>
+        </nav>
       </section>
 
       <section class="reportes-section">
@@ -114,7 +119,7 @@
 
 <script>
   protegerPagina(["ADMINISTRADOR"]);
-  cargarNavegacion("productividad");
+  cargarNavegacion("reportes");
   cargarTopbar();
 </script>
 

@@ -9,6 +9,22 @@ PAUSADA, algunos reportes la dejaran fuera.
 
 ESTADOS_TAREA_ACTIVA = ("PENDIENTE", "EN_PROCESO", "PAUSADA", "EN_REVISION")
 
+# Nombre con el que cada estado se muestra a las personas (avisos, mensajes). El código interno
+# sigue siendo el valor que viaja por la API y la base de datos.
+ETIQUETAS_ESTADO_TAREA = {
+    "PENDIENTE": "Pendiente",
+    "EN_PROCESO": "En proceso",
+    "PAUSADA": "Pausada",
+    "EN_REVISION": "En revisión",
+    "COMPLETADA": "Completada",
+    "CANCELADA": "Cancelada",
+}
+
+
+def etiqueta_estado(estado):
+    return ETIQUETAS_ESTADO_TAREA.get(estado, str(estado))
+
+
 # Fragmento para «WHERE estado IN …». Se arma solo con las constantes de arriba,
 # nunca con datos del usuario.
 SQL_ESTADOS_ACTIVOS = "(" + ", ".join(f"'{estado}'" for estado in ESTADOS_TAREA_ACTIVA) + ")"

@@ -2,6 +2,7 @@
 
 Pruebas sin MySQL: la conexión y el cursor se simulan.
 """
+import glob
 import os
 import sys
 from types import SimpleNamespace
@@ -126,6 +127,75 @@ def test_setup_conserva_base_con_tablas(monkeypatch):
     monkeypatch.setattr(setup, "correr", lambda cmd: SimpleNamespace(returncode=0, stdout="EXISTE 21"))
     monkeypatch.setattr(setup, "confirmar_borrado", lambda *a: pytest.fail("No debe preparar borrado"))
     assert setup.importar_esquema(cfg) is False
+
+
+class CursorGrabador:
+    def __init__(self, ejecutadas):
+        self.ejecutadas = ejecutadas
+
+    def execute(self, sentencia):
+        self.ejecutadas.append(sentencia)
+
+    def nextset(self):
+        return False
+
+    def close(self):
+        pass
+
+
+def test_setup_no_parte_el_esquema_por_un_punto_y_coma_de_un_comentario(monkeypatch):
+    """El comentario de nahan_asesores.sql con «;» (tabla intento_login_fallido) partía la sentencia."""
+    from scripts import setup
+
+    cfg = {"DB_HOST": "localhost", "DB_PORT": "3306", "DB_USER": "prueba",
+           "DB_PASSWORD": "", "DB_NAME": "nahan_prueba"}
+    ejecutadas = []
+    conector = SimpleNamespace(connect=lambda **kw: SimpleNamespace(
+        cursor=lambda: CursorGrabador(ejecutadas), commit=lambda: None, close=lambda: None))
+
+    def correr(cmd):
+        codigo = cmd[-1]
+        if "SELECT SCHEMA_NAME" in codigo:
+            return SimpleNamespace(returncode=0, stdout="NUEVA")
+        if "sql = open(" in codigo:
+            monkeypatch.setitem(sys.modules, "mysql", SimpleNamespace(connector=conector))
+            monkeypatch.setitem(sys.modules, "mysql.connector", conector)
+            monkeypatch.setattr(sys, "path", list(sys.path))
+            exec(compile(codigo, "<importacion del esquema>", "exec"), {})
+            return SimpleNamespace(returncode=0, stdout=f"SENTENCIAS {len(ejecutadas)}")
+        return SimpleNamespace(returncode=0, stdout="TABLAS 24")
+
+    monkeypatch.setattr(setup, "conectar", lambda *a: SimpleNamespace(returncode=0, stdout="OK"))
+    monkeypatch.setattr(setup, "correr", correr)
+    assert setup.importar_esquema(cfg) is True
+
+    with open(setup.ESQUEMA, encoding="utf-8") as archivo:
+        tablas_del_archivo = sum(1 for l in archivo if l.startswith("CREATE TABLE"))
+    palabras = ("CREATE DATABASE", "USE", "CREATE TABLE", "CREATE INDEX", "INSERT INTO")
+    assert all(s.startswith(palabras) for s in ejecutadas), "una sentencia empieza a mitad de un comentario"
+    assert sum(s.startswith("CREATE TABLE") for s in ejecutadas) == tablas_del_archivo >= 24
+    assert any(s.startswith("CREATE TABLE intento_login_fallido") and "ip_cliente VARBINARY(16)" in s
+               for s in ejecutadas)
+    assert not any(l.lstrip().startswith("--") for s in ejecutadas for l in s.splitlines())
+
+
+def test_dividir_sentencias_ignora_el_punto_y_coma_de_un_comentario():
+    texto = ("-- primero; segundo\nCREATE TABLE a (\n    x INT,\n    -- nota; con punto y coma\n    y INT\n);\n"
+             "  -- otro; comentario\nINSERT INTO a VALUES (1, 2);\n")
+    assert migrar.dividir_sentencias(texto) == [
+        "CREATE TABLE a (\n    x INT,\n    y INT\n)", "INSERT INTO a VALUES (1, 2)"]
+
+
+@pytest.mark.parametrize("ruta", [os.path.join(RAIZ, "database", "nahan_asesores.sql")]
+                         + sorted(glob.glob(os.path.join(RAIZ, "database", "migraciones", "*.sql"))),
+                         ids=os.path.basename)
+def test_la_division_coincide_con_la_de_las_pruebas_con_mysql_real(ruta):
+    """Fija que ningún script SQL del repositorio cambió de sentencias (el divisor de las pruebas
+    con mysqld desechable es independiente: además respeta las comillas)."""
+    from tests.mysql_desechable import _dividir_sentencias
+
+    texto = open(ruta, encoding="utf-8").read()
+    assert migrar.dividir_sentencias(texto) == _dividir_sentencias(texto)
 
 
 @pytest.mark.parametrize("salida,esperado", [

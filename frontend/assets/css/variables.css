@@ -12,7 +12,7 @@
 
   --color-text-primary: #1F2937;
   --color-text-secondary: #6B7280;
-  --color-text-muted: #9CA3AF;
+  --color-text-muted: #6B7280;
   --color-text: var(--color-text-primary);
   --color-text-light: var(--color-text-secondary);
 
@@ -28,6 +28,13 @@
   --color-danger: #EF4444;
   --color-danger-soft: #FEE2E2;
   --color-danger-strong: #991B1B;
+
+  /* Fondos de botones con texto blanco (4,5:1 o más) y anillo de foco (3:1 o más sobre blanco). */
+  --color-success-solid: #15803D;
+  --color-success-solid-hover: #166534;
+  --color-danger-solid: #DC2626;
+  --color-danger-solid-hover: #B91C1C;
+  --color-focus: #0B7A80;
   --color-info: #3B82F6;
   --color-info-soft: #DBEAFE;
   --color-info-strong: #1E40AF;

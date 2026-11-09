@@ -39,10 +39,21 @@ from backend.utils.limitador_login import (
     respuesta_no_disponible,
     verificar_cupo,
 )
-from backend.utils.security import check_password, hash_password
+from backend.utils.security import LARGO_MINIMO_PASSWORD, check_password, hash_password
 
 auth_bp = Blueprint("auth", __name__)
 logger = logging.getLogger(__name__)
+
+_HASH_SENUELO = None
+
+
+def _hash_senuelo():
+    """Hash bcrypt con el mismo costo que los reales, calculado una vez; nunca coincide con una contraseña real."""
+    global _HASH_SENUELO
+    if _HASH_SENUELO is None:
+        _HASH_SENUELO = hash_password(secrets.token_urlsafe(24))
+    return _HASH_SENUELO
+
 
 @auth_bp.route("/login", methods=["POST"])
 def login():
@@ -101,6 +112,18 @@ def login():
         purgar_si_corresponde(connection, cursor, id_reserva)
 
         if not usuario:
+            # Con un correo inexistente no había bcrypt: respondía en ~6 ms contra ~240 ms de una cuenta real,
+            # y esa diferencia delataba qué correos existen. Se gasta el mismo tiempo con un hash señuelo.
+            check_password(password, _hash_senuelo())
+            return jsonify({
+                "error": "Credenciales incorrectas"
+            }), 401
+
+        # La contraseña se comprueba antes que el estado: quien no la conoce recibe el mismo mensaje
+        # que para un correo inexistente y no puede averiguar qué cuentas existen o están inactivas.
+        password_valida = check_password(password, usuario["password_hash"])
+
+        if not password_valida:
             return jsonify({
                 "error": "Credenciales incorrectas"
             }), 401
@@ -109,13 +132,6 @@ def login():
             return jsonify({
                 "error": "Usuario inactivo. Contacte al administrador."
             }), 403
-
-        password_valida = check_password(password, usuario["password_hash"])
-
-        if not password_valida:
-            return jsonify({
-                "error": "Credenciales incorrectas"
-            }), 401
 
         # RF30 — el inicio de sesión queda en AUDITORIA antes de abrir la
         # sesión: si no se puede registrar, no se inicia. Los intentos
@@ -457,7 +473,6 @@ def actualizar_parametros_clientes_recientes():
 # - El token se marca como utilizado al consumirse y caduca por tiempo.
 
 MINUTOS_VIGENCIA_POR_DEFECTO = 60
-LARGO_MINIMO_PASSWORD = 8
 MENSAJE_SOLICITUD = (
     "Si el correo corresponde a una cuenta activa, enviamos un enlace para "
     "restablecer la contraseña. Revisa tu bandeja de entrada."

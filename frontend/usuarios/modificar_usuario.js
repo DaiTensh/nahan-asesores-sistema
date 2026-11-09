@@ -1,5 +1,13 @@
 const API_URL = window.API_CONFIG.API_URL;
 
+// La API entrega la fecha de registro como «AAAA-MM-DD HH:MM:SS»; se muestra como en el historial.
+function formatearFechaRegistro(valor) {
+  if (!valor) return "Sin fecha";
+  const [fecha, hora = ""] = String(valor).split(" ");
+  const [anio, mes, dia] = fecha.split("-");
+  return `${dia}-${mes}-${anio} ${hora.substring(0, 5)}`.trim();
+}
+
 let usuarioActual = null;
 
 const AREA_POR_ROL = {
@@ -44,7 +52,7 @@ async function buscarUsuario() {
     const usuario = await UsuariosAutocomplete.obtenerUsuarioSeleccionado("usuario_busqueda");
 
     if (!usuario) {
-        alert("Seleccione un usuario de la lista");
+        avisarAccion("Seleccione un usuario de la lista", "advertencia");
         return;
     }
 
@@ -63,7 +71,7 @@ async function cargarUsuarioPorId(id) {
         const data = await response.json();
 
         if (!response.ok) {
-            alert(data.error || "Usuario no encontrado");
+            avisarAccion(data.error || "Usuario no encontrado", "error");
             return;
         }
 
@@ -76,16 +84,16 @@ async function cargarUsuarioPorId(id) {
         document.getElementById("id_area").value = data.id_area;
         document.getElementById("estado").value = data.estado;
         document.getElementById("perfilId").textContent = data.id_usuario;
-        document.getElementById("perfilRol").textContent = data.nombre_rol || "Sin rol";
+        document.getElementById("perfilRol").textContent = data.nombre_rol ? nombreRolNatural(data.nombre_rol) : "Sin rol";
         document.getElementById("perfilArea").textContent = data.nombre_area || "Sin área";
-        document.getElementById("fechaCreacion").textContent = data.fecha_creacion || "Sin fecha";
+        document.getElementById("fechaCreacion").textContent = formatearFechaRegistro(data.fecha_creacion);
         document.getElementById("perfilUsuario").hidden = false;
         sincronizarAreaConRol();
 
     }
     catch(error) {
         console.error(error);
-        alert("Error al buscar usuario");
+        avisarAccion("Error al buscar usuario", "error");
     }
 }
 
@@ -94,7 +102,7 @@ async function actualizarUsuario() {
     const id = usuarioActual ? usuarioActual.id_usuario : document.getElementById("id_usuario").value;
 
     if (!id) {
-        alert("Debe buscar un usuario antes de actualizar");
+        avisarAccion("Debe buscar un usuario antes de actualizar", "advertencia");
         return;
     }
 
@@ -134,11 +142,11 @@ async function actualizarUsuario() {
         const resultado = await response.json();
 
         if (!response.ok) {
-            alert(resultado.error || "Error al actualizar usuario");
+            avisarAccion(resultado.error || "Error al actualizar usuario", "error");
             return;
         }
 
-        alert(resultado.message);
+        avisarAccion(resultado.message, "exito");
         usuarioActual = {
             ...usuarioActual,
             ...datos,
@@ -148,7 +156,7 @@ async function actualizarUsuario() {
     }
     catch(error) {
         console.error(error);
-        alert("Error al actualizar usuario");
+        avisarAccion("Error al actualizar usuario", "error");
     } finally {
         botonActualizar.disabled = false;
         botonActualizar.textContent = "Guardar cambios";

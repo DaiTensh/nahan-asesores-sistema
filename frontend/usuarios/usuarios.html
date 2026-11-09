@@ -25,7 +25,56 @@
         <header class="topbar" id="topbar"></header>
 
         <main class="main-content">
-            <h1 class="usuarios-page-title">Usuarios</h1>
+            <section class="usuarios-header">
+                <div>
+                    <h1 class="usuarios-page-title">Usuarios</h1>
+                    <p class="subtitle">Administra las cuentas internas, sus roles y su estado.</p>
+                </div>
+                <div class="usuarios-header-actions">
+                    <button type="button" id="btnNuevoUsuario" class="btn btn-primary">Nuevo usuario</button>
+                </div>
+            </section>
+
+            <section class="usuarios-card" id="panelNuevoUsuario" aria-labelledby="tituloRegistrarUsuario" hidden>
+                <h2 class="usuarios-title" id="tituloRegistrarUsuario">Registrar usuario</h2>
+                <form id="formUsuario">
+                    <div class="form-group">
+                        <label class="form-label" for="nombres">Nombre completo</label>
+                        <input type="text" id="nombres" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="email">Correo electrónico</label>
+                        <input type="email" id="email" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="id_rol">Rol</label>
+                        <select id="id_rol" class="form-input" required>
+                            <option value="">Seleccione un rol</option>
+                            <option value="1">Administrador</option>
+                            <option value="2">Usuario del área jurídica</option>
+                            <option value="3">Usuario del área contable</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="id_area">Área</label>
+                        <select id="id_area" class="form-input" required>
+                            <option value="">Seleccione un área</option>
+                            <option value="1">Área jurídica</option>
+                            <option value="2">Área contable</option>
+                            <option value="3">Ambas áreas</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="password">Contraseña temporal</label>
+                        <input type="password" id="password" class="form-input" minlength="8" required>
+                    </div>
+                    <div class="usuarios-form-actions">
+                        <button type="submit" class="btn btn-primary">Registrar Usuario</button>
+                        <button type="button" id="btnCerrarNuevoUsuario" class="btn btn-secondary">Cerrar</button>
+                    </div>
+                    <p id="mensaje" class="mensaje" aria-live="polite"></p>
+                </form>
+            </section>
 
             <section class="usuarios-listado" aria-labelledby="tituloUsuariosRegistrados">
                 <h2 id="tituloUsuariosRegistrados">Usuarios registrados</h2>
@@ -62,59 +111,13 @@
                     <table class="table usuarios-tabla">
                         <thead><tr>
                             <th>Nombre</th><th>Correo electrónico</th><th>Rol</th><th>Área</th>
-                            <th>Estado</th><th>Fecha de registro</th><th>Perfil</th>
+                            <th>Estado</th><th>Fecha de registro</th><th>Acciones</th>
                         </tr></thead>
                         <tbody id="tablaUsuarios"><tr><td colspan="7">Cargando usuarios...</td></tr></tbody>
                     </table>
                 </div>
             </section>
 
-            <section class="usuarios-card">
-                <h2 class="usuarios-title">Registrar usuario</h2>
-
-                <form id="formUsuario">
-                    <div class="form-group">
-                        <label class="form-label" for="nombres">Nombre completo</label>
-                        <input type="text" id="nombres" class="form-input" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label" for="email">Correo electrónico</label>
-                        <input type="email" id="email" class="form-input" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label" for="id_rol">Rol</label>
-                        <select id="id_rol" class="form-input" required>
-                            <option value="">Seleccione un rol</option>
-                            <option value="1">Administrador</option>
-                            <option value="2">Usuario del área jurídica</option>
-                            <option value="3">Usuario del área contable</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label" for="id_area">Área</label>
-                        <select id="id_area" class="form-input" required>
-                            <option value="">Seleccione un área</option>
-                            <option value="1">Área jurídica</option>
-                            <option value="2">Área contable</option>
-                            <option value="3">Ambas áreas</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label" for="password">Contraseña temporal</label>
-                        <input type="password" id="password" class="form-input" required>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary">
-                        Registrar Usuario
-                    </button>
-
-                    <p id="mensaje" class="mensaje"></p>
-                </form>
-            </section>
         </main>
     </div>
 
@@ -125,6 +128,7 @@
 <script src="../auth/logout.js"></script>
 <script src="../assets/js/navigation.js"></script>
 <script src="../assets/js/topbar.js"></script>
+<script src="../assets/js/panel_alta.js"></script>
 <script src="./usuarios.js"></script>
 <script src="../assets/js/permissions.js"></script>
 

@@ -15,13 +15,24 @@ document.addEventListener("DOMContentLoaded", () => {
   const selectTipoReporte = document.getElementById("selectTipoReporte");
   const grupoCliente = document.getElementById("grupoCliente");
   const grupoResponsable = document.getElementById("grupoResponsable");
+  const grupoAgruparHoras = document.getElementById("grupoAgruparHoras");
+  const grupoGranularidad = document.getElementById("grupoGranularidad");
+  const grupoHorasCliente = document.getElementById("grupoHorasCliente");
+  const grupoHorasTarea = document.getElementById("grupoHorasTarea");
+  const grupoHorasUsuario = document.getElementById("grupoHorasUsuario");
   const selectCliente = document.getElementById("selectCliente");
   const selectResponsable = document.getElementById("selectResponsable");
+  const selectAgruparHoras = document.getElementById("selectAgruparHoras");
+  const selectGranularidad = document.getElementById("selectGranularidad");
+  const selectHorasCliente = document.getElementById("selectHorasCliente");
+  const selectHorasTarea = document.getElementById("selectHorasTarea");
+  const selectHorasUsuario = document.getElementById("selectHorasUsuario");
   const inputFechaInicio = document.getElementById("inputFechaInicio");
   const inputFechaFin = document.getElementById("inputFechaFin");
   const resultadoDetalle = document.getElementById("resultadoDetalle");
   const resultadoAreas = document.getElementById("resultadoAreas");
   const resultadoCobro = document.getElementById("resultadoCobro");
+  const resultadoHoras = document.getElementById("resultadoHoras");
   const tablaAreas = document.getElementById("tablaAreas");
   const tablaComparacionAreas = document.getElementById("tablaComparacionAreas");
   const distribucionTareas = document.getElementById("distribucionTareas");
@@ -52,24 +63,41 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnExportarExcel = document.getElementById("btnExportarExcel");
 
   let idReporteActual = null;
+  let catalogosHorasCargados = false;
+  let cargaCatalogosHorasPromise = null;
+  let tareasHoras = [];
 
   cargarClientes();
   cargarResponsables();
 
   function actualizarCriterios() {
     const esCobro = selectTipoReporte.value === "cobro";
+    const esHoras = selectTipoReporte.value === "horas";
     const esPorCliente = selectTipoReporte.value === "cliente" || esCobro;
     const esPorResponsable = selectTipoReporte.value === "responsable";
     grupoCliente.hidden = !esPorCliente;
     grupoResponsable.hidden = !esPorResponsable;
     selectCliente.required = esPorCliente;
     selectResponsable.required = esPorResponsable;
+    grupoAgruparHoras.hidden = !esHoras;
+    grupoGranularidad.hidden = !esHoras || selectAgruparHoras.value !== "periodo";
+    grupoHorasCliente.hidden = !esHoras;
+    grupoHorasTarea.hidden = !esHoras;
+    grupoHorasUsuario.hidden = !esHoras;
     // RF75: el cobro puede calcularse para la totalidad de los registros, sin fechas.
-    inputFechaInicio.required = !esCobro;
-    inputFechaFin.required = !esCobro;
+    inputFechaInicio.required = !esCobro && !esHoras;
+    inputFechaFin.required = !esCobro && !esHoras;
     document.getElementById("ayudaPeriodoCobro").hidden = !esCobro;
+    document.getElementById("ayudaPeriodoHoras").hidden = !esHoras;
+    // El aviso de error ya lo muestra cargarCatalogosHoras; aquí solo se evita el rechazo sin atender.
+    if (esHoras) cargarCatalogosHoras().catch(() => {});
   }
   selectTipoReporte.addEventListener("change", actualizarCriterios);
+  selectAgruparHoras.addEventListener("change", actualizarCriterios);
+  selectHorasCliente.addEventListener("change", actualizarTareasHoras);
+  if (new URLSearchParams(window.location.search).get("tipo") === "horas") {
+    selectTipoReporte.value = "horas";
+  }
   actualizarCriterios();
 
   async function cargarResponsables() {
@@ -138,17 +166,128 @@ document.addEventListener("DOMContentLoaded", () => {
     return opcion;
   }
 
+  async function cargarCatalogosHoras() {
+    if (catalogosHorasCargados) return;
+    if (cargaCatalogosHorasPromise) return cargaCatalogosHorasPromise;
+
+    cargaCatalogosHorasPromise = (async () => {
+      try {
+        const response = await fetch(`${API_URL}/control-horas/filtros`, {
+          credentials: window.API_CONFIG.credentials
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || "No fue posible cargar los filtros de horas.");
+        }
+
+        selectHorasCliente.textContent = "";
+        selectHorasCliente.appendChild(crearOpcion("", "Todos los clientes"));
+        (data.clientes || []).forEach(cliente => {
+          selectHorasCliente.appendChild(crearOpcion(
+            cliente.id_cliente,
+            `${cliente.razon_social} (${cliente.rut})`
+          ));
+        });
+
+        tareasHoras = Array.isArray(data.tareas) ? data.tareas : [];
+        actualizarTareasHoras();
+
+        selectHorasUsuario.textContent = "";
+        selectHorasUsuario.appendChild(crearOpcion("", "Todos los usuarios"));
+        (data.usuarios || []).forEach(usuario => {
+          selectHorasUsuario.appendChild(crearOpcion(usuario.id_usuario, usuario.nombres));
+        });
+
+        catalogosHorasCargados = true;
+        return true;
+      } catch (error) {
+        catalogosHorasCargados = false;
+        console.error(error);
+        mostrarMensaje(error.message || "No fue posible cargar los filtros de horas.", "error");
+        throw error;
+      } finally {
+        cargaCatalogosHorasPromise = null;
+      }
+    })();
+
+    return cargaCatalogosHorasPromise;
+  }
+
+  function actualizarTareasHoras() {
+    const idCliente = selectHorasCliente.value;
+    selectHorasTarea.textContent = "";
+    selectHorasTarea.appendChild(crearOpcion("", "Todas las tareas"));
+    tareasHoras
+      .filter(tarea => !idCliente || String(tarea.id_cliente) === idCliente)
+      .forEach(tarea => {
+        selectHorasTarea.appendChild(crearOpcion(
+          tarea.id_tarea,
+          `${tarea.titulo} — ${tarea.cliente}`
+        ));
+      });
+  }
+
   form.addEventListener("submit", async (evento) => {
     evento.preventDefault();
     mostrarMensaje("");
     resultado.hidden = true;
+    idReporteActual = null;
+    btnExportarExcel.hidden = true;
+    document.getElementById("btnExportarPdf").hidden = true;
 
     const esPorArea = selectTipoReporte.value === "area";
     const esPorResponsable = selectTipoReporte.value === "responsable";
     const esCobro = selectTipoReporte.value === "cobro";
+    const esHoras = selectTipoReporte.value === "horas";
     const fechaInicio = inputFechaInicio.value;
     const fechaFin = inputFechaFin.value;
     const idEntidad = esPorResponsable ? selectResponsable.value : selectCliente.value;
+
+    if (esHoras) {
+      if (Boolean(fechaInicio) !== Boolean(fechaFin)) {
+        mostrarMensaje("Indique ambas fechas o deje las dos vacías para incluir todas las horas registradas.", "error");
+        return;
+      }
+      if (fechaInicio && fechaInicio > fechaFin) {
+        mostrarMensaje("La fecha de inicio no puede ser posterior a la fecha de término.", "error");
+        return;
+      }
+
+      const params = new URLSearchParams();
+      params.set("agrupar_por", selectAgruparHoras.value);
+      if (selectAgruparHoras.value === "periodo") {
+        params.set("granularidad", selectGranularidad.value);
+      }
+      if (fechaInicio && fechaFin) {
+        params.set("fecha_inicio", fechaInicio);
+        params.set("fecha_fin", fechaFin);
+        const atajo = document.getElementById("atajoPeriodo").value;
+        if (atajo) params.set("periodo_etiqueta", atajo);
+      }
+      if (selectHorasCliente.value) params.set("id_cliente", selectHorasCliente.value);
+      if (selectHorasTarea.value) params.set("id_tarea", selectHorasTarea.value);
+      if (selectHorasUsuario.value) params.set("id_usuario", selectHorasUsuario.value);
+
+      try {
+        const response = await fetch(`${API_URL}/reportes/horas-trabajadas?${params.toString()}`, {
+          credentials: window.API_CONFIG.credentials
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          mostrarMensaje(data.error || "No fue posible generar el reporte.", "error");
+          return;
+        }
+        if (data.mensaje) {
+          mostrarMensaje(data.mensaje, "info");
+          return;
+        }
+        renderizarResultadoHoras(data);
+      } catch (error) {
+        console.error(error);
+        mostrarMensaje("Error al conectar con el servidor.", "error");
+      }
+      return;
+    }
 
     if (esCobro) {
       if (!idEntidad) {
@@ -219,6 +358,8 @@ document.addEventListener("DOMContentLoaded", () => {
     resultadoDetalle.hidden = false;
     resultadoAreas.hidden = true;
     resultadoCobro.hidden = true;
+    resultadoHoras.hidden = true;
+    document.getElementById("resultadoFiltrosHoras").hidden = true;
     resultadoEntidad.parentElement.hidden = false;
     const entidad = esPorResponsable ? data.responsable : data.cliente;
     const detalleEntidad = esPorResponsable ? entidad.email : entidad.rut;
@@ -239,11 +380,94 @@ document.addEventListener("DOMContentLoaded", () => {
     resultado.hidden = false;
   }
 
+  function renderizarResultadoHoras(data) {
+    resultadoDetalle.hidden = true;
+    resultadoAreas.hidden = true;
+    resultadoCobro.hidden = true;
+    resultadoHoras.hidden = false;
+    resultadoEntidad.parentElement.hidden = false;
+    resultadoEntidadLabel.textContent = "Agrupado por";
+    const agrupacion = data.agrupar_por === "periodo"
+      ? (data.granularidad === "mes" ? "Mes" : "Día")
+      : ({ cliente: "Cliente", tarea: "Tarea", usuario: "Usuario" }[data.agrupar_por] || "Cliente");
+    resultadoEntidad.textContent = agrupacion;
+    resultadoPeriodo.textContent = data.periodo.todos_los_registros
+      ? "Todos los registros"
+      : `${formatearFecha(data.periodo.fecha_inicio)} — ${formatearFecha(data.periodo.fecha_fin)}`
+        + (data.periodo.etiqueta ? ` (${data.periodo.etiqueta})` : "");
+    resultadoFechaGeneracion.textContent = data.fecha_generacion || "-";
+
+    const filtrosActivos = [];
+    if (data.filtros.cliente) filtrosActivos.push(`Cliente: ${data.filtros.cliente.razon_social}`);
+    if (data.filtros.tarea) filtrosActivos.push(`Tarea: ${data.filtros.tarea.titulo}`);
+    if (data.filtros.usuario) filtrosActivos.push(`Usuario: ${data.filtros.usuario.nombres}`);
+    const resultadoFiltros = document.getElementById("resultadoFiltrosHoras");
+    resultadoFiltros.textContent = filtrosActivos.length
+      ? filtrosActivos.join(" · ")
+      : "Sin filtros adicionales";
+    resultadoFiltros.hidden = false;
+
+    const moneda = data.moneda || "CLP";
+    const resumen = document.getElementById("resumenHoras");
+    resumen.textContent = "";
+    [
+      ["Horas trabajadas", `${formatearNumero(data.totales.horas, 2)} h`],
+      ["Monto total", formatearMonto(data.totales.monto, moneda)],
+      ["Registros incluidos", String(data.totales.registros)]
+    ].forEach(([etiqueta, valor]) => {
+      const dato = document.createElement("div");
+      dato.className = "cobro-dato";
+      const rotulo = document.createElement("span");
+      rotulo.textContent = etiqueta;
+      const cifra = document.createElement("strong");
+      cifra.textContent = valor;
+      dato.append(rotulo, cifra);
+      resumen.appendChild(dato);
+    });
+
+    const nombreGrupo = data.agrupar_por === "periodo"
+      ? (data.granularidad === "mes" ? "Mes" : "Día")
+      : ({ cliente: "Cliente", tarea: "Tarea", usuario: "Usuario" }[data.agrupar_por] || "Cliente");
+    const encabezados = [nombreGrupo];
+    if (data.agrupar_por === "tarea") encabezados.push("Cliente");
+    encabezados.push("Horas", "Registros", `Monto (${moneda})`);
+    const encabezado = document.getElementById("encabezadoTablaHoras");
+    encabezado.textContent = "";
+    const filaEncabezado = document.createElement("tr");
+    encabezados.forEach((texto, indice) => {
+      const celda = document.createElement("th");
+      celda.textContent = texto;
+      if (indice >= encabezados.length - 3) celda.className = "numero";
+      filaEncabezado.appendChild(celda);
+    });
+    encabezado.appendChild(filaEncabezado);
+
+    const columnasNumericas = data.agrupar_por === "tarea" ? [2, 3, 4] : [1, 2, 3];
+    llenarTabla(document.getElementById("cuerpoTablaHoras"), (data.filas || []).map(fila => {
+      const valores = [fila.etiqueta];
+      if (data.agrupar_por === "tarea") valores.push(fila.detalle);
+      valores.push(
+        formatearNumero(fila.horas, 2),
+        String(fila.registros),
+        formatearMonto(fila.monto, moneda)
+      );
+      return valores;
+    }), columnasNumericas);
+
+    document.getElementById("tituloTablaHoras").textContent = `Horas trabajadas por ${nombreGrupo.toLowerCase()}`;
+    idReporteActual = data.id_reporte || null;
+    btnExportarExcel.hidden = !idReporteActual;
+    document.getElementById("btnExportarPdf").hidden = !idReporteActual;
+    resultado.hidden = false;
+  }
+
   // RF75 — monto a cobrar a un cliente: totales, desglose por tarifa y detalle de los registros.
   function renderizarResultadoCobro(data) {
     resultadoDetalle.hidden = true;
     resultadoAreas.hidden = true;
     resultadoCobro.hidden = false;
+    resultadoHoras.hidden = true;
+    document.getElementById("resultadoFiltrosHoras").hidden = true;
     resultadoEntidad.parentElement.hidden = false;
     resultadoEntidadLabel.textContent = "Cliente";
     resultadoEntidad.textContent = `${data.cliente.razon_social} (${data.cliente.rut})`;
@@ -312,6 +536,8 @@ document.addEventListener("DOMContentLoaded", () => {
     resultadoDetalle.hidden = true;
     resultadoAreas.hidden = false;
     resultadoCobro.hidden = true;
+    resultadoHoras.hidden = true;
+    document.getElementById("resultadoFiltrosHoras").hidden = true;
     resultadoEntidad.parentElement.hidden = true;
     resultadoPeriodo.textContent = `${formatearFecha(data.periodo.fecha_inicio)} — ${formatearFecha(data.periodo.fecha_fin)}`
       + (data.periodo.etiqueta ? ` (${data.periodo.etiqueta})` : "");

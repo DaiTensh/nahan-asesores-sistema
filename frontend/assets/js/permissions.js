@@ -1,5 +1,16 @@
 let usuarioActualPromesa = null;
 
+// Sin respuesta del servidor (red caída o error 5xx) no se sabe si la sesión sigue vigente. Cada pantalla
+// manda al login cuando no hay usuario; esta nota le permite explicar la causa en vez de aparentar que
+// la sesión se cerró (el login la lee y la borra).
+function anotarFalloDeServidor() {
+  try {
+    sessionStorage.setItem("nahan_sesion_motivo", "servidor");
+  } catch (error) {
+    // Sin almacenamiento de sesión el login simplemente no muestra la causa.
+  }
+}
+
 async function obtenerUsuarioActual() {
   if (!usuarioActualPromesa) {
     usuarioActualPromesa = fetch(`${window.API_CONFIG.API_URL}/auth/me`, {
@@ -9,6 +20,7 @@ async function obtenerUsuarioActual() {
         const data = await response.json().catch(() => ({}));
 
         if (!response.ok) {
+          if (response.status >= 500) anotarFalloDeServidor();
           return null;
         }
 
@@ -16,6 +28,7 @@ async function obtenerUsuarioActual() {
       })
       .catch(error => {
         console.error(error);
+        anotarFalloDeServidor();
         return null;
       });
   }
@@ -32,7 +45,12 @@ async function protegerPagina(rolesPermitidos) {
   }
 
   if (!rolesPermitidos.includes(usuario.nombre_rol)) {
-    alert("No tiene permisos para acceder a este módulo.");
+    const aviso = "No tiene permisos para acceder a este módulo.";
+    if (window.avisarAccion) {
+      await avisarAccion(aviso, "advertencia");
+    } else {
+      alert(aviso);
+    }
     window.location.href = "../dashboard/dashboard.html";
   }
 }

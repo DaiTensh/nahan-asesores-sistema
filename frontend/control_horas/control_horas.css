@@ -15,6 +15,35 @@
   color: var(--color-text-secondary);
 }
 
+.control-header-actions {
+  display: flex;
+  gap: var(--spacing-3);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.control-filtros {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--spacing-4);
+  margin-bottom: var(--spacing-3);
+}
+
+.control-filtros .form-group {
+  min-width: 0;
+}
+
+.control-filtros-actions {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+}
+
+#estadoFiltrosHoras {
+  margin-bottom: var(--spacing-4);
+}
+
 .time-shell {
   display: grid;
   grid-template-columns: minmax(0, 1.7fr) minmax(320px, .8fr);
@@ -227,11 +256,54 @@
 }
 
 .control-table {
-  min-width: 980px;
+  min-width: 1080px;
 }
 
 .control-table td {
   vertical-align: top;
+}
+
+/* Registro manual de horas */
+#panelRegistroManual,
+#btnRegistroManual {
+  scroll-margin-top: 168px;
+}
+
+.registro-manual-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--spacing-4);
+  margin-bottom: var(--spacing-4);
+}
+
+.registro-manual-grid .form-group {
+  min-width: 0;
+}
+
+.registro-manual-completo {
+  grid-column: 1 / -1;
+}
+
+.registro-manual-duracion {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.registro-manual-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+}
+
+.origen-observacion {
+  display: block;
+  margin-top: var(--spacing-1);
+  max-width: 260px;
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 1280px) {
@@ -245,10 +317,26 @@
 }
 
 @media (max-width: 900px) {
+  .control-filtros {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .registro-manual-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .timer-heading,
   .section-heading,
   .control-header {
     flex-direction: column;
+  }
+
+  .control-header-actions {
+    justify-content: flex-start;
+  }
+
+  .control-filtros-actions {
+    align-items: flex-start;
   }
 
   .timer-heading p {
@@ -266,5 +354,26 @@
   .time-side-card,
   .control-section {
     padding: var(--spacing-4);
+  }
+}
+
+@media (max-width: 540px) {
+  .control-filtros,
+  .registro-manual-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .resumen-cards,
+  .resumen-detalle {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .resumen-card h3,
+  .total-fila span {
+    overflow-wrap: anywhere;
+  }
+
+  .total-fila span:not(:first-child) {
+    white-space: normal;
   }
 }
