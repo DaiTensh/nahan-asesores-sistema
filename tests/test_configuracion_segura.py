@@ -85,3 +85,22 @@ def test_en_desarrollo_sin_smtp_el_enlace_queda_en_el_log_para_probar(monkeypatc
         correo.enviar_correo("alguien@ejemplo.invalid", "Restablecimiento", f"Use {ENLACE}")
 
     assert "TOKEN-DE-PRUEBA" in " ".join(r.getMessage() for r in caplog.records)
+
+
+def test_produccion_con_cookie_sin_secure_deja_una_advertencia(monkeypatch, caplog):
+    monkeypatch.setenv("SESSION_COOKIE_SECURE", "false")
+    with caplog.at_level(logging.WARNING):
+        _crear(monkeypatch, clave=CLAVE_LARGA)
+    assert "SESSION_COOKIE_SECURE=false" in caplog.text
+
+
+def test_produccion_con_cookie_secure_no_advierte(monkeypatch, caplog):
+    monkeypatch.setenv("SESSION_COOKIE_SECURE", "true")
+    with caplog.at_level(logging.WARNING):
+        app = _crear(monkeypatch, clave=CLAVE_LARGA)
+    try:
+        assert app.config["SESSION_COOKIE_SECURE"] is True
+        assert "SESSION_COOKIE_SECURE=false" not in caplog.text
+    finally:
+        # `create_app` configura la app global: no dejar `Secure` activo para otras pruebas.
+        app.config["SESSION_COOKIE_SECURE"] = False
