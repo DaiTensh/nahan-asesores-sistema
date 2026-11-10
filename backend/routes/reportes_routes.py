@@ -182,7 +182,7 @@ def _consultar_cobro_cliente(cursor, id_cliente, fecha_inicio=None, fecha_fin=No
     modo que el total coincide con el de la pantalla de control de horas. Devuelve
     (registros, desglose_por_tarifa, totales) con Decimal.
     """
-    condiciones = ["rt.id_cliente = %s", "rt.hora_fin IS NOT NULL"]
+    condiciones = ["rt.id_cliente = %s", "rt.hora_fin IS NOT NULL", "rt.estado_registro = 'VIGENTE'"]
     parametros = [id_cliente]
     if fecha_inicio and fecha_fin:
         condiciones.append("rt.fecha BETWEEN %s AND %s")
@@ -302,7 +302,7 @@ def _consultar_horas_trabajadas(
     else:
         raise ValueError("Agrupación de horas no válida.")
 
-    condiciones = ["rt.hora_fin IS NOT NULL"]
+    condiciones = ["rt.hora_fin IS NOT NULL", "rt.estado_registro = 'VIGENTE'"]
     parametros = []
     if fecha_inicio and fecha_fin:
         condiciones.append("rt.fecha BETWEEN %s AND %s")

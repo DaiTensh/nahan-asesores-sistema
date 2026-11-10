@@ -35,6 +35,7 @@
     TEMPORIZADOR_INICIADO: "Temporizador iniciado",
     TEMPORIZADOR_DETENIDO: "Temporizador detenido",
     REGISTRO_MANUAL_CREADO: "Horas registradas manualmente",
+    REGISTRO_ANULADO: "Registro de horas anulado",
     CONFIGURAR_TARIFA_GENERAL: "Tarifa general modificada",
     TARIFA_AREA_DEFINIDA: "Tarifa de área definida",
     TARIFA_AREA_ELIMINADA: "Tarifa de área eliminada",

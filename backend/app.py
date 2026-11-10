@@ -2,6 +2,7 @@ import logging
 import os
 import time
 from datetime import timedelta
+from urllib.parse import urlsplit
 
 from flask import Flask, jsonify, request
 from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
@@ -69,6 +70,27 @@ def _configurar_zona_horaria():
     return zona_horaria
 
 
+METODOS_QUE_MODIFICAN = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+def _origen_permitido(origen, host_solicitud, origenes_permitidos):
+    """Defensa en profundidad contra CSRF (además de SameSite).
+
+    Un `Origin` es aceptable si su nombre de host coincide con el de la solicitud o si figura en
+    ALLOWED_ORIGINS. Se compara solo el host (sin puerto ni esquema) porque Nginx reenvía `$host`
+    sin puerto y la demostración por túnel SSH usa un puerto distinto en el navegador.
+    """
+    if origen in origenes_permitidos:
+        return True
+    try:
+        host_origen = urlsplit(origen).hostname
+    except ValueError:
+        return False
+    host_propio = (host_solicitud or "").split(":")[0] if not host_solicitud.startswith("[") \
+        else host_solicitud.split("]")[0].lstrip("[")
+    return bool(host_origen) and host_origen.lower() == host_propio.lower()
+
+
 def create_app():
     entorno = entorno_actual()
     es_produccion = not es_entorno_de_desarrollo()
@@ -100,6 +122,12 @@ def create_app():
         "SESSION_COOKIE_SECURE",
         default=False,
     )
+    if es_produccion and not app.config["SESSION_COOKIE_SECURE"]:
+        # Solo avisa: con HTTP puro, `Secure` impediría iniciar sesión (ver docs/deploy_https.md).
+        logging.getLogger(__name__).warning(
+            "SESSION_COOKIE_SECURE=false en un entorno de producción: la cookie de sesión "
+            "puede viajar sin cifrar. Sirva el sistema por HTTPS y active la opción."
+        )
     app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(
         minutes=_int_env(
             "PERMANENT_SESSION_LIFETIME",
@@ -127,6 +155,24 @@ def create_app():
             respuesta.status_code = 503
             respuesta.headers["Retry-After"] = "60"
             return respuesta
+
+    @app.before_request
+    def comprobar_origen_de_escritura():
+        # CSRF: una escritura iniciada desde otro sitio se rechaza aunque lleve la cookie.
+        # Sin cabecera Origin (clientes no navegador, pruebas) no hay nada que comprobar.
+        if not request.path.startswith("/api/") or request.method not in METODOS_QUE_MODIFICAN:
+            return None
+        if not _bool_env("CSRF_COMPROBAR_ORIGEN", default=True):
+            return None
+        origen = request.headers.get("Origin")
+        if origen is None:
+            if request.headers.get("Sec-Fetch-Site") == "cross-site":
+                return jsonify({"error": "Solicitud de origen no permitido."}), 403
+            return None
+        permitidos = _csv_env("ALLOWED_ORIGINS") or ([] if es_produccion else list(DEFAULT_DEV_ORIGINS))
+        if not _origen_permitido(origen, request.host, permitidos):
+            return jsonify({"error": "Solicitud de origen no permitido."}), 403
+        return None
 
     @app.before_request
     def validar_cuerpo_json():

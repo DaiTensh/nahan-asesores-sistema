@@ -89,6 +89,10 @@ MARCADORES = {
     "011": [(_VALOR_ENUM, ("tarea", "estado", "PAUSADA"))],
     "012": [(_COLUMNA, ("registro_tiempo", "origen")),
             (_COLUMNA, ("registro_tiempo", "observacion"))],
+    "013": [(_COLUMNA, ("registro_tiempo", "estado_registro")),
+            (_COLUMNA, ("registro_tiempo", "anulado_por")),
+            (_COLUMNA, ("registro_tiempo", "fecha_anulacion")),
+            (_COLUMNA, ("registro_tiempo", "motivo_anulacion"))],
 }
 
 

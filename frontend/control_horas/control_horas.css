@@ -298,6 +298,34 @@
   gap: var(--spacing-2);
 }
 
+.registro-anulado td {
+  color: var(--color-text-secondary);
+  text-decoration: line-through;
+}
+
+.registro-anulado td:last-child {
+  text-decoration: none;
+}
+
+.btn-anular-registro {
+  display: block;
+  margin-top: var(--spacing-1);
+}
+
+.dialogo-anulacion {
+  margin: auto; /* centrado: el reset global de márgenes lo dejaba arriba a la izquierda */
+  background: var(--color-surface, #fff);
+  color: var(--color-text, inherit);
+  max-width: 480px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 8px);
+  padding: var(--spacing-4);
+}
+
+.dialogo-anulacion textarea {
+  width: 100%;
+}
+
 .origen-observacion {
   display: block;
   margin-top: var(--spacing-1);

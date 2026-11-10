@@ -251,6 +251,11 @@ CREATE TABLE IF NOT EXISTS registro_tiempo (
     fecha_creacion DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     origen ENUM('TEMPORIZADOR','MANUAL') NOT NULL DEFAULT 'TEMPORIZADOR',
     observacion VARCHAR(255) NULL,
+    -- Anulación lógica (migración 013): el registro original se conserva.
+    estado_registro ENUM('VIGENTE','ANULADO') NOT NULL DEFAULT 'VIGENTE',
+    anulado_por INT NULL,
+    fecha_anulacion DATETIME NULL,
+    motivo_anulacion VARCHAR(255) NULL,
 
     CONSTRAINT fk_registro_tiempo_usuario
         FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario),
@@ -260,6 +265,9 @@ CREATE TABLE IF NOT EXISTS registro_tiempo (
 
     CONSTRAINT fk_registro_tiempo_tarea
         FOREIGN KEY (id_tarea) REFERENCES tarea(id_tarea),
+
+    CONSTRAINT fk_registro_tiempo_anulado_por
+        FOREIGN KEY (anulado_por) REFERENCES usuario(id_usuario),
 
     INDEX idx_registro_tiempo_usuario_activo (id_usuario, hora_fin),
     INDEX idx_registro_tiempo_cliente (id_cliente),
