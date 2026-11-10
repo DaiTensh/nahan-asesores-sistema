@@ -1267,7 +1267,7 @@ async function enviarRegistroManual(evento) {
     `Se registrarán ${formatearMinutos(lectura.minutos)} en «${tarea ? tarea.titulo : "la tarea"}»` +
       `${tarea ? ` de ${tarea.cliente}` : ""} el ${formatearFechaFiltro(lectura.datos.fecha)}, ` +
       `de ${lectura.datos.hora_inicio} a ${lectura.datos.hora_fin}. ` +
-      "Una vez registradas no se pueden editar ni anular. ¿Desea continuar?",
+      "Una vez registradas no se pueden editar; si hay un error, un administrador puede anularlas. ¿Desea continuar?",
     "advertencia"
   );
   if (!acepta) return;
