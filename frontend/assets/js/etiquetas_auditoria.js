@@ -36,6 +36,8 @@
     TEMPORIZADOR_DETENIDO: "Temporizador detenido",
     REGISTRO_MANUAL_CREADO: "Horas registradas manualmente",
     REGISTRO_ANULADO: "Registro de horas anulado",
+    CONTRASENA_TEMPORAL_RESTABLECIDA: "Contraseña temporal restablecida por un administrador",
+    CONTRASENA_CAMBIADA: "Contraseña personal cambiada",
     CONFIGURAR_TARIFA_GENERAL: "Tarifa general modificada",
     TARIFA_AREA_DEFINIDA: "Tarifa de área definida",
     TARIFA_AREA_ELIMINADA: "Tarifa de área eliminada",

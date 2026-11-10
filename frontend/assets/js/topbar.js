@@ -292,7 +292,14 @@ async function cargarTopbar() {
   cerrar.textContent = "Cerrar sesión";
   cerrar.addEventListener("click", cerrarSesion);
 
+  // Cambio de contraseña personal (voluntario): pide la actual y aplica la misma política.
+  const cambiarPassword = document.createElement("a");
+  cambiarPassword.href = "../auth/cambiar_password.html";
+  cambiarPassword.className = "btn btn-secondary btn-sm";
+  cambiarPassword.textContent = "Cambiar contraseña";
+
   panel.appendChild(estado);
+  panel.appendChild(cambiarPassword);
   panel.appendChild(cerrar);
   menuSesion.appendChild(panel);
 

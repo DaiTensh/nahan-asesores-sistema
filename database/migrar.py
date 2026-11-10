@@ -93,6 +93,8 @@ MARCADORES = {
             (_COLUMNA, ("registro_tiempo", "anulado_por")),
             (_COLUMNA, ("registro_tiempo", "fecha_anulacion")),
             (_COLUMNA, ("registro_tiempo", "motivo_anulacion"))],
+    "014": [(_COLUMNA, ("usuario", "debe_cambiar_password")),
+            (_COLUMNA, ("usuario", "version_credenciales"))],
 }
 
 

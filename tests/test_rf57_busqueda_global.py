@@ -18,8 +18,7 @@ CREATE TABLE usuario (
     nombres TEXT,
     email TEXT,
     password_hash TEXT,
-    estado TEXT DEFAULT 'ACTIVO'
-);
+    estado TEXT DEFAULT 'ACTIVO', debe_cambiar_password INTEGER DEFAULT 0, version_credenciales INTEGER DEFAULT 0);
 CREATE TABLE cliente (
     id_cliente INTEGER PRIMARY KEY AUTOINCREMENT,
     rut TEXT,

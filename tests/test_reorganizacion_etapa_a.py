@@ -178,7 +178,7 @@ vm.runInContext(codigo, contexto);
 (async () => {
   await alCargarDOM();
   const celdas = elementos.tablaUsuarios.children[0].children;
-  assert.strictEqual(celdas[6].children[0].children.length, 3);
+  assert.strictEqual(celdas[6].children[0].children.length, 4); // Editar, Asignar rol, Deshabilitar y Restablecer contraseña
   console.log('ok');
 })().catch(error => { console.error(error); process.exitCode = 1; });
 """
@@ -377,7 +377,7 @@ vm.runInContext(fs.readFileSync(process.argv[1], 'utf8'), contexto);
         ]
         assert celdas[5]["text"] == "05-11-2026 10:30"
         if rol == "ADMINISTRADOR":
-            assert celdas[6]["children"] == 1 and celdas[6]["links"] == 3
+            assert celdas[6]["children"] == 1 and celdas[6]["links"] == 4
         else:
             assert celdas[6]["children"] == 0 and celdas[6]["links"] == 0
         assert celdas[7] == {"label": "mensaje", "text": "", "className": "mensaje"}
@@ -479,9 +479,14 @@ console.log(JSON.stringify({
             "href": "desactivar_usuario.html?id=9%262",
             "className": "btn btn-warning btn-small",
             "ariaLabel": "Deshabilitar a Alicia Ejemplo"
+        },
+        {
+            "text": "Restablecer contraseña",
+            "className": "btn btn-secondary btn-small",
+            "ariaLabel": "Restablecer la contraseña de Alicia Ejemplo"
         }
     ]
-    assert [enlace["text"] for enlace in datos["inactivo"]] == ["Editar", "Asignar rol"]
+    assert [enlace["text"] for enlace in datos["inactivo"]] == ["Editar", "Asignar rol", "Restablecer contraseña"]
 
 
 @pytest.mark.skipif(NODE is None, reason="requiere Node.js")
@@ -617,9 +622,10 @@ def test_usuarios_reutiliza_el_panel_y_ofrece_acciones_por_fila_con_refresco():
     assert panel
     assert html.index('id="panelNuevoUsuario"') < html.index('class="usuarios-listado"')
     assert 'id="btnNuevoUsuario"' in html and 'id="btnCerrarNuevoUsuario"' in html
-    for campo in ("formUsuario", "nombres", "email", "id_rol", "id_area", "password", "mensaje"):
+    for campo in ("formUsuario", "nombres", "email", "id_rol", "id_area", "mensaje"):
         assert f'id="{campo}"' in html
-    assert 'id="password" class="form-input" minlength="8" required' in html
+    # La contraseña inicial ya no se escribe: la genera el servidor y se muestra una sola vez.
+    assert 'id="password"' not in html and 'id="panelPasswordTemporal"' in html
     assert html.index("../assets/js/panel_alta.js") < html.index("./usuarios.js")
 
     assert 'modificar_usuario.html?id=${id}' in js

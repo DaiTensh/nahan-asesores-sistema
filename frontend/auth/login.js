@@ -63,8 +63,13 @@ loginForm.addEventListener("submit", async (event) => {
     mensaje.textContent = "Inicio de sesión correcto";
     mensaje.className = "mensaje success";
 
+    // Contraseña temporal: el servidor exige establecer una personal antes de cualquier otra operación.
+    const destino = data.usuario && data.usuario.debe_cambiar_password
+      ? "./cambiar_password.html"
+      : "../dashboard/dashboard.html";
+
     setTimeout(() => {
-      window.location.href = "../dashboard/dashboard.html";
+      window.location.href = destino;
     }, 800);
 
   } catch (error) {

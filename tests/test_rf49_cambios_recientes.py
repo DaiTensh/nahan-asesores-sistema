@@ -59,7 +59,8 @@ def cliente_rf49(monkeypatch):
         CREATE TABLE area (id_area INTEGER PRIMARY KEY, nombre_area TEXT);
         CREATE TABLE usuario (
             id_usuario INTEGER PRIMARY KEY, id_rol INTEGER, id_area INTEGER,
-            nombres TEXT, email TEXT, password_hash TEXT, estado TEXT
+            nombres TEXT, email TEXT, password_hash TEXT, estado TEXT,
+            debe_cambiar_password INTEGER DEFAULT 0, version_credenciales INTEGER DEFAULT 0
         );
         CREATE TABLE cliente (id_cliente INTEGER PRIMARY KEY);
         CREATE TABLE tarea (id_tarea INTEGER PRIMARY KEY);
@@ -73,7 +74,8 @@ def cliente_rf49(monkeypatch):
         """
     )
     database.executemany(
-        "INSERT INTO usuario VALUES (?, ?, ?, ?, ?, ?, 'ACTIVO')",
+        "INSERT INTO usuario (id_usuario, id_rol, id_area, nombres, email, password_hash, estado) "
+        "VALUES (?, ?, ?, ?, ?, ?, 'ACTIVO')",
         [
             (1, 1, 1, "Admin RF49", "admin@nahan.local", hash_password("x")),
             (2, 2, 2, "Usuario RF49", "usuario@nahan.local", hash_password("x")),

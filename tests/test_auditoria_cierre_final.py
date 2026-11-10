@@ -160,8 +160,9 @@ def test_dashboard_los_paneles_de_error_apuntan_a_elementos_que_existen():
 
 def test_alta_de_usuario_declara_el_largo_minimo_de_contrasena_del_servidor():
     """H-13: el servidor exige LARGO_MINIMO_PASSWORD caracteres y el formulario solo avisaba después de confirmar."""
-    for pantalla in (("usuarios", "usuarios.html"), ("auth", "restablecer.html")):
-        campo = re.search(r'<input[^>]*id="password"[^>]*>', leer(*pantalla)).group(0)
+    # El alta de usuarios ya no pide contraseña (la genera el servidor); la política se declara donde la persona la escribe.
+    for pantalla, identificador in ((("auth", "restablecer.html"), "password"), (("auth", "cambiar_password.html"), "passwordNueva")):
+        campo = re.search(r'<input[^>]*id="%s"[^>]*>' % identificador, leer(*pantalla)).group(0)
         assert f'minlength="{LARGO_MINIMO_PASSWORD}"' in campo, pantalla
 
 

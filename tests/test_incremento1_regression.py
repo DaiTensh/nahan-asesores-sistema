@@ -671,7 +671,7 @@ def test_administrador_puede_gestionar_usuarios(
     data = response.get_json()
 
     assert response.status_code == 201
-    assert data == {"message": "Usuario registrado correctamente"}
+    assert data == {"message": "Usuario registrado correctamente", "debe_cambiar_password": True}
     assert connection.commits == 1
 
 

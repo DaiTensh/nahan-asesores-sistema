@@ -112,13 +112,13 @@ def entorno():
 def test_la_instalacion_limpia_reconoce_todas_las_migraciones_como_aplicadas(entorno):
     migrar = _migrar()
     cur = entorno.limpia.cursor()
-    assert [n for n, _, _ in migrar.migraciones()] == ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013"]
+    assert [n for n, _, _ in migrar.migraciones()] == ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013", "014"]
     assert migrar.pendientes(cur) == []
 
 
 def test_una_instalacion_de_v1_0_0_tiene_pendientes_exactamente_las_migraciones_nuevas(entorno):
     migrar = _migrar()
-    assert migrar.pendientes(entorno.anterior.cursor()) == ["008", "009", "010", "011", "012", "013"]
+    assert migrar.pendientes(entorno.anterior.cursor()) == ["008", "009", "010", "011", "012", "013", "014"]
 
 
 def test_actualizar_aplica_las_pendientes_sin_perder_datos_y_en_orden(entorno):
@@ -143,6 +143,9 @@ def test_actualizar_aplica_las_pendientes_sin_perder_datos_y_en_orden(entorno):
     cur.execute("SELECT origen, observacion, monto FROM registro_tiempo")
     assert cur.fetchall() == [("TEMPORIZADOR", None, 30000)], \
         "los registros de tiempo anteriores quedan como del temporizador y conservan su monto"
+    cur.execute("SELECT nombres, password_hash, debe_cambiar_password, version_credenciales FROM usuario")
+    assert cur.fetchall() == [("Admin Ficticia", "h", 0, 0)], \
+        "014: las cuentas existentes conservan su hash y quedan sin cambio pendiente ni sesiones invalidadas"
     cur.execute("SELECT estado_registro, anulado_por, fecha_anulacion, motivo_anulacion FROM registro_tiempo")
     assert cur.fetchall() == [("VIGENTE", None, None, None)], "013: los registros existentes quedan VIGENTES, sin anulación"
 
@@ -160,7 +163,7 @@ def test_aplicar_dos_veces_es_inofensivo(entorno):
     test_actualizar_aplica_las_pendientes_sin_perder_datos_y_en_orden(entorno)
     migrar = _migrar()
     for numero, nombre, ruta in migrar.migraciones():
-        if numero in ("008", "009", "010", "011", "012", "013"):
+        if numero in ("008", "009", "010", "011", "012", "013", "014"):
             migrar.aplicar(entorno.anterior, ruta)  # no debe lanzar: los «ya existe» se toleran
     assert migrar.pendientes(entorno.anterior.cursor()) == []
 
