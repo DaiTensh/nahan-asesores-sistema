@@ -77,7 +77,7 @@ def test_la_confirmacion_precede_al_envio_y_la_solicitud_lleva_cuerpo_json():
     funcion = JS[JS.index("async function enviarRegistroManual"):JS.index("async function refrescarHistorialTrasRegistro")]
 
     assert funcion.index("await confirmarAccion(") < funcion.index("await fetch(")
-    assert "no se pueden editar ni anular" in funcion
+    assert "no se pueden editar; si hay un error, un administrador puede anularlas" in funcion
     assert '`${API_URL}/control-horas/registros-manuales`' in funcion
     assert 'method: "POST"' in funcion and '"Content-Type": "application/json"' in funcion
     assert "body: JSON.stringify(lectura.datos)" in funcion
@@ -251,7 +251,7 @@ ejecutar(`
   assert.strictEqual(llamadas.fetch.length, 0);
   const confirmacion = llamadas.confirmar[0];
   assert.strictEqual(confirmacion.nivel, 'advertencia');
-  for (const texto of ['02h 30m', 'Declaración mensual', 'Cliente Uno', '09:00 a 11:30', 'no se pueden editar ni anular']) {
+  for (const texto of ['02h 30m', 'Declaración mensual', 'Cliente Uno', '09:00 a 11:30', 'no se pueden editar; si hay un error, un administrador puede anularlas']) {
     assert.ok(confirmacion.mensaje.includes(texto), `la confirmación dice «${texto}»: ${confirmacion.mensaje}`);
   }
   assert.ok(confirmacion.mensaje.includes(`${dias(-1).split('-').reverse().join('-')}`), 'fecha dd-mm-aaaa');
