@@ -13,11 +13,13 @@ from backend.utils.auth import (
     PARAMETRO_AVISO,
     PARAMETRO_INACTIVIDAD,
     ROL_ADMINISTRADOR,
+    abrir_sesion,
     invalidar_cache_config_sesion,
     login_required,
     marcar_actividad,
     obtener_config_sesion,
     obtener_usuario_actual,
+    permite_cambio_pendiente,
     roles_required,
     segundos_restantes_sesion,
 )
@@ -39,7 +41,12 @@ from backend.utils.limitador_login import (
     respuesta_no_disponible,
     verificar_cupo,
 )
-from backend.utils.security import LARGO_MINIMO_PASSWORD, check_password, hash_password
+from backend.utils.security import (
+    LARGO_MINIMO_PASSWORD,
+    check_password,
+    error_de_password_nueva,
+    hash_password,
+)
 
 auth_bp = Blueprint("auth", __name__)
 logger = logging.getLogger(__name__)
@@ -83,7 +90,9 @@ def login():
                 u.id_rol,
                 r.nombre_rol,
                 u.id_area,
-                a.nombre_area
+                a.nombre_area,
+                u.debe_cambiar_password,
+                u.version_credenciales
             FROM usuario u
             INNER JOIN rol r ON u.id_rol = r.id_rol
             INNER JOIN area a ON u.id_area = a.id_area
@@ -145,15 +154,14 @@ def login():
         )
         connection.commit()
 
-        session.clear()
-        session.permanent = True
-        session["usuario_id"] = usuario["id_usuario"]
-        session["rol_id"] = usuario["id_rol"]
-        session["area_id"] = usuario["id_area"]
-        session["nombre"] = usuario["nombres"]
-        marcar_actividad()
+        abrir_sesion(
+            usuario["id_usuario"], usuario["id_rol"], usuario["id_area"], usuario["nombres"],
+            usuario.get("version_credenciales"),
+        )
 
         usuario.pop("password_hash")
+        usuario.pop("version_credenciales", None)
+        usuario["debe_cambiar_password"] = bool(usuario.get("debe_cambiar_password"))
 
         return jsonify({
             "message": "Inicio de sesión correcto",
@@ -189,14 +197,19 @@ def login():
 
 @auth_bp.route("/auth/me", methods=["GET"])
 @login_required
+@permite_cambio_pendiente
 def auth_me():
-    usuario = obtener_usuario_actual()
+    actual = obtener_usuario_actual()
+    # El objeto `usuario` conserva su contrato; el estado del cambio obligatorio va aparte, en el nivel
+    # superior, y lo decide el servidor (no el navegador).
+    usuario = {clave: valor for clave, valor in actual.items() if clave != "debe_cambiar_password"}
 
     return jsonify({
         "usuario": usuario,
         "permisos": {
             "es_admin": usuario["nombre_rol"] == "ADMINISTRADOR"
-        }
+        },
+        "debe_cambiar_password": bool(actual.get("debe_cambiar_password")),
     }), 200
 
 
@@ -262,6 +275,7 @@ def _estado_sesion():
 
 @auth_bp.route("/auth/sesion", methods=["GET"])
 @login_required
+@permite_cambio_pendiente
 def estado_sesion():
     """Tiempo restante de la sesión. El frontend la consulta periódicamente
     con la cabecera `X-Actividad: pasiva`, así la consulta no renueva el plazo."""
@@ -270,6 +284,7 @@ def estado_sesion():
 
 @auth_bp.route("/auth/sesion/extender", methods=["POST"])
 @login_required
+@permite_cambio_pendiente
 def extender_sesion():
     marcar_actividad()
     return jsonify(_estado_sesion()), 200
@@ -784,8 +799,11 @@ def confirmar_restablecimiento():
             connection.rollback()
             return jsonify({"error": "El enlace no es válido o ya caducó. Solicita uno nuevo."}), 400
 
+        # La contraseña la elige la propia persona: deja de haber cambio pendiente y sube la versión de
+        # credenciales, de modo que cualquier contraseña temporal anterior y toda sesión abierta quedan sin efecto.
         cursor.execute(
-            "UPDATE usuario SET password_hash = %s WHERE id_usuario = %s",
+            "UPDATE usuario SET password_hash = %s, debe_cambiar_password = FALSE, "
+            "version_credenciales = version_credenciales + 1 WHERE id_usuario = %s",
             (hash_password(password), registro["id_usuario"])
         )
         # Cualquier otro enlace que siguiera vigente para ese usuario deja de servir.
@@ -818,5 +836,113 @@ def confirmar_restablecimiento():
         if cursor:
             cursor.close()
 
+        if connection:
+            connection.close()
+
+
+# ---------------------------------------------------------------------------
+# Cambio de contraseña personal (obligatorio tras una contraseña temporal, o voluntario)
+# ---------------------------------------------------------------------------
+# Reutiliza el hash, la política de contraseñas, la auditoría y el limitador de intentos del inicio de
+# sesión (la contraseña actual es un intento de adivinar, igual que un login). Es la única ruta, junto con
+# /auth/me, la sesión y el cierre de sesión, que sirve mientras el cambio está pendiente.
+
+@auth_bp.route("/auth/cambiar-password", methods=["POST"])
+@login_required
+@permite_cambio_pendiente
+def cambiar_password():
+    data = request.get_json(silent=True) or {}
+    actual = data.get("password_actual")
+    nueva = data.get("password_nueva")
+    confirmacion = data.get("confirmacion")
+
+    if not all(isinstance(valor, str) and valor for valor in (actual, nueva, confirmacion)):
+        return jsonify({"error": "La contraseña actual, la nueva y su confirmación son obligatorias"}), 400
+    error_politica = error_de_password_nueva(nueva)
+    if error_politica:
+        return jsonify({"error": error_politica}), 400
+    if nueva != confirmacion:
+        return jsonify({"error": "La confirmación no coincide con la contraseña nueva"}), 400
+    if nueva == actual:
+        return jsonify({"error": "La contraseña nueva no puede ser igual a la actual"}), 400
+
+    id_usuario = obtener_usuario_actual()["id_usuario"]
+    connection = None
+    cursor = None
+    try:
+        connection = get_connection()
+        if connection is None:
+            return jsonify({"error": "Servicio no disponible temporalmente"}), 503
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT id_usuario, email, password_hash, id_rol, id_area, nombres, version_credenciales "
+            "FROM usuario WHERE id_usuario = %s AND estado = 'ACTIVO'",
+            (id_usuario,),
+        )
+        usuario = cursor.fetchone()
+        if not usuario:
+            return jsonify({"error": "No autenticado"}), 401
+
+        # Mismo límite de intentos que el inicio de sesión (SEC-02): la reserva se hace antes de comprobar
+        # la contraseña, no se mantiene ninguna transacción durante bcrypt y se conserva si el intento falla.
+        ip_cliente = normalizar_ip(request.remote_addr)
+        clave_cuenta = calcular_clave_cuenta(cursor, usuario["email"])
+        verificar_cupo(cursor, clave_cuenta, ip_cliente)
+        id_reserva = reservar_intento(connection, cursor, clave_cuenta, ip_cliente, usuario["id_usuario"])
+
+        if not check_password(actual, usuario["password_hash"]):
+            return jsonify({"error": "La contraseña actual no es correcta"}), 400
+
+        # Escritura atómica: se vuelve a leer la fila con bloqueo y solo se cambia si sigue siendo la misma
+        # credencial (dos cambios simultáneos con la misma temporal: solo gana uno).
+        connection.start_transaction()
+        cursor.execute(
+            "SELECT password_hash, version_credenciales FROM usuario WHERE id_usuario = %s FOR UPDATE",
+            (id_usuario,),
+        )
+        vigente = cursor.fetchone()
+        if (not vigente or vigente["password_hash"] != usuario["password_hash"]
+                or int(vigente["version_credenciales"] or 0) != int(usuario["version_credenciales"] or 0)):
+            connection.rollback()
+            return jsonify({"error": "Las credenciales cambiaron mientras tanto. Inicie sesión de nuevo."}), 409
+
+        liberar_reserva(cursor, id_reserva)
+        version = int(usuario["version_credenciales"] or 0) + 1
+        cursor.execute(
+            "UPDATE usuario SET password_hash = %s, debe_cambiar_password = FALSE, "
+            "version_credenciales = %s WHERE id_usuario = %s",
+            (hash_password(nueva), version, id_usuario),
+        )
+        # Solo queda constancia de que ocurrió: ni contraseñas, ni hashes.
+        registrar_auditoria(
+            cursor, id_usuario, "usuario", "CONTRASENA_CAMBIADA",
+            id_registro=id_usuario,
+            datos_nuevos="cambio de contraseña personal; sesiones y contraseña anteriores invalidadas",
+        )
+        connection.commit()
+
+        # Sesión renovada: nueva sesión atada a la nueva versión (las anteriores dejan de valer).
+        abrir_sesion(id_usuario, usuario["id_rol"], usuario["id_area"], usuario["nombres"], version)
+        return jsonify({"message": "Tu contraseña fue actualizada.", "debe_cambiar_password": False}), 200
+
+    except LimiteAlcanzado as limite:
+        if connection:
+            connection.rollback()
+        return respuesta_limite(limite.segundos)
+
+    except LimitadorNoDisponible as error:
+        if connection:
+            connection.rollback()
+        return respuesta_no_disponible(error.segundos)
+
+    except Exception:
+        if connection:
+            connection.rollback()
+        logger.exception("Error al cambiar la contraseña")
+        return jsonify({"error": "Error interno al cambiar la contraseña"}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
         if connection:
             connection.close()

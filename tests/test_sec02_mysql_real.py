@@ -45,7 +45,7 @@ CREATE TABLE area (id_area INT AUTO_INCREMENT PRIMARY KEY, nombre_area VARCHAR(1
 CREATE TABLE usuario (
     id_usuario INT AUTO_INCREMENT PRIMARY KEY, id_rol INT NOT NULL, id_area INT NOT NULL,
     nombres VARCHAR(100) NOT NULL, email VARCHAR(150) NOT NULL UNIQUE, password_hash VARCHAR(255) NOT NULL,
-    estado ENUM('ACTIVO','INACTIVO') NOT NULL DEFAULT 'ACTIVO');
+    estado ENUM('ACTIVO','INACTIVO') NOT NULL DEFAULT 'ACTIVO', debe_cambiar_password INTEGER DEFAULT 0, version_credenciales INTEGER DEFAULT 0);
 CREATE TABLE auditoria (
     id_auditoria INT AUTO_INCREMENT PRIMARY KEY, id_usuario INT NOT NULL, tabla_afectada VARCHAR(100) NOT NULL,
     id_registro INT NULL, accion VARCHAR(50) NOT NULL, datos_anteriores TEXT, datos_nuevos TEXT,

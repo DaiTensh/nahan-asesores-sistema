@@ -197,7 +197,9 @@ def obtener_usuario_actual():
                 u.estado,
                 u.id_rol,
                 r.nombre_rol,
-                u.id_area
+                u.id_area,
+                u.debe_cambiar_password,
+                u.version_credenciales
             FROM usuario u
             INNER JOIN rol r ON u.id_rol = r.id_rol
             WHERE u.id_usuario = %s
@@ -210,6 +212,14 @@ def obtener_usuario_actual():
             g._usuario_actual = None
             return None
 
+        # Credenciales cambiadas (cambio personal, restablecimiento del administrador o por enlace): la
+        # sesión abierta con otra versión deja de valer. Una sesión anterior a la migración 014 no trae
+        # versión y solo vale mientras la cuenta nunca haya cambiado de credenciales (versión 0).
+        if int(session.get("vc") or 0) != int(usuario.get("version_credenciales") or 0):
+            session.clear()
+            g._usuario_actual = None
+            return None
+
         if ultima_actividad is None or not es_solicitud_pasiva():
             marcar_actividad()
 
@@ -219,6 +229,7 @@ def obtener_usuario_actual():
             "id_rol": usuario["id_rol"],
             "nombre_rol": usuario["nombre_rol"],
             "id_area": usuario["id_area"],
+            "debe_cambiar_password": bool(usuario.get("debe_cambiar_password")),
         }
         return g._usuario_actual
     except Exception:
@@ -245,11 +256,51 @@ def respuesta_no_autenticado():
     return jsonify({"error": "No autenticado"}), 401
 
 
+CODIGO_CAMBIO_PASSWORD_OBLIGATORIO = "CAMBIO_PASSWORD_OBLIGATORIO"
+
+
+def permite_cambio_pendiente(func):
+    """Marca una ruta que puede usarse mientras el cambio de contraseña está pendiente.
+
+    Las demás rutas protegidas responden 403 `CAMBIO_PASSWORD_OBLIGATORIO` (lo decide el servidor en
+    `login_required` y `roles_required`, no el JavaScript). Debe aplicarse DEBAJO de `login_required`.
+    """
+    func._permite_cambio_pendiente = True
+    return func
+
+
+def respuesta_cambio_password_obligatorio():
+    return jsonify({
+        "error": "Debe establecer su contraseña personal antes de continuar.",
+        "codigo": CODIGO_CAMBIO_PASSWORD_OBLIGATORIO,
+    }), 403
+
+
+def _bloquea_por_cambio_pendiente(usuario, func):
+    return bool(usuario.get("debe_cambiar_password")) and not getattr(func, "_permite_cambio_pendiente", False)
+
+
+def abrir_sesion(id_usuario, id_rol, id_area, nombres, version_credenciales):
+    """Abre una sesión NUEVA (descarta cualquier sesión previa) atada a la versión de credenciales."""
+    session.clear()
+    session.permanent = True
+    session["usuario_id"] = id_usuario
+    session["rol_id"] = id_rol
+    session["area_id"] = id_area
+    session["nombre"] = nombres
+    session["vc"] = int(version_credenciales or 0)
+    marcar_actividad()
+
+
 def login_required(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-        if not obtener_usuario_actual():
+        usuario = obtener_usuario_actual()
+        if not usuario:
             return respuesta_no_autenticado()
+
+        if _bloquea_por_cambio_pendiente(usuario, func):
+            return respuesta_cambio_password_obligatorio()
 
         return func(*args, **kwargs)
 
@@ -267,6 +318,9 @@ def roles_required(*roles_permitidos):
 
             if not usuario_tiene_rol(usuario, roles_permitidos):
                 return jsonify({"error": "No tiene permisos para acceder a este recurso"}), 403
+
+            if _bloquea_por_cambio_pendiente(usuario, func):
+                return respuesta_cambio_password_obligatorio()
 
             return func(*args, **kwargs)
 

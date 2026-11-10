@@ -64,16 +64,30 @@
                             <option value="3">Ambas áreas</option>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label" for="password">Contraseña temporal</label>
-                        <input type="password" id="password" class="form-input" minlength="8" required>
-                    </div>
+                    <p class="form-help">El sistema genera una contraseña temporal aleatoria y se la muestra una sola vez al
+                        registrar. La persona deberá cambiarla en su primer inicio de sesión.</p>
                     <div class="usuarios-form-actions">
                         <button type="submit" class="btn btn-primary">Registrar Usuario</button>
                         <button type="button" id="btnCerrarNuevoUsuario" class="btn btn-secondary">Cerrar</button>
                     </div>
                     <p id="mensaje" class="mensaje" aria-live="polite"></p>
                 </form>
+            </section>
+
+            <section class="usuarios-card" id="panelPasswordTemporal" role="alert" aria-labelledby="tituloPasswordTemporal" hidden>
+                <h2 class="usuarios-title" id="tituloPasswordTemporal">Contraseña temporal</h2>
+                <p id="textoPasswordTemporal"></p>
+                <div class="form-group">
+                    <label class="form-label" for="valorPasswordTemporal">Contraseña temporal (se muestra una sola vez)</label>
+                    <input type="text" id="valorPasswordTemporal" class="form-input" readonly autocomplete="off" spellcheck="false">
+                </div>
+                <p class="form-help">Entréguela a la persona por un medio seguro. No queda guardada ni se puede consultar después:
+                    si se pierde, restablezca la contraseña. Al cerrar este aviso desaparece de la pantalla.</p>
+                <div class="usuarios-form-actions">
+                    <button type="button" id="btnCopiarPasswordTemporal" class="btn btn-primary">Copiar</button>
+                    <button type="button" id="btnOcultarPasswordTemporal" class="btn btn-secondary">Cerrar y ocultar</button>
+                </div>
+                <p id="mensajeCopiado" class="mensaje" role="status" aria-live="polite"></p>
             </section>
 
             <section class="usuarios-listado" aria-labelledby="tituloUsuariosRegistrados">

@@ -28,6 +28,9 @@ CREATE TABLE usuario (
     password_hash VARCHAR(255) NOT NULL,
     estado ENUM('ACTIVO','INACTIVO') NOT NULL DEFAULT 'ACTIVO',
     fecha_creacion DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- Contraseña temporal con cambio obligatorio (migración 014).
+    debe_cambiar_password BOOLEAN NOT NULL DEFAULT FALSE,
+    version_credenciales INT NOT NULL DEFAULT 0,
 
     CONSTRAINT fk_usuario_rol
         FOREIGN KEY (id_rol) REFERENCES rol(id_rol),

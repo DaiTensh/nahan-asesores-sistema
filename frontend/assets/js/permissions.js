@@ -24,7 +24,15 @@ async function obtenerUsuarioActual() {
           return null;
         }
 
-        return data.usuario;
+        // El estado del cambio obligatorio lo decide el servidor. Mientras esté pendiente, ninguna pantalla
+        // (salvo la propia de cambio) sirve: se redirige aquí, en un único lugar y sin bucles.
+        const pendiente = Boolean(data.debe_cambiar_password);
+        if (pendiente && !window.location.pathname.endsWith("/auth/cambiar_password.html")) {
+          // Se devuelve el usuario (no null) para que la pantalla no mande además al login y las dos
+          // redirecciones compitan.
+          window.location.href = "../auth/cambiar_password.html";
+        }
+        return data.usuario ? { ...data.usuario, debe_cambiar_password: pendiente } : data.usuario;
       })
       .catch(error => {
         console.error(error);

@@ -1032,7 +1032,7 @@ def test_un_paquete_reemplazado_por_otro_valido_se_detecta_por_la_huella_registr
 
 def test_compatibilidad_de_version_del_esquema():
     conocidas = r._migraciones_conocidas()
-    assert conocidas and conocidas[-1] == "013"
+    assert conocidas and conocidas[-1] == "014"
     assert r._advertencias_de_version({"migraciones": conocidas}) == []
     with pytest.raises(r.RespaldoNoValido, match="más nueva"):
         r._advertencias_de_version({"migraciones": conocidas + ["999"]})
@@ -1042,8 +1042,11 @@ def test_compatibilidad_de_version_del_esquema():
     previo_a_012 = r._advertencias_de_version({"migraciones": [n for n in conocidas if n != "012"]})
     assert len(previo_a_012) == 1 and "faltan: 012" in previo_a_012[0] and "migrar.py" in previo_a_012[0]
     # Un respaldo anterior a la migración 013 (anulación de horas) también se restaura, con el mismo aviso.
-    previo_a_013 = r._advertencias_de_version({"migraciones": [n for n in conocidas if n != "013"]})
-    assert len(previo_a_013) == 1 and "faltan: 013" in previo_a_013[0] and "migrar.py" in previo_a_013[0]
+    previo_a_013 = r._advertencias_de_version({"migraciones": [n for n in conocidas if n not in ("013", "014")]})
+    assert len(previo_a_013) == 1 and "faltan: 013, 014" in previo_a_013[0] and "migrar.py" in previo_a_013[0]
+    # Un respaldo anterior a la migración 014 (contraseña temporal) también se restaura, con el mismo aviso.
+    previo_a_014 = r._advertencias_de_version({"migraciones": [n for n in conocidas if n != "014"]})
+    assert len(previo_a_014) == 1 and "faltan: 014" in previo_a_014[0] and "migrar.py" in previo_a_014[0]
     assert "No se pudo comprobar" in r._advertencias_de_version({"migraciones": None})[0]
 
 

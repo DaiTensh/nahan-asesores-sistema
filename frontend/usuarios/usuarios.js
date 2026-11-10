@@ -96,14 +96,98 @@ function crearCeldaAcciones(usuario) {
     acciones.appendChild(enlace);
   };
 
+  const crearBoton = (texto, clase, ariaLabel, alClic) => {
+    const boton = document.createElement("button");
+    boton.type = "button";
+    boton.className = clase;
+    boton.textContent = texto;
+    boton.setAttribute("aria-label", ariaLabel);
+    boton.addEventListener("click", alClic);
+    acciones.appendChild(boton);
+  };
+
   crearEnlace("Editar", `modificar_usuario.html?id=${id}`, "btn btn-primary btn-small", `Editar a ${usuario.nombres}`);
   crearEnlace("Asignar rol", `asignar_rol.html?id=${id}`, "btn btn-secondary btn-small", `Asignar rol a ${usuario.nombres}`);
   if (usuario.estado === "ACTIVO") {
     crearEnlace("Deshabilitar", `desactivar_usuario.html?id=${id}`, "btn btn-warning btn-small", `Deshabilitar a ${usuario.nombres}`);
   }
 
+  // El administrador no restablece su propia cuenta con esta acción (para eso está el cambio personal).
+  if (!usuarioActual || usuarioActual.id_usuario !== usuario.id_usuario) {
+    crearBoton("Restablecer contraseña", "btn btn-secondary btn-small", `Restablecer la contraseña de ${usuario.nombres}`,
+      () => restablecerPassword(usuario));
+  }
+
   celda.appendChild(acciones);
   return celda;
+}
+
+// ---- Contraseña temporal: se muestra una sola vez y nunca se guarda en el navegador ----
+const panelPasswordTemporal = document.getElementById("panelPasswordTemporal");
+const valorPasswordTemporal = document.getElementById("valorPasswordTemporal");
+const mensajeCopiado = document.getElementById("mensajeCopiado");
+
+function mostrarPasswordTemporal(texto, password) {
+  if (!panelPasswordTemporal) return;
+  document.getElementById("textoPasswordTemporal").textContent = texto;
+  valorPasswordTemporal.value = password;
+  mensajeCopiado.textContent = "";
+  panelPasswordTemporal.hidden = false;
+  valorPasswordTemporal.focus();
+  valorPasswordTemporal.select();
+}
+
+function ocultarPasswordTemporal() {
+  if (!panelPasswordTemporal) return;
+  valorPasswordTemporal.value = "";
+  document.getElementById("textoPasswordTemporal").textContent = "";
+  mensajeCopiado.textContent = "";
+  panelPasswordTemporal.hidden = true;
+}
+
+const botonOcultarPassword = document.getElementById("btnOcultarPasswordTemporal");
+const botonCopiarPassword = document.getElementById("btnCopiarPasswordTemporal");
+if (botonOcultarPassword) botonOcultarPassword.addEventListener("click", ocultarPasswordTemporal);
+if (botonCopiarPassword) botonCopiarPassword.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(valorPasswordTemporal.value);
+    mensajeCopiado.textContent = "Copiada al portapapeles.";
+  } catch (error) {
+    valorPasswordTemporal.select();
+    mensajeCopiado.textContent = "Seleccionada: cópiela con Ctrl+C (o Cmd+C).";
+  }
+});
+
+async function restablecerPassword(usuario) {
+  const confirmar = await confirmarAccion(
+    `¿Restablecer la contraseña de ${usuario.nombres}? Se generará una contraseña temporal nueva, la actual dejará de ` +
+    "funcionar, se cerrarán sus sesiones abiertas y deberá elegir una contraseña propia al ingresar.",
+    "advertencia"
+  );
+  if (!confirmar) return;
+
+  try {
+    const response = await fetch(`${API_URL}/usuarios/${encodeURIComponent(usuario.id_usuario)}/restablecer-password`, {
+      method: "POST",
+      credentials: window.API_CONFIG.credentials,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirmar: true })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      mensajeListadoUsuarios.textContent = data.error || "No se pudo restablecer la contraseña.";
+      mensajeListadoUsuarios.className = "mensaje error";
+      return;
+    }
+    mensajeListadoUsuarios.textContent = "";
+    mensajeListadoUsuarios.className = "mensaje";
+    mostrarPasswordTemporal(`Contraseña restablecida para ${usuario.nombres} (${usuario.email}).`, data.password_temporal);
+    await cargarListadoUsuarios();
+  } catch (error) {
+    console.error(error);
+    mensajeListadoUsuarios.textContent = "No se pudo conectar con el servidor.";
+    mensajeListadoUsuarios.className = "mensaje error";
+  }
 }
 
 function mostrarUsuarios(usuarios) {
@@ -130,7 +214,7 @@ function mostrarUsuarios(usuarios) {
 
     const estado = document.createElement("span");
     estado.className = `usuario-estado ${inactivo ? "usuario-estado-inactivo" : "usuario-estado-activo"}`;
-    estado.textContent = inactivo ? "Inactivo" : "Activo";
+    estado.textContent = inactivo ? "Inactivo" : (usuario.debe_cambiar_password ? "Activo · cambio de contraseña pendiente" : "Activo");
     const celdaEstado = document.createElement("td");
     celdaEstado.dataset.label = "Estado";
     celdaEstado.appendChild(estado);
@@ -204,7 +288,7 @@ formUsuario.addEventListener("submit", async (event) => {
     id_area: Number(document.getElementById("id_area").value),
     nombres: document.getElementById("nombres").value.trim(),
     email: document.getElementById("email").value.trim(),
-    password: document.getElementById("password").value
+    // Sin contraseña: la genera el servidor (temporal, con cambio obligatorio).
   };
 
   const confirmar = await confirmarAccion("¿Desea registrar este nuevo usuario?", "normal");
@@ -236,6 +320,9 @@ formUsuario.addEventListener("submit", async (event) => {
 
     mensaje.textContent = data.message;
     mensaje.className = "mensaje success";
+    if (data.password_temporal) {
+      mostrarPasswordTemporal(`Cuenta creada para ${usuario.nombres} (${usuario.email}).`, data.password_temporal);
+    }
     formUsuario.reset();
     sincronizarAreaConRol();
     await cargarListadoUsuarios();

@@ -164,7 +164,7 @@ def test_respaldo_con_privilegios_minimos_genera_un_paquete_valido_y_completo(mu
     assert manifiesto["base_de_datos"]["tablas"] == contadas, "el manifiesto refleja exactamente la base respaldada"
     assert not {"respaldo", "intento_login_fallido"} & set(manifiesto["base_de_datos"]["tablas"])
     assert set(manifiesto["base_de_datos"]["tablas"]) == set(TABLAS_DE_NEGOCIO)
-    assert manifiesto["migraciones"] == ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013"]
+    assert manifiesto["migraciones"] == ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013", "014"]
     assert list(manifiesto["adjuntos"]["archivos"]) == [ADJUNTO]
     assert "mysqldump" in manifiesto["herramienta"]
 

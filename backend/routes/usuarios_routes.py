@@ -8,7 +8,12 @@ from flask import Blueprint, request, jsonify
 from backend.config.db import get_connection
 from backend.utils.auditoria import registrar_auditoria
 from backend.utils.auth import ROL_ADMINISTRADOR, login_required, obtener_usuario_actual, roles_required
-from backend.utils.security import LARGO_MINIMO_PASSWORD, hash_password
+from backend.utils.security import (
+    LARGO_MINIMO_PASSWORD,
+    error_de_password_nueva,
+    generar_password_temporal,
+    hash_password,
+)
 
 usuarios_bp = Blueprint("usuarios", __name__)
 logger = logging.getLogger(__name__)
@@ -168,11 +173,19 @@ def create_usuario():
     email = data.get("email")
     password = data.get("password")
 
-    if not id_rol or not id_area or not nombres or not email or not password:
+    if not id_rol or not id_area or not nombres or not email:
         return jsonify({"error": "Todos los campos son obligatorios"}), 400
 
-    if len(password) < LARGO_MINIMO_PASSWORD:
-        return jsonify({"error": f"La contraseña debe tener al menos {LARGO_MINIMO_PASSWORD} caracteres"}), 400
+    # La contraseña inicial es SIEMPRE temporal: la persona debe cambiarla en su primer acceso. Lo habitual
+    # es no enviar `password` y que el servidor genere una aleatoria; se acepta una indicada por el
+    # administrador solo por compatibilidad (con la misma política y la misma obligación de cambio).
+    generada = not password
+    if generada:
+        password = generar_password_temporal()
+    else:
+        error_politica = error_de_password_nueva(password)
+        if error_politica:
+            return jsonify({"error": error_politica}), 400
 
     id_rol, id_area, error = resolver_area_para_rol(id_rol, id_area)
 
@@ -185,8 +198,8 @@ def create_usuario():
         connection = get_connection()
         cursor = connection.cursor()
 
-        sql = """INSERT INTO usuario (id_rol, id_area, nombres, email, password_hash)
-                 VALUES (%s, %s, %s, %s, %s)"""
+        sql = """INSERT INTO usuario (id_rol, id_area, nombres, email, password_hash, debe_cambiar_password)
+                 VALUES (%s, %s, %s, %s, %s, TRUE)"""
         
         values = (id_rol, id_area, nombres, email, password_hash)
 
@@ -196,11 +209,21 @@ def create_usuario():
         registrar_auditoria(
             cursor, obtener_usuario_actual()["id_usuario"], "usuario", "USUARIO_CREADO",
             id_registro=id_nuevo,
-            datos_nuevos=_describir_usuario(id_rol, id_area, nombres, email, "ACTIVO"),
+            datos_nuevos=_describir_usuario(id_rol, id_area, nombres, email, "ACTIVO")
+            + " | contraseña temporal con cambio obligatorio",
         )
         connection.commit()
 
-        return jsonify({"message": "Usuario registrado correctamente"}), 201
+        respuesta = {
+            "message": "Usuario registrado correctamente",
+            "debe_cambiar_password": True,
+        }
+        if generada:
+            # Se entrega UNA sola vez, en esta respuesta; nunca se guarda en claro ni se puede consultar después.
+            respuesta["password_temporal"] = password
+        resultado = jsonify(respuesta)
+        resultado.headers["Cache-Control"] = "no-store"
+        return resultado, 201
     
     except IntegrityError as error:
         if connection:
@@ -287,6 +310,7 @@ def listar_usuarios():
                     u.email,
                     u.estado,
                     u.fecha_creacion,
+                    u.debe_cambiar_password,
                     r.nombre_rol,
                     a.nombre_area
                 FROM usuario u
@@ -325,6 +349,9 @@ def listar_usuarios():
 
         cursor.execute(sql, tuple(parametros))
         usuarios = [_con_fecha_en_texto(usuario) for usuario in cursor.fetchall()]
+        for usuario in usuarios:
+            if "debe_cambiar_password" in usuario:
+                usuario["debe_cambiar_password"] = bool(usuario["debe_cambiar_password"])
 
         return jsonify(usuarios), 200
 
@@ -632,5 +659,80 @@ def asignar_rol_usuario(id_usuario):
         if cursor:
             cursor.close()
 
+        if connection:
+            connection.close()
+
+
+# Restablecimiento administrativo de contraseña.
+#
+# Genera una contraseña temporal nueva, invalida la anterior y las sesiones abiertas del usuario (sube su
+# versión de credenciales), anula los enlaces de recuperación que siguieran vigentes y lo obliga a
+# establecer una contraseña propia en su próximo acceso. La temporal se devuelve UNA sola vez. El
+# administrador no puede usarlo sobre su propia cuenta: para esa cuenta existe el cambio personal
+# (/auth/cambiar-password), que además evita bloquear por accidente el único acceso administrativo.
+@usuarios_bp.route("/usuarios/<int:id_usuario>/restablecer-password", methods=["POST"])
+@roles_required(ROL_ADMINISTRADOR)
+def restablecer_password_usuario(id_usuario):
+    datos = request.get_json(silent=True) or {}
+    if datos.get("confirmar") is not True:
+        return jsonify({"error": "Debe confirmar el restablecimiento de la contraseña"}), 400
+
+    id_admin = obtener_usuario_actual()["id_usuario"]
+    if id_usuario == id_admin:
+        return jsonify({
+            "error": "Para su propia cuenta use el cambio de contraseña personal."
+        }), 409
+
+    connection = None
+    cursor = None
+    try:
+        connection = get_connection()
+        connection.start_transaction()
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT id_usuario, estado FROM usuario WHERE id_usuario = %s FOR UPDATE",
+            (id_usuario,),
+        )
+        usuario = cursor.fetchone()
+        if not usuario:
+            connection.rollback()
+            return jsonify({"error": "El usuario no existe"}), 404
+
+        temporal = generar_password_temporal()
+        cursor.execute(
+            "UPDATE usuario SET password_hash = %s, debe_cambiar_password = TRUE, "
+            "version_credenciales = version_credenciales + 1 WHERE id_usuario = %s",
+            (hash_password(temporal), id_usuario),
+        )
+        # Ningún enlace de recuperación anterior puede reabrir credenciales previas.
+        cursor.execute(
+            "UPDATE token_recuperacion SET utilizado = TRUE WHERE id_usuario = %s AND utilizado = FALSE",
+            (id_usuario,),
+        )
+        registrar_auditoria(
+            cursor, id_admin, "usuario", "CONTRASENA_TEMPORAL_RESTABLECIDA",
+            id_registro=id_usuario,
+            datos_nuevos="restablecimiento administrativo; cambio obligatorio en el próximo acceso; "
+                         "contraseña y sesiones anteriores invalidadas",
+        )
+        connection.commit()
+
+        respuesta = jsonify({
+            "message": "Contraseña restablecida. Entregue la contraseña temporal a la persona: no se volverá a mostrar.",
+            "password_temporal": temporal,
+            "debe_cambiar_password": True,
+        })
+        respuesta.headers["Cache-Control"] = "no-store"
+        return respuesta, 200
+
+    except Exception:
+        if connection:
+            connection.rollback()
+        logger.exception("Error al restablecer la contraseña de un usuario")
+        return jsonify({"error": "Error interno al restablecer la contraseña"}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
         if connection:
             connection.close()

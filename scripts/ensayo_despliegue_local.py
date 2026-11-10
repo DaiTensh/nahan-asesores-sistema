@@ -221,6 +221,9 @@ def main():
         c.execute("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = %s AND table_name = 'registro_tiempo' "
                   "AND column_name IN ('estado_registro','anulado_por','fecha_anulacion','motivo_anulacion')", (BASE_APP,))
         paso("la migración 013 agregó las 4 columnas de anulación", c.fetchone()[0] == 4)
+        c.execute("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = %s AND table_name = 'usuario' "
+                  "AND column_name IN ('debe_cambiar_password','version_credenciales')", (BASE_APP,))
+        paso("la migración 014 agregó las 2 columnas de contraseña temporal", c.fetchone()[0] == 2)
         cn.close()
         paso("migrar.py es idempotente (segunda ejecución sin error)", migrar().returncode == 0)
 
