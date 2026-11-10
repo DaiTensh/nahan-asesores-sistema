@@ -1,11 +1,12 @@
 import logging
+import os
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from flask import Blueprint, jsonify, request
 from backend.config.db import get_connection
 from backend.routes.reportes_routes import _periodo_opcional
 from backend.utils.auditoria import registrar_auditoria
-from backend.utils.auth import login_required, obtener_usuario_actual
+from backend.utils.auth import ROL_ADMINISTRADOR, login_required, obtener_usuario_actual, roles_required
 from backend.utils.estados_tarea import SQL_ESTADOS_ACTIVOS
 
 
@@ -24,6 +25,27 @@ TARIFA_GLOBAL_DEFAULT = Decimal("30000.00")
 # juntos aquí para ajustarlos en un solo lugar cuando los confirme.
 DIAS_MAXIMOS_RETROACTIVO = 30
 LARGO_MAXIMO_OBSERVACION = 255
+
+# Anulación lógica (D2): el motivo es obligatorio y se conserva junto con quién y cuándo.
+LARGO_MINIMO_MOTIVO_ANULACION = 10
+LARGO_MAXIMO_MOTIVO_ANULACION = 255
+# Condición SQL de los registros que cuentan en totales, informes y exportaciones.
+SOLO_VIGENTES = "rt.estado_registro = 'VIGENTE'"
+
+# PROTECCIÓN TÉCNICA (D1), no una regla comercial: a partir de cuántas horas continuas el sistema
+# avisa y pide una confirmación explícita antes de cerrar un temporizador. No detiene nada solo, no
+# recorta ni descarta horas: la duración real se guarda tal cual. 0 desactiva la advertencia.
+UMBRAL_AVISO_HORAS_POR_DEFECTO = 12
+
+
+def umbral_aviso_minutos():
+    """Umbral de advertencia en minutos (None = desactivado). Configurable con TEMPORIZADOR_AVISO_HORAS."""
+    crudo = os.getenv("TEMPORIZADOR_AVISO_HORAS", "").strip()
+    try:
+        horas = float(crudo) if crudo else UMBRAL_AVISO_HORAS_POR_DEFECTO
+    except ValueError:
+        horas = UMBRAL_AVISO_HORAS_POR_DEFECTO
+    return horas * 60 if horas > 0 else None
 
 
 def _obtener_id_usuario(origen):
@@ -107,6 +129,39 @@ def _serializar_registro(registro):
     return registro
 
 
+def _motivo_tarea_no_disponible(cursor, id_tarea, usuario):
+    """Explica por qué una tarea no admite horas, SIN cambiar la regla (D6).
+
+    La regla sigue siendo la misma (solo tareas activas, de clientes activos y, para usuarios de área,
+    propias): esto solo elige un mensaje más claro. Los mensajes no revelan datos de tareas ajenas.
+    """
+    mensaje_general = "La tarea no existe o no está disponible para este usuario."
+    try:
+        cursor.execute(
+            """
+            SELECT t.estado, t.id_responsable, c.estado AS estado_cliente
+            FROM tarea t INNER JOIN cliente c ON t.id_cliente = c.id_cliente
+            WHERE t.id_tarea = %s
+            """,
+            (id_tarea,),
+        )
+        fila = cursor.fetchone()
+    except Exception:
+        return mensaje_general
+    if not fila or not isinstance(fila, dict):
+        return mensaje_general
+    if usuario["nombre_rol"] != ROL_ADMINISTRADOR and fila.get("id_responsable") != usuario["id_usuario"]:
+        return mensaje_general
+    if fila.get("estado") == "COMPLETADA":
+        return ("La tarea está completada y ya no admite registrar horas. Si necesita registrar tiempo, "
+                "pida a un administrador que la reabra.")
+    if fila.get("estado") == "CANCELADA":
+        return "La tarea está cancelada y no admite registrar horas."
+    if fila.get("estado_cliente") != "ACTIVO":
+        return "El cliente de la tarea está inactivo y no admite registrar horas."
+    return mensaje_general
+
+
 def _consultar_temporizador_activo(cursor, id_usuario, bloquear=False):
     bloqueo = " FOR UPDATE" if bloquear else ""
     cursor.execute(
@@ -170,6 +225,8 @@ def _leer_id_filtro(args, nombre):
 
 
 def _consultar_resumen(cursor, condiciones, parametros):
+    # Los registros anulados nunca suman en los totales (D2).
+    condiciones = [*condiciones, SOLO_VIGENTES]
     cursor.execute(
         f"""
         SELECT
@@ -294,9 +351,11 @@ def obtener_contexto():
         tareas = cursor.fetchall()
         temporizador = _consultar_temporizador_activo(cursor, id_usuario)
 
+        umbral = umbral_aviso_minutos()
         return jsonify({
             "tareas": tareas,
             "temporizador_activo": temporizador,
+            "umbral_aviso_horas": umbral / 60 if umbral else None,
         }), 200
 
     except Exception:
@@ -386,7 +445,7 @@ def iniciar_temporizador():
         if not tarea:
             connection.rollback()
             return jsonify({
-                "error": "La tarea no existe o no está disponible para este usuario."
+                "error": _motivo_tarea_no_disponible(cursor, id_tarea, usuario)
             }), 404
 
         tarifa_hora = _obtener_tarifa_vigente(cursor, tarea["id_area"])
@@ -511,6 +570,36 @@ def detener_temporizador():
             connection.rollback()
             return jsonify({"error": "No existe un temporizador activo."}), 404
 
+        # D1 — advertencia por duración anómala. No cierra, recorta ni descarta nada: sin confirmación
+        # el temporizador sigue en curso; con confirmación se registra la duración real completa.
+        umbral = umbral_aviso_minutos()
+        minutos_transcurridos = 0.0
+        if umbral:
+            cursor.execute(
+                """
+                SELECT TIMESTAMPDIFF(SECOND, TIMESTAMP(fecha, hora_inicio), CURRENT_TIMESTAMP) / 60
+                           AS minutos_transcurridos
+                FROM registro_tiempo
+                WHERE id_registro = %s
+                """,
+                (registro["id_registro"],),
+            )
+            fila_tiempo = cursor.fetchone() or {}
+            minutos_transcurridos = float(fila_tiempo.get("minutos_transcurridos") or 0)
+        duracion_anomala = bool(umbral and minutos_transcurridos > umbral)
+        confirmada = (request.get_json(silent=True) or {}).get("confirmar_duracion") is True
+        if duracion_anomala and not confirmada:
+            connection.rollback()
+            return jsonify({
+                "error": (
+                    f"Este temporizador lleva {minutos_transcurridos / 60:.1f} horas en curso. "
+                    "Confirme si desea registrar esa duración completa."
+                ),
+                "codigo": "DURACION_ANOMALA",
+                "minutos_transcurridos": round(minutos_transcurridos, 2),
+                "umbral_horas": umbral / 60,
+            }), 409
+
         cursor.execute(
             """
             UPDATE registro_tiempo
@@ -569,6 +658,7 @@ def detener_temporizador():
             datos_nuevos=(
                 f"id_registro={registro['id_registro']}, "
                 f"duracion_minutos={registro_final['duracion_minutos']}"
+                + (", duracion_anomala_confirmada=si" if duracion_anomala else "")
             ),
         )
 
@@ -734,7 +824,7 @@ def registrar_horas_manualmente():
         if not tarea:
             connection.rollback()
             return jsonify({
-                "error": "La tarea no existe o no está disponible para este usuario."
+                "error": _motivo_tarea_no_disponible(cursor, campos["id_tarea"], usuario)
             }), 404
 
         # Un registro cerrado ocupa [inicio, inicio + duración); uno abierto (el
@@ -755,6 +845,7 @@ def registrar_horas_manualmente():
                 ) AS hasta
             FROM registro_tiempo rt
             WHERE rt.id_usuario = %s
+              AND rt.estado_registro = 'VIGENTE'
               AND TIMESTAMP(rt.fecha, rt.hora_inicio) < %s
               AND (
                   rt.hora_fin IS NULL
@@ -928,6 +1019,14 @@ def listar_registros():
             condiciones.append("rt.id_tarea = %s")
             parametros.append(id_tarea)
 
+        # El historial conserva los anulados solo para el administrador que los pide; el resto de las
+        # consultas (y siempre los totales) los excluye.
+        incluir_anulados = (
+            usuario["nombre_rol"] == ROL_ADMINISTRADOR
+            and request.args.get("incluir_anulados", "").strip() in ("1", "true")
+        )
+        condiciones_lista = condiciones if incluir_anulados else [*condiciones, SOLO_VIGENTES]
+
         cursor.execute(
             f"""
             SELECT
@@ -947,17 +1046,27 @@ def listar_registros():
                 rt.monto,
                 rt.origen,
                 rt.observacion,
+                rt.estado_registro,
+                rt.motivo_anulacion,
+                DATE_FORMAT(rt.fecha_anulacion, '%d-%m-%Y %H:%i') AS fecha_anulacion,
+                ua.nombres AS anulado_por,
                 u.nombres AS usuario_responsable
             FROM registro_tiempo rt
             INNER JOIN tarea t ON rt.id_tarea = t.id_tarea
             INNER JOIN cliente c ON rt.id_cliente = c.id_cliente
             INNER JOIN usuario u ON rt.id_usuario = u.id_usuario
-            WHERE {" AND ".join(condiciones)}
+            LEFT JOIN usuario ua ON rt.anulado_por = ua.id_usuario
+            WHERE {" AND ".join(condiciones_lista)}
             ORDER BY rt.fecha DESC, rt.hora_inicio DESC
             """,
             tuple(parametros),
         )
         registros = [_serializar_registro(fila) for fila in cursor.fetchall()]
+        umbral = umbral_aviso_minutos()
+        for registro in registros:
+            registro["aviso_duracion"] = bool(
+                umbral and registro.get("duracion_minutos") and registro["duracion_minutos"] > umbral
+            )
 
         resumen = _consultar_resumen(cursor, condiciones, parametros)
 
@@ -997,7 +1106,7 @@ def obtener_filtros_registros():
         if error_usuario:
             return jsonify({"error": error_usuario}), 403
 
-        condiciones = ["rt.hora_fin IS NOT NULL"]
+        condiciones = ["rt.hora_fin IS NOT NULL", SOLO_VIGENTES]
         parametros = []
         if usuario["nombre_rol"] != "ADMINISTRADOR":
             condiciones.append("rt.id_usuario = %s")
@@ -1053,6 +1162,111 @@ def obtener_filtros_registros():
     except Exception:
         logger.exception("Error al obtener los filtros de control de horas")
         return jsonify({"error": "Error interno al cargar los filtros."}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
+@control_horas_bp.route("/control-horas/registros/<int:id_registro>/anular", methods=["POST"])
+@roles_required(ROL_ADMINISTRADOR)
+def anular_registro(id_registro):
+    """D2 — anulación lógica de un registro de horas (solo administrador).
+
+    No borra nada: el registro original queda intacto y se marca ANULADO con motivo, responsable y
+    fecha. Deja de sumar en totales, informes y exportaciones; la auditoría conserva el original.
+    No comprueba si el registro fue facturado: el sistema no guarda ese dato (D3, ver 06).
+    """
+    id_admin = obtener_usuario_actual()["id_usuario"]
+    datos = request.get_json(silent=True) or {}
+    motivo = datos.get("motivo")
+    motivo = motivo.strip() if isinstance(motivo, str) else ""
+
+    if len(motivo) < LARGO_MINIMO_MOTIVO_ANULACION:
+        return jsonify({
+            "error": f"Debe indicar el motivo de la anulación (mínimo {LARGO_MINIMO_MOTIVO_ANULACION} caracteres)."
+        }), 400
+    if len(motivo) > LARGO_MAXIMO_MOTIVO_ANULACION:
+        return jsonify({
+            "error": f"El motivo no puede superar {LARGO_MAXIMO_MOTIVO_ANULACION} caracteres."
+        }), 400
+
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_connection()
+        if connection is None:
+            return jsonify({"error": "No se pudo conectar con la base de datos."}), 500
+
+        connection.start_transaction()
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            """
+            SELECT rt.id_registro, rt.id_usuario, rt.id_cliente, rt.id_tarea, rt.fecha, rt.hora_fin,
+                   rt.duracion_minutos, rt.tarifa_hora, rt.monto, rt.origen, rt.estado_registro
+            FROM registro_tiempo rt
+            WHERE rt.id_registro = %s
+            FOR UPDATE
+            """,
+            (id_registro,),
+        )
+        registro = cursor.fetchone()
+
+        if not registro:
+            connection.rollback()
+            return jsonify({"error": "El registro de horas no existe."}), 404
+        if registro["estado_registro"] == "ANULADO":
+            connection.rollback()
+            return jsonify({"error": "El registro ya está anulado."}), 409
+        if registro["hora_fin"] is None:
+            connection.rollback()
+            return jsonify({
+                "error": "El registro corresponde a un temporizador en curso: debe detenerse antes de anularlo."
+            }), 409
+
+        cursor.execute(
+            """
+            UPDATE registro_tiempo
+            SET estado_registro = 'ANULADO',
+                anulado_por = %s,
+                fecha_anulacion = CURRENT_TIMESTAMP,
+                motivo_anulacion = %s
+            WHERE id_registro = %s
+              AND estado_registro = 'VIGENTE'
+            """,
+            (id_admin, motivo, id_registro),
+        )
+        if cursor.rowcount != 1:
+            connection.rollback()
+            return jsonify({"error": "El registro ya está anulado."}), 409
+
+        registrar_auditoria(
+            cursor, id_admin, "registro_tiempo", "REGISTRO_ANULADO",
+            id_registro=id_registro,
+            datos_anteriores=(
+                f"estado_registro=VIGENTE, id_usuario={registro['id_usuario']}, "
+                f"id_cliente={registro['id_cliente']}, id_tarea={registro['id_tarea']}, "
+                f"fecha={registro['fecha'].isoformat() if hasattr(registro['fecha'], 'isoformat') else registro['fecha']}, "
+                f"duracion_minutos={registro['duracion_minutos']}, tarifa_hora={registro['tarifa_hora']}, "
+                f"monto={registro['monto']}, origen={registro['origen']}"
+            ),
+            datos_nuevos=f"estado_registro=ANULADO, motivo={motivo}",
+        )
+        connection.commit()
+
+        return jsonify({
+            "message": "Registro anulado correctamente. Los datos originales se conservan.",
+            "id_registro": id_registro,
+        }), 200
+
+    except Exception:
+        if connection:
+            connection.rollback()
+        logger.exception("Error al anular registro de horas")
+        return jsonify({"error": "Error interno al anular el registro."}), 500
 
     finally:
         if cursor:

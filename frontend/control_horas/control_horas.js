@@ -5,6 +5,8 @@ let tareasDisponibles = [];
 let clientesDisponibles = [];
 let temporizadorActivo = null;
 let intervaloTemporizador = null;
+let umbralAvisoHoras = null; // protección técnica: el servidor avisa a partir de cuántas horas (no es un límite)
+let solicitudEnCurso = false; // evita dobles envíos de iniciar/detener
 
 const clienteBusqueda = document.getElementById("clienteBusqueda");
 const idClienteSeleccionado = document.getElementById("idClienteSeleccionado");
@@ -309,6 +311,9 @@ function crearParametrosFiltrosHoras() {
   if (usuarioActual.nombre_rol === "ADMINISTRADOR" && filtroUsuario.value) {
     parametros.set("id_usuario", filtroUsuario.value);
   }
+  if (usuarioActual.nombre_rol === "ADMINISTRADOR") {
+    parametros.set("incluir_anulados", "1"); // el historial del administrador conserva los anulados, marcados
+  }
   return parametros;
 }
 
@@ -327,6 +332,7 @@ async function cargarContexto() {
     }
 
     tareasDisponibles = data.tareas || [];
+    umbralAvisoHoras = data.umbral_aviso_horas || null;
 
     if (data.temporizador_activo) {
       tareasDisponibles = asegurarTareaTemporizador(
@@ -579,6 +585,8 @@ async function iniciarTemporizador() {
     return;
   }
 
+  if (solicitudEnCurso) return;
+  solicitudEnCurso = true;
   setBotonCargando(btnIniciar, true, "Iniciando...");
   mostrarMensaje("");
 
@@ -610,30 +618,65 @@ async function iniciarTemporizador() {
     console.error(error);
     mostrarMensaje("No se pudo conectar con el servidor.", "error");
   } finally {
+    solicitudEnCurso = false;
     setBotonCargando(btnIniciar, false, "Iniciar");
     actualizarEstadoBotones();
   }
 }
 
+// Se activa solo al reintentar tras aceptar el aviso de duración anómala (D1).
+let duracionConfirmada = false;
+
 async function detenerTemporizador() {
+  const confirmarDuracion = duracionConfirmada;
+  duracionConfirmada = false;
   if (!temporizadorActivo) {
     mostrarMensaje("No existe un temporizador activo.", "error");
     return;
   }
+  if (solicitudEnCurso) return;
+  solicitudEnCurso = true;
 
   setBotonCargando(btnDetener, true, "Deteniendo...");
   mostrarMensaje("");
 
   try {
-    // Sin cuerpo no se declara Content-Type: el backend valida todo cuerpo JSON.
-    const response = await fetch(`${API_URL}/control-horas/detener`, {
-      method: "POST",
-      credentials: window.API_CONFIG.credentials
-    });
+    // Sin cuerpo no se declara Content-Type: el backend valida todo cuerpo JSON. Solo al confirmar una
+    // duración anómala se envía {"confirmar_duracion": true}.
+    const opciones = { method: "POST", credentials: window.API_CONFIG.credentials };
+    if (confirmarDuracion === true) {
+      opciones.headers = { "Content-Type": "application/json" };
+      opciones.body = JSON.stringify({ confirmar_duracion: true });
+    }
+    const response = await fetch(`${API_URL}/control-horas/detener`, opciones);
     const data = await leerRespuestaJson(response);
+
+    if (response.status === 409 && data.codigo === "DURACION_ANOMALA") {
+      // El temporizador sigue en curso: no se registró ni se descartó nada.
+      solicitudEnCurso = false;
+      setBotonCargando(btnDetener, false, "Detener y registrar");
+      const aceptar = await confirmarAccion(
+        `${data.error} Si acepta, la duración real se guardará sin cambios (un administrador podrá ` +
+        "anular el registro después). Si cancela, el temporizador sigue en curso.",
+        "advertencia"
+      );
+      if (aceptar) {
+        duracionConfirmada = true;
+        await detenerTemporizador();
+      } else {
+        mostrarMensaje("El temporizador sigue en curso.", "info");
+      }
+      return;
+    }
 
     if (!response.ok) {
       mostrarMensaje(data.error || "No se pudo detener el temporizador.", "error");
+      if (response.status === 404) {
+        // Otra pestaña o ventana ya lo detuvo: se resincroniza esta pantalla con el servidor.
+        await cargarRegistros();
+        await cargarContexto();
+        mostrarMensaje("Ese temporizador ya se había detenido desde otra pestaña o ventana.", "info");
+      }
       return;
     }
 
@@ -652,6 +695,7 @@ async function detenerTemporizador() {
     console.error(error);
     mostrarMensaje("No se pudo conectar con el servidor.", "error");
   } finally {
+    solicitudEnCurso = false;
     setBotonCargando(btnDetener, false, "Detener y registrar");
     actualizarEstadoBotones();
   }
@@ -702,6 +746,7 @@ function desactivarTemporizador({ limpiarMensaje = true } = {}) {
   estadoTemporizador.className = "badge timer-status";
   temporizador.textContent = "00:00:00";
   inicioTemporizador.textContent = "Seleccione una tarea para comenzar.";
+  actualizarAvisoDuracion(0);
 
   clienteBusqueda.disabled = false;
   clienteBusqueda.value = "";
@@ -723,6 +768,21 @@ function actualizarTemporizador() {
   const inicio = new Date(temporizadorActivo.inicio);
   const segundos = Math.max(0, Math.floor((Date.now() - inicio.getTime()) / 1000));
   temporizador.textContent = formatearDuracionSegundos(segundos);
+  actualizarAvisoDuracion(segundos);
+}
+
+// Protección técnica: no detiene ni modifica nada; solo avisa que el temporizador lleva mucho tiempo.
+function actualizarAvisoDuracion(segundos) {
+  const aviso = document.getElementById("avisoDuracionTemporizador");
+  if (!aviso) return;
+  const horas = segundos / 3600;
+  if (umbralAvisoHoras && horas > umbralAvisoHoras) {
+    aviso.textContent = `Este temporizador lleva ${horas.toFixed(1)} horas en curso. ` +
+      "Si olvidó detenerlo, deténgalo y revise la duración que se registrará.";
+    aviso.hidden = false;
+  } else {
+    aviso.hidden = true;
+  }
 }
 
 async function cargarRegistros() {
@@ -771,6 +831,7 @@ function renderizarRegistros(registros) {
 
   registros.forEach(registro => {
     const fila = document.createElement("tr");
+    if (registro.estado_registro === "ANULADO") fila.className = "registro-anulado";
     agregarCelda(fila, registro.fecha || extraerFecha(registro.inicio));
     if (usuarioActual.nombre_rol === "ADMINISTRADOR") {
       agregarCelda(fila, registro.usuario_responsable);
@@ -779,7 +840,10 @@ function renderizarRegistros(registros) {
     agregarCelda(fila, registro.tarea);
     agregarCelda(fila, registro.inicio_hora || registro.inicio);
     agregarCelda(fila, registro.fin);
-    agregarCelda(fila, formatearMinutos(registro.duracion_minutos));
+    agregarCelda(
+      fila,
+      formatearMinutos(registro.duracion_minutos) + (registro.aviso_duracion ? " (revisar: duración muy larga)" : "")
+    );
     agregarCelda(fila, formatearMoneda(registro.tarifa_hora));
     agregarCelda(fila, formatearMoneda(registro.monto));
     agregarCeldaOrigen(fila, registro);
@@ -819,6 +883,21 @@ function agregarCeldaOrigen(fila, registro) {
     observacion.className = "origen-observacion";
     observacion.textContent = registro.observacion;
     celda.appendChild(observacion);
+  }
+
+  if (registro.estado_registro === "ANULADO") {
+    const anulado = document.createElement("small");
+    anulado.className = "origen-observacion";
+    anulado.textContent = `ANULADO por ${registro.anulado_por || "administrador"} el ` +
+      `${registro.fecha_anulacion || ""}: ${registro.motivo_anulacion || ""}`;
+    celda.appendChild(anulado);
+  } else if (usuarioActual && usuarioActual.nombre_rol === "ADMINISTRADOR") {
+    const boton = document.createElement("button");
+    boton.type = "button";
+    boton.className = "btn btn-secondary btn-anular-registro";
+    boton.textContent = "Anular";
+    boton.addEventListener("click", () => abrirAnulacion(registro));
+    celda.appendChild(boton);
   }
   fila.appendChild(celda);
 }
@@ -942,7 +1021,12 @@ function formatearDuracionSegundos(totalSegundos) {
 }
 
 function formatearMinutos(totalMinutos) {
-  const minutosRedondeados = Math.round(Number(totalMinutos) || 0);
+  const minutosExactos = Number(totalMinutos) || 0;
+  // Un registro de pocos segundos tiene monto, pero se redondearía a 00h 00m.
+  if (minutosExactos > 0 && minutosExactos < 0.5) {
+    return "< 1 min";
+  }
+  const minutosRedondeados = Math.round(minutosExactos);
   const horas = Math.floor(minutosRedondeados / 60);
   const minutos = minutosRedondeados % 60;
   return `${rellenar(horas)}h ${rellenar(minutos)}m`;
@@ -1239,4 +1323,70 @@ async function refrescarHistorialTrasRegistro() {
   filtroTarea.value = tarea;
   filtroUsuario.value = usuario;
   await cargarRegistros();
+}
+
+
+// ---- Anulación lógica de registros (solo administrador) ----
+let registroPorAnular = null;
+
+function abrirAnulacion(registro) {
+  const dialogo = document.getElementById("dialogoAnularRegistro");
+  if (!dialogo || typeof dialogo.showModal !== "function") return;
+  registroPorAnular = registro;
+  document.getElementById("resumenAnularRegistro").textContent =
+    `${registro.fecha} · ${registro.cliente} · ${registro.tarea} · ` +
+    `${formatearMinutos(registro.duracion_minutos)} · ${formatearMoneda(registro.monto)}`;
+  document.getElementById("motivoAnulacion").value = "";
+  document.getElementById("errorAnularRegistro").hidden = true;
+  const formulario = document.getElementById("formAnularRegistro");
+  if (!formulario.dataset.listo) {
+    formulario.dataset.listo = "1";
+    formulario.addEventListener("submit", enviarAnulacion);
+    document.getElementById("btnCancelarAnulacion").addEventListener("click", () => dialogo.close());
+  }
+  dialogo.showModal();
+  document.getElementById("motivoAnulacion").focus();
+}
+
+async function enviarAnulacion(evento) {
+  evento.preventDefault();
+  if (solicitudEnCurso || !registroPorAnular) return;
+  const error = document.getElementById("errorAnularRegistro");
+  const motivo = document.getElementById("motivoAnulacion").value.trim();
+  if (motivo.length < 10) {
+    error.textContent = "Indique el motivo de la anulación (mínimo 10 caracteres).";
+    error.hidden = false;
+    return;
+  }
+  solicitudEnCurso = true;
+  const boton = document.getElementById("btnConfirmarAnulacion");
+  boton.disabled = true;
+  try {
+    const response = await fetch(`${API_URL}/control-horas/registros/${registroPorAnular.id_registro}/anular`, {
+      method: "POST",
+      credentials: window.API_CONFIG.credentials,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ motivo })
+    });
+    const data = await leerRespuestaJson(response);
+    if (!response.ok) {
+      error.textContent = data.error || "No se pudo anular el registro.";
+      error.hidden = false;
+      return;
+    }
+    document.getElementById("dialogoAnularRegistro").close();
+    await cargarRegistros();
+    mostrarMensaje(data.message || "Registro anulado.", "success");
+    // El botón de origen desaparece al repintar la tabla: el foco pasa al mensaje de resultado (que
+    // además es una región aria-live), un destino que existe y anuncia lo ocurrido.
+    mensajeControl.setAttribute("tabindex", "-1");
+    mensajeControl.focus();
+  } catch (fallo) {
+    console.error(fallo);
+    error.textContent = "No se pudo conectar con el servidor.";
+    error.hidden = false;
+  } finally {
+    solicitudEnCurso = false;
+    boton.disabled = false;
+  }
 }

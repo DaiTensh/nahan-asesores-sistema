@@ -341,7 +341,12 @@ const HORAS_FILAS_MAXIMAS = 10;
 const URL_CONTROL_HORAS = "../control_horas/control_horas.html";
 
 function formatearMinutosTarea(totalMinutos) {
-  const minutos = Math.round(Number(totalMinutos) || 0);
+  const minutosExactos = Number(totalMinutos) || 0;
+  // Un registro de pocos segundos tiene monto, pero se redondearía a 00h 00m.
+  if (minutosExactos > 0 && minutosExactos < 0.5) {
+    return "< 1 min";
+  }
+  const minutos = Math.round(minutosExactos);
   const relleno = numero => String(numero).padStart(2, "0");
   return `${relleno(Math.floor(minutos / 60))}h ${relleno(minutos % 60)}m`;
 }

@@ -101,6 +101,7 @@
               <h2 id="timerTitle">Temporizador</h2>
             </div>
             <p id="inicioTemporizador">Seleccione una tarea para comenzar.</p>
+            <p id="avisoDuracionTemporizador" class="mensaje error" role="status" aria-live="polite" hidden></p>
           </div>
 
           <div class="timer-display-wrap">
@@ -290,6 +291,23 @@
         </div>
       </section>
     </main>
+
+    <dialog id="dialogoAnularRegistro" class="dialogo-anulacion" aria-labelledby="tituloAnularRegistro">
+      <form id="formAnularRegistro" method="dialog" novalidate>
+        <h2 id="tituloAnularRegistro">Anular registro de horas</h2>
+        <p id="resumenAnularRegistro"></p>
+        <p class="form-help">La anulación no borra el registro: queda guardado con su motivo, su responsable y la fecha,
+          y deja de sumar en totales, informes y exportaciones. El sistema no guarda si estas horas ya fueron
+          facturadas; verifíquelo antes de anular.</p>
+        <label for="motivoAnulacion">Motivo (obligatorio, mínimo 10 caracteres)</label>
+        <textarea id="motivoAnulacion" class="form-input" rows="3" maxlength="255" required></textarea>
+        <p id="errorAnularRegistro" class="mensaje error" role="alert" hidden></p>
+        <div class="registro-manual-acciones">
+          <button type="button" id="btnCancelarAnulacion" class="btn btn-secondary">Cancelar</button>
+          <button type="submit" id="btnConfirmarAnulacion" class="btn btn-primary">Anular registro</button>
+        </div>
+      </form>
+    </dialog>
   </div>
 </div>
 
